@@ -7,6 +7,40 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
+/**
+ * Load .env file from project directory into process.env.
+ * Simple implementation that doesn't require dotenv dependency.
+ */
+function loadEnvFile(cwd?: string): void {
+  const envPath = join(cwd || process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+
+  try {
+    const content = readFileSync(envPath, "utf-8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIndex = trimmed.indexOf("=");
+      if (eqIndex === -1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      let value = trimmed.slice(eqIndex + 1).trim();
+      // Remove surrounding quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      // Only set if not already defined (shell env takes priority)
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  } catch (error) {
+    console.warn(
+      `[pi-crawl4ai] Failed to load .env file: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 export interface Crawl4AIJsonConfig {
   /** crawl4ai API base URL */
   url?: string;
@@ -180,6 +214,9 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
  * Load configuration from JSON file and/or environment variables.
  */
 export function loadConfig(cwd?: string): ResolvedConfig {
+  // Load .env file first (shell env vars take priority)
+  loadEnvFile(cwd);
+
   const configPath = findConfigFile(cwd);
   const jsonConfig = configPath ? loadJsonConfig(configPath) : null;
 
