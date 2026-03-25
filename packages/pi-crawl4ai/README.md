@@ -6,7 +6,9 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 
 - 🕷️ **Browser-rendered crawling** - Handles JavaScript, SPAs, and dynamic content
 - 📝 **Multiple output formats** - Markdown, HTML, or extracted links
-- 🌐 **Proxy support** - Oxylabs ISP rotation or custom proxy configuration
+- 🌐 **Proxy support** - Generic proxy, Oxylabs ISP rotation, or custom providers
+- 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
+- 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 
 ## Prerequisites
@@ -59,24 +61,114 @@ Add to your Pi `settings.json`:
 
 ## Configuration
 
-Set environment variables (in your project's `.env` or shell):
+### Option 1: JSON Config (Recommended)
+
+Create a config file in one of these locations (searched in order):
+
+1. `.pi/crawl4ai.json` - Project-level config
+2. `~/.pi/agent/extensions/crawl4ai.json` - Global config
+
+#### Basic Config (No Proxy)
+
+```json
+{
+  "url": "http://localhost:11235",
+  "timeoutMs": 60000
+}
+```
+
+#### With Generic Proxy
+
+```json
+{
+  "url": "http://localhost:11235",
+  "timeoutMs": 60000,
+  "proxy": {
+    "url": "http://user:pass@proxy.example.com:8080"
+  }
+}
+```
+
+#### With Oxylabs ISP (Single Port)
+
+```json
+{
+  "url": "http://localhost:11235",
+  "proxy": {
+    "provider": "oxylabs",
+    "username": "your_username",
+    "password": "your_password",
+    "host": "isp.oxylabs.io",
+    "port": 8001
+  }
+}
+```
+
+#### With Oxylabs ISP (Rotation - Multiple Ports)
+
+```json
+{
+  "url": "http://localhost:11235",
+  "timeoutMs": 60000,
+  "proxy": {
+    "provider": "oxylabs",
+    "username": "your_username",
+    "password": "your_password",
+    "host": "isp.oxylabs.io",
+    "ports": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]
+  }
+}
+```
+
+Or use comma-separated string:
+
+```json
+{
+  "proxy": {
+    "provider": "oxylabs",
+    "username": "your_username",
+    "password": "your_password",
+    "ports": "8001,8002,8003,8004,8005"
+  }
+}
+```
+
+### Option 2: Environment Variables
+
+Create a `.env` file or set environment variables:
 
 ```bash
 # Required: crawl4ai Docker API URL
 CRAWL4AI_BASE_URL=http://localhost:11235
 
-# Optional: Request timeout (default: 60000ms)
+# Optional: Request timeout
 CRAWL4AI_TIMEOUT=60000
 
-# Proxy Option 1: Full proxy URL with auth
+# Proxy Option 1: Generic proxy URL
 CRAWL4AI_PROXY_URL=http://user:pass@proxy.example.com:8080
 
-# Proxy Option 2: Oxylabs ISP (auto-configured)
+# Proxy Option 2: Oxylabs ISP (single port)
 OXYLABS_USER=your_username
 OXYLABS_PASS=your_password
-OXYLABS_HOST=pr.oxylabs.io  # optional
-OXYLABS_PORT=7777           # optional
+OXYLABS_HOST=isp.oxylabs.io
+OXYLABS_PORT=8001
+
+# Proxy Option 3: Oxylabs ISP (rotation - multiple ports)
+OXYLABS_USER=your_username
+OXYLABS_PASS=your_password
+OXYLABS_HOST=isp.oxylabs.io
+OXYLABS_PORTS=8001,8002,8003,8004,8005,8006,8007,8008,8009,8010
 ```
+
+### No Proxy
+
+If you don't configure a proxy, the extension will work without one. Just don't set any proxy-related environment variables or JSON config.
+
+### Configuration Priority
+
+1. **JSON config file** - Highest priority
+2. **Environment variables** - Fallback
+3. **Defaults** - `http://localhost:11235`, no proxy
 
 ### crawl4ai Setup
 
@@ -133,6 +225,20 @@ Crawl https://example.com and list all the links
 Crawl https://example.com, click the "Load More" button first
 ```
 
+## IP Rotation
+
+When multiple proxy endpoints are configured (via `ports` array or `OXYLABS_PORTS`), the extension automatically:
+
+- **Rotates IPs** - Round-robin across available endpoints
+- **Manages sessions** - Sticky sessions with configurable TTL
+- **Quarantines bad endpoints** - Temporarily skips failing endpoints
+
+### Rotation Behavior
+
+- Each request uses the next available endpoint
+- Sessions keep the same endpoint for multiple requests (up to 15 by default)
+- Failed endpoints are quarantined for 5 minutes
+
 ## Development
 
 ```bash
@@ -150,6 +256,9 @@ npm run typecheck
 
 # Run tests
 npm run test
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ### Project Structure
@@ -159,6 +268,17 @@ pi-crawl4ai/
 ├── src/
 │   ├── index.ts              # Extension entry point
 │   ├── config.ts             # Configuration loading
+│   ├── configLoader.ts       # JSON/env config parsing
+│   ├── test-utils.ts         # Testing utilities
+│   ├── proxy/
+│   │   ├── index.ts
+│   │   ├── types.ts          # Proxy types
+│   │   ├── proxyService.ts   # Service management
+│   │   ├── rotationService.ts # IP rotation logic
+│   │   └── adapters/
+│   │       ├── genericAdapter.ts
+│   │       ├── oxylabsAdapter.ts
+│   │       └── customAdapter.ts
 │   └── features/
 │       └── crawl/
 │           ├── crawlTool.ts  # Crawl tool implementation
@@ -170,12 +290,9 @@ pi-crawl4ai/
 └── README.md                 # This file
 ```
 
-### Adding New Features
+### Adding a Custom Proxy Provider
 
-1. Create a new folder in `src/features/`
-2. Add `types.ts` for type definitions
-3. Add `<feature>Tool.ts` for tool implementation
-4. Register in `src/index.ts`
+See `src/proxy/README.md` for details on implementing custom proxy adapters.
 
 ## License
 

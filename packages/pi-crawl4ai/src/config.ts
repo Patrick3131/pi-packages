@@ -1,72 +1,86 @@
 /**
  * Configuration for pi-crawl4ai extension.
- * All values are read from environment variables.
+ * Supports JSON config file and environment variables.
  */
 
+import { loadConfig as loadConfigFromFile, type ResolvedConfig } from "./configLoader";
+import { createProxyService, type ProxyService } from "./proxy";
+import { createCustomAdapter, type CustomProxySettings } from "./proxy/adapters";
+import type { ProxyAdapter, ProxyEndpoint } from "./proxy";
+
 export interface Crawl4AIConfig {
-  /** Base URL for crawl4ai Docker API (default: http://localhost:11235) */
+  /** Base URL for crawl4ai Docker API */
   baseUrl: string;
-  /** Optional proxy configuration */
-  proxy?: {
-    /** Proxy server URL (e.g., http://proxy.example.com:8080) */
-    server: string;
-    /** Optional username for proxy auth */
-    username?: string;
-    /** Optional password for proxy auth */
-    password?: string;
-  };
-  /** Request timeout in milliseconds (default: 60000) */
+  /** Request timeout in milliseconds */
   timeout: number;
+  /** Proxy service instance */
+  proxyService: ProxyService;
   /** Whether proxy is enabled */
   proxyEnabled: boolean;
+  /** Raw resolved config */
+  raw: ResolvedConfig;
 }
 
 /**
- * Load configuration from environment variables.
+ * Load configuration from JSON file and/or environment variables.
  */
-export function loadConfig(): Crawl4AIConfig {
-  const baseUrl = process.env.CRAWL4AI_BASE_URL || "http://localhost:11235";
-  const timeout = parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10);
+export function loadConfig(
+  options?: {
+    cwd?: string;
+    log?: (level: "info" | "warn" | "error", message: string) => void;
+  }
+): Crawl4AIConfig {
+  const log = options?.log || (() => {});
+  const resolved = loadConfigFromFile(options?.cwd);
 
-  // Proxy configuration - supports multiple formats
-  const proxyUrl = process.env.CRAWL4AI_PROXY_URL;
-  const oxylabsUser = process.env.OXYLABS_USER;
-  const oxylabsPass = process.env.OXYLABS_PASS;
-  const oxylabsHost = process.env.OXYLABS_HOST || "pr.oxylabs.io";
-  const oxylabsPort = process.env.OXYLABS_PORT || "7777";
+  // Build adapters list
+  const customAdapters: ProxyAdapter[] = [];
 
-  let proxy: Crawl4AIConfig["proxy"] | undefined;
-  let proxyEnabled = false;
+  // If we have proxy config from JSON file or env vars, create a custom adapter
+  if (resolved.proxyUrl || (resolved.proxyHost && (resolved.proxyPort || resolved.proxyPorts))) {
+    // Add user- prefix for Oxylabs
+    const username = resolved.proxyProvider === "oxylabs" && resolved.proxyUsername
+      ? (resolved.proxyUsername.startsWith("user-") ? resolved.proxyUsername : `user-${resolved.proxyUsername}`)
+      : resolved.proxyUsername;
 
-  // Option 1: Direct proxy URL (e.g., http://user:pass@host:port)
-  if (proxyUrl) {
-    try {
-      const url = new URL(proxyUrl);
-      proxy = {
-        server: `${url.protocol}//${url.host}`,
-        username: url.username || undefined,
-        password: url.password || undefined,
-      };
-      proxyEnabled = true;
-    } catch {
-      console.warn("[pi-crawl4ai] Invalid CRAWL4AI_PROXY_URL, ignoring");
+    // Build endpoints for rotation if multiple ports provided
+    let endpoints: ProxyEndpoint[] | undefined;
+
+    if (resolved.proxyPorts && resolved.proxyPorts.length > 0) {
+      endpoints = resolved.proxyPorts.map((port, index) => ({
+        id: `custom-${port}`,
+        server: `http://${resolved.proxyHost || "proxy"}:${port}`,
+        username,
+        password: resolved.proxyPassword,
+        provider: resolved.proxyProvider || "custom",
+        metadata: { port, index },
+      }));
     }
+
+    customAdapters.push(
+      createCustomAdapter({
+        url: resolved.proxyUrl,
+        host: resolved.proxyHost,
+        port: resolved.proxyPort,
+        username,
+        password: resolved.proxyPassword,
+        endpoints, // Pass pre-built endpoints for rotation
+      })
+    );
+    log("info", "Using proxy from config");
   }
-  // Option 2: Oxylabs ISP proxy (auto-configured)
-  else if (oxylabsUser && oxylabsPass) {
-    proxy = {
-      server: `http://${oxylabsHost}:${oxylabsPort}`,
-      username: oxylabsUser.startsWith("user-") ? oxylabsUser : `user-${oxylabsUser}`,
-      password: oxylabsPass,
-    };
-    proxyEnabled = true;
-  }
+
+  const proxyService = createProxyService({
+    customAdapters,
+    log,
+  });
 
   return {
-    baseUrl,
-    proxy,
-    timeout,
-    proxyEnabled,
+    baseUrl: resolved.baseUrl,
+    timeout: resolved.timeout,
+    proxyService,
+    proxyEnabled: proxyService.isEnabled(),
+    raw: resolved,
   };
 }
 
@@ -74,15 +88,5 @@ export function loadConfig(): Crawl4AIConfig {
  * Build browser config for crawl4ai with optional proxy.
  */
 export function buildBrowserConfig(config: Crawl4AIConfig): Record<string, unknown> {
-  const browserConfig: Record<string, unknown> = {};
-
-  if (config.proxyEnabled && config.proxy) {
-    browserConfig.proxy = {
-      server: config.proxy.server,
-      username: config.proxy.username,
-      password: config.proxy.password,
-    };
-  }
-
-  return browserConfig;
+  return config.proxyService.getBrowserConfig();
 }

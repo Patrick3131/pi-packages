@@ -358,6 +358,7 @@ describe('crawl tool execute', () => {
   it('should include proxy in browser config when enabled', async () => {
     process.env.OXYLABS_USER = 'testuser';
     process.env.OXYLABS_PASS = 'testpass';
+    process.env.OXYLABS_PORT = '7777'; // Single port for predictable test
 
     // Re-register tool with proxy config
     const localMockPi = createMockPi();
@@ -380,6 +381,6 @@ describe('crawl tool execute', () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.browser_config.proxy).toBeDefined();
-    expect(body.browser_config.proxy.server).toBe('http://pr.oxylabs.io:7777');
+    expect(body.browser_config.proxy.server).toBe('http://isp.oxylabs.io:7777');
   });
 });

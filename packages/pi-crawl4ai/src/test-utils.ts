@@ -41,11 +41,16 @@ export function restoreFetch(): void {
  * Clean up environment variables before each test
  */
 export function resetEnv(): void {
+  // Core config
   delete process.env.CRAWL4AI_BASE_URL;
+  delete process.env.CRAWL4AI_TIMEOUT;
+
+  // Generic proxy
   delete process.env.CRAWL4AI_PROXY_URL;
+
+  // Oxylabs proxy
   delete process.env.OXYLABS_USER;
   delete process.env.OXYLABS_PASS;
   delete process.env.OXYLABS_HOST;
   delete process.env.OXYLABS_PORT;
-  delete process.env.CRAWL4AI_TIMEOUT;
 }
