@@ -6,7 +6,7 @@ import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
 import { buildBrowserConfig } from "../../config";
-import type { CrawlToolParams, CrawlResult, Crawl4AIResponse } from "./types";
+import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult } from "./types";
 
 /**
  * Register the crawl tool with pi.
@@ -67,10 +67,11 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         crawlerConfig.cache_mode = "BYPASS";
       }
 
-      // Add format-specific config
-      if (format === "markdown") {
-        crawlerConfig.markdown_generator = true;
-      }
+      // Note: markdown is the default output format in crawl4ai.
+      // We don't need to set markdown_generator - the default behavior
+      // already generates markdown. Setting it to `true` causes a bug
+      // where crawl4ai receives a boolean instead of a MarkdownGenerationStrategy.
+      // See: https://github.com/unclecode/crawl4ai/issues (bool object has no attribute 'generate_markdown')
 
       const payload = {
         urls,
@@ -170,7 +171,13 @@ function formatResult(
       break;
     case "markdown":
     default:
-      content = result.markdown || "*No markdown content extracted*";
+      // Handle both string and MarkdownGenerationResult object from crawl4ai API
+      if (typeof result.markdown === "object" && result.markdown !== null) {
+        const md = result.markdown as MarkdownGenerationResult;
+        content = md.raw_markdown || "*No markdown content extracted*";
+      } else {
+        content = result.markdown || "*No markdown content extracted*";
+      }
       break;
   }
 

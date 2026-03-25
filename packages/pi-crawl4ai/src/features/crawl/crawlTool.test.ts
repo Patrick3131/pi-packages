@@ -138,6 +138,41 @@ describe('crawl tool execute', () => {
     expect(result.details.results).toHaveLength(1);
   });
 
+  it('should handle MarkdownGenerationResult object from API', async () => {
+    mockFetch({
+      ok: true,
+      data: {
+        success: true,
+        results: [
+          {
+            url: 'https://example.com',
+            success: true,
+            markdown: {
+              raw_markdown: '# Example\n\nThis is example content.',
+              markdown_with_citations: '# Example\n\nThis is example content.⟨1⟩',
+              references_markdown: '\n## References\n\n⟨1⟩ https://example.com\n',
+              fit_markdown: '# Example\n\nFiltered content.',
+              fit_html: '<h1>Example</h1>',
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await toolExecute(
+      'tool-call-id',
+      { urls: ['https://example.com'], format: 'markdown' },
+      undefined,
+      undefined,
+      {}
+    );
+
+    expect(result.content[0].text).toContain('# Example');
+    expect(result.content[0].text).toContain('This is example content.');
+    expect(result.content[0].text).not.toContain('[object Object]');
+    expect(result.details.format).toBe('markdown');
+  });
+
   it('should return HTML content when format is html', async () => {
     mockFetch({
       ok: true,

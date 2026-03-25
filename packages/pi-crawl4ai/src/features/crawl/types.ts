@@ -24,6 +24,23 @@ export interface CrawlToolParams {
 }
 
 /**
+ * Markdown generation result from crawl4ai.
+ * Contains multiple markdown variants with different processing applied.
+ */
+export interface MarkdownGenerationResult {
+  /** Raw markdown conversion from HTML */
+  raw_markdown: string;
+  /** Markdown with link citations (e.g., "text⟨1⟩" with references at bottom) */
+  markdown_with_citations: string;
+  /** References section for cited links */
+  references_markdown: string;
+  /** Filtered/fit markdown (main content only, when content filter is applied) */
+  fit_markdown?: string;
+  /** HTML that was used to generate fit_markdown */
+  fit_html?: string;
+}
+
+/**
  * Result from a single URL crawl.
  */
 export interface CrawlResult {
@@ -31,8 +48,8 @@ export interface CrawlResult {
   url: string;
   /** Whether the crawl was successful */
   success: boolean;
-  /** Markdown content (if format was markdown) */
-  markdown?: string;
+  /** Markdown content - either a string or detailed MarkdownGenerationResult object */
+  markdown?: string | MarkdownGenerationResult;
   /** HTML content (if format was html) */
   html?: string;
   /** Extracted links */
