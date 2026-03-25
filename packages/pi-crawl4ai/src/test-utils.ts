@@ -53,4 +53,5 @@ export function resetEnv(): void {
   delete process.env.OXYLABS_PASS;
   delete process.env.OXYLABS_HOST;
   delete process.env.OXYLABS_PORT;
+  delete process.env.OXYLABS_PORTS;
 }
