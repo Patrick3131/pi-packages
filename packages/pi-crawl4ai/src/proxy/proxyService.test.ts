@@ -116,7 +116,7 @@ describe("createProxyService", () => {
       const browserConfig = service.getBrowserConfig();
 
       expect(browserConfig).toEqual({
-        proxy: {
+        proxy_config: {
           server: "http://proxy:8080",
           username: "user",
           password: "pass",
@@ -242,7 +242,7 @@ describe("createProxyService", () => {
       const service = createProxyService();
       const browserConfig = service.getBrowserConfig();
 
-      expect(browserConfig).toHaveProperty("proxy");
+      expect(browserConfig).toHaveProperty("proxy_config");
     });
   });
 

@@ -2,8 +2,15 @@
   "name": "pi-crawl4ai",
   "version": "0.1.0",
   "description": "Pi extension for web crawling with crawl4ai and proxy support",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
+    }
+  },
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm --out-dir dist",
     "dev": "tsup src/index.ts --dts --format esm --out-dir dist --watch",
@@ -39,7 +46,7 @@
   ],
   "pi": {
     "extensions": [
-      "./dist/index.js"
+      "./dist/index.mjs"
     ]
   },
   "peerDependencies": {

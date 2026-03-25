@@ -380,7 +380,7 @@ describe('crawl tool execute', () => {
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.proxy).toBeDefined();
-    expect(body.browser_config.proxy.server).toBe('http://isp.oxylabs.io:7777');
+    expect(body.browser_config.proxy_config).toBeDefined();
+    expect(body.browser_config.proxy_config.server).toBe('http://isp.oxylabs.io:7777');
   });
 });

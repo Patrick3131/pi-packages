@@ -48,8 +48,8 @@ describe("createRotationService", () => {
 
     it("should return browser config with proxy", () => {
       const config = service.getBrowserConfig();
-      expect(config).toHaveProperty("proxy");
-      expect(config.proxy).toEqual({
+      expect(config).toHaveProperty("proxy_config");
+      expect(config.proxy_config).toEqual({
         server: "http://proxy0.example.com:8080",
         username: "user0",
         password: "pass0",
@@ -203,7 +203,7 @@ describe("createRotationService", () => {
       const config = service.getBrowserConfigForEndpoint(endpoint);
 
       expect(config).toEqual({
-        proxy: {
+        proxy_config: {
           server: "http://proxy0.example.com:8080",
           username: "user0",
           password: "pass0",

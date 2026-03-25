@@ -197,7 +197,7 @@ export function createRotationService(
 
   function getBrowserConfigForEndpoint(endpoint: ProxyEndpoint): Record<string, unknown> {
     return {
-      proxy: {
+      proxy_config: {
         server: endpoint.server,
         username: endpoint.username,
         password: endpoint.password,

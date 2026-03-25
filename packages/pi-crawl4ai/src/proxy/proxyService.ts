@@ -138,8 +138,9 @@ export function createProxyService(config: ProxyServiceConfig = {}): ProxyServic
         return {};
       }
 
+      // crawl4ai expects proxy_config (dict) or proxy (string URL)
       return {
-        proxy: {
+        proxy_config: {
           server: proxyConfig.server,
           username: proxyConfig.username,
           password: proxyConfig.password,

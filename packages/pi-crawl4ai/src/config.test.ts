@@ -81,8 +81,8 @@ describe("buildBrowserConfig", () => {
     const config = loadConfig({ cwd: tempDir });
     const browserConfig = buildBrowserConfig(config);
 
-    expect(browserConfig).toHaveProperty("proxy");
-    expect(browserConfig.proxy).toEqual({
+    expect(browserConfig).toHaveProperty("proxy_config");
+    expect(browserConfig.proxy_config).toEqual({
       server: "http://isp.oxylabs.io:7777",
       username: "user-testuser",
       password: "testpass",
@@ -95,8 +95,8 @@ describe("buildBrowserConfig", () => {
     const config = loadConfig({ cwd: tempDir });
     const browserConfig = buildBrowserConfig(config);
 
-    expect(browserConfig).toHaveProperty("proxy");
-    expect(browserConfig.proxy).toEqual({
+    expect(browserConfig).toHaveProperty("proxy_config");
+    expect(browserConfig.proxy_config).toEqual({
       server: "http://proxy.example.com:9999",
       username: "myuser",
       password: "mypass",
