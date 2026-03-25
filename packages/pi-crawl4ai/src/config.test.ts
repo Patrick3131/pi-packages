@@ -63,6 +63,12 @@ describe("loadConfig", () => {
 
     expect(config.proxyEnabled).toBe(true);
   });
+
+  it("should expose enabledByDefault from raw config (default false)", () => {
+    const config = loadConfig({ cwd: tempDir });
+
+    expect(config.raw.enabledByDefault).toBe(false);
+  });
 });
 
 describe("buildBrowserConfig", () => {

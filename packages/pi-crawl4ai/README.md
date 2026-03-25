@@ -10,6 +10,7 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
 - 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
+- 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
 
 ## Prerequisites
 
@@ -68,12 +69,26 @@ Create a config file in one of these locations (searched in order):
 1. `.pi/crawl4ai.json` - Project-level config
 2. `~/.pi/agent/extensions/crawl4ai.json` - Global config
 
+> **💡 Environment Variable Substitution:** You can use `${ENV_VAR}` syntax in any JSON string value. This is useful for keeping sensitive credentials out of version control. The extension will substitute values from your environment at runtime.
+
 #### Basic Config (No Proxy)
 
 ```json
 {
   "url": "http://localhost:11235",
-  "timeoutMs": 60000
+  "timeoutMs": 60000,
+  "enabledByDefault": false
+}
+```
+
+#### Enable Crawl Tool at Startup
+
+By default, the crawl tool is disabled to avoid polluting the system prompt. Set `enabledByDefault: true` to enable it automatically at startup:
+
+```json
+{
+  "url": "http://localhost:11235",
+  "enabledByDefault": true
 }
 ```
 
@@ -118,6 +133,31 @@ Create a config file in one of these locations (searched in order):
     "ports": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]
   }
 }
+```
+
+#### Using Environment Variables (Safe for Version Control)
+
+Use `${ENV_VAR}` substitution to keep credentials out of your config file:
+
+```json
+{
+  "url": "http://10.8.0.1:11235",
+  "proxy": {
+    "provider": "oxylabs",
+    "host": "isp.oxylabs.io",
+    "ports": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010],
+    "username": "${OXYLABS_USER}",
+    "password": "${OXYLABS_PASS}"
+  }
+}
+```
+
+Then set the environment variables in your `.env` file:
+
+```bash
+OXYLABS_USER=your_username
+OXYLABS_PASS=your_password
+```
 ```
 
 Or use comma-separated string:
@@ -188,7 +228,29 @@ curl http://localhost:11235/health
 
 ## Usage
 
-Once installed, the `crawl` tool is available to the Pi agent:
+The `crawl` tool is **disabled by default** to avoid polluting the system prompt. You must enable it when needed.
+
+### Enabling the Tool
+
+```
+/crawl-on
+```
+
+This adds the crawl tool to the active tools list and includes it in the system prompt.
+
+### Disabling the Tool
+
+When you're done crawling, disable it to save tokens:
+
+```
+/crawl-off
+```
+
+The tool state persists across session reloads and branch navigation. If you enable it in a session, it stays enabled until you disable it.
+
+### Using the Tool
+
+Once enabled, ask Pi to crawl:
 
 ```
 You: Crawl https://example.com and summarize the content

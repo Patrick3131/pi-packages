@@ -4,6 +4,10 @@
  * This extension provides a `crawl` tool that uses crawl4ai for
  * browser-rendered web scraping with optional proxy support.
  *
+ * The crawl tool is disabled by default to avoid polluting the system prompt.
+ * Use `/crawl-on` to enable it and `/crawl-off` to disable it.
+ * Set `enabledByDefault: true` in config to enable at startup.
+ *
  * Configuration (environment variables):
  * - CRAWL4AI_BASE_URL: crawl4ai Docker API URL (default: http://localhost:11235)
  * - CRAWL4AI_TIMEOUT: Request timeout in ms (default: 60000)
@@ -21,10 +25,10 @@
  * {
  *   "url": "http://localhost:11235",
  *   "timeoutMs": 60000,
+ *   "enabledByDefault": false,
  *   "proxy": {
  *     "url": "http://user:pass@proxy.example.com:8080"
- *   },
- *   "tools": ["crawl"]
+ *   }
  * }
  * ```
  */
@@ -39,6 +43,11 @@ export { createProxyService, type ProxyAdapter, type ProxyConfig, type ProxyServ
 export { genericAdapter, oxylabsAdapter, createCustomAdapter } from "./proxy/adapters";
 export { registerCrawlTool } from "./features/crawl/crawlTool";
 export * from "./features/crawl/types";
+
+// State persisted to session
+interface CrawlState {
+  enabled: boolean;
+}
 
 /**
  * Extension entry point.
@@ -62,6 +71,92 @@ export default function (pi: ExtensionAPI) {
     console.log(`[pi-crawl4ai] Proxy disabled (no adapter configured)`);
   }
 
-  // Register tools
+  // Register the crawl tool (exists but may not be active)
   registerCrawlTool(pi, config);
+
+  // Track enabled state (starts based on config setting)
+  let crawlEnabled = config.raw.enabledByDefault;
+
+  // Persist current state
+  function persistState() {
+    pi.appendEntry<CrawlState>("crawl-config", {
+      enabled: crawlEnabled,
+    });
+  }
+
+  // Apply current tool selection
+  function applyCrawlState() {
+    const activeNames = pi.getActiveTools();
+
+    if (crawlEnabled && !activeNames.includes("crawl")) {
+      pi.setActiveTools([...activeNames, "crawl"]);
+    } else if (!crawlEnabled && activeNames.includes("crawl")) {
+      pi.setActiveTools(activeNames.filter((n) => n !== "crawl"));
+    }
+  }
+
+  // Restore state from session branch (if persisted), then apply current state.
+  // On first load, no state is persisted so defaults are used.
+  function restoreFromBranch(ctx: { sessionManager: { getBranch: () => unknown[] } }) {
+    const branchEntries = ctx.sessionManager.getBranch() as Array<{
+      type: string;
+      customType?: string;
+      data?: { enabled?: boolean };
+    }>;
+
+    for (const entry of branchEntries) {
+      if (entry.type === "custom" && entry.customType === "crawl-config") {
+        if (entry.data?.enabled !== undefined) {
+          crawlEnabled = entry.data.enabled;
+        }
+      }
+    }
+
+    applyCrawlState();
+
+    // Log current state
+    if (crawlEnabled) {
+      console.log(`[pi-crawl4ai] Crawl tool enabled.`);
+    } else {
+      console.log(`[pi-crawl4ai] Crawl tool disabled. Use /crawl-on to enable.`);
+    }
+  }
+
+  // Restore and apply state on session_start. This fires after extensions load
+  // (runtime is ready), so getActiveTools/setActiveTools work properly.
+  pi.on("session_start", async (_event, ctx) => {
+    restoreFromBranch(ctx);
+  });
+
+  // Restore state when navigating session tree
+  pi.on("session_tree", async (_event, ctx) => {
+    restoreFromBranch(ctx);
+  });
+
+  // Restore state after forking
+  pi.on("session_fork", async (_event, ctx) => {
+    restoreFromBranch(ctx);
+  });
+
+  // Command to enable crawl
+  pi.registerCommand("crawl-on", {
+    description: "Enable the crawl tool (adds to system prompt)",
+    handler: async (_args, ctx) => {
+      crawlEnabled = true;
+      applyCrawlState();
+      persistState();
+      ctx.ui.notify("Crawl tool enabled", "info");
+    },
+  });
+
+  // Command to disable crawl
+  pi.registerCommand("crawl-off", {
+    description: "Disable the crawl tool (removes from system prompt)",
+    handler: async (_args, ctx) => {
+      crawlEnabled = false;
+      applyCrawlState();
+      persistState();
+      ctx.ui.notify("Crawl tool disabled", "info");
+    },
+  });
 }

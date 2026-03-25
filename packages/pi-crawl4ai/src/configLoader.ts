@@ -12,6 +12,8 @@ export interface Crawl4AIJsonConfig {
   url?: string;
   /** Request timeout in milliseconds */
   timeoutMs?: number;
+  /** Whether the crawl tool is enabled by default at startup (default: false) */
+  enabledByDefault?: boolean;
   /** Proxy configuration */
   proxy?: {
     /** Full proxy URL with auth (e.g., http://user:pass@host:port) */
@@ -34,6 +36,8 @@ export interface Crawl4AIJsonConfig {
 export interface ResolvedConfig {
   baseUrl: string;
   timeout: number;
+  /** Whether the crawl tool is enabled by default at startup */
+  enabledByDefault: boolean;
   proxyUrl?: string;
   proxyProvider?: string;
   proxyHost?: string;
@@ -87,22 +91,34 @@ export function loadJsonConfig(filepath: string): Crawl4AIJsonConfig | null {
 }
 
 /**
+ * Resolve environment variable references in a string.
+ * Supports ${VAR_NAME} syntax.
+ */
+function resolveEnvVars(value: string): string {
+  return value.replace(/\$\{([^}]+)\}/g, (_, varName) => {
+    return process.env[varName] || "";
+  });
+}
+
+/**
  * Merge JSON config with environment variables.
  * JSON config takes priority over env vars.
+ * Supports ${ENV_VAR} substitution in JSON string values.
  */
 export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): ResolvedConfig {
   const config: ResolvedConfig = {
-    baseUrl: jsonConfig?.url || process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
+    baseUrl: jsonConfig?.url ? resolveEnvVars(jsonConfig.url) : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
     timeout: jsonConfig?.timeoutMs || parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10),
+    enabledByDefault: jsonConfig?.enabledByDefault ?? false,
   };
 
   // Proxy from JSON config
   if (jsonConfig?.proxy) {
     if (jsonConfig.proxy.url) {
-      config.proxyUrl = jsonConfig.proxy.url;
+      config.proxyUrl = resolveEnvVars(jsonConfig.proxy.url);
     } else if (jsonConfig.proxy.provider === "oxylabs" || jsonConfig.proxy.username) {
       config.proxyProvider = jsonConfig.proxy.provider || "oxylabs";
-      config.proxyHost = jsonConfig.proxy.host;
+      config.proxyHost = jsonConfig.proxy.host ? resolveEnvVars(jsonConfig.proxy.host) : undefined;
       config.proxyPort = typeof jsonConfig.proxy.port === "number"
         ? String(jsonConfig.proxy.port)
         : jsonConfig.proxy.port;
@@ -119,8 +135,14 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
         }
       }
 
-      config.proxyUsername = jsonConfig.proxy.username;
-      config.proxyPassword = jsonConfig.proxy.password;
+      // Support ${ENV_VAR} substitution for username/password
+      // Fall back to env vars if not provided in JSON
+      config.proxyUsername = jsonConfig.proxy.username
+        ? resolveEnvVars(jsonConfig.proxy.username)
+        : process.env.OXYLABS_USER;
+      config.proxyPassword = jsonConfig.proxy.password
+        ? resolveEnvVars(jsonConfig.proxy.password)
+        : process.env.OXYLABS_PASS;
     }
   }
 
