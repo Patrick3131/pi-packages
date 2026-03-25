@@ -6,7 +6,73 @@ import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
 import { buildBrowserConfig } from "../../config";
-import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult } from "./types";
+import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult, DeepCrawlConfig } from "./types";
+import { resolveOutputDir, saveCrawlResults } from "./saveOutput";
+
+/**
+ * Build a crawl4ai-compatible deep crawl strategy object.
+ * Uses the {type, params} serialization format expected by crawl4ai API.
+ */
+function buildDeepCrawlStrategy(config: DeepCrawlConfig): Record<string, unknown> {
+  const strategyMap: Record<string, string> = {
+    "bfs": "BFSDeepCrawlStrategy",
+    "dfs": "DFSDeepCrawlStrategy",
+    "best-first": "BestFirstCrawlingStrategy",
+  };
+
+  const strategyName = strategyMap[config.strategy || "bfs"];
+
+  // Build filter chain if filters are specified
+  const filters: Record<string, unknown>[] = [];
+
+  if (config.includePatterns || config.excludePatterns) {
+    const patterns = [
+      ...(config.includePatterns || []),
+      ...(config.excludePatterns?.map(p => `!${p}`) || []),
+    ];
+    if (patterns.length > 0) {
+      filters.push({
+        type: "URLPatternFilter",
+        params: {
+          patterns,
+          use_glob: true,
+        },
+      });
+    }
+  }
+
+  if (config.allowedDomains && config.allowedDomains.length > 0) {
+    filters.push({
+      type: "DomainFilter",
+      params: {
+        allowed_domains: config.allowedDomains,
+      },
+    });
+  }
+
+  const filterChain = filters.length > 0
+    ? { type: "FilterChain", params: { filters } }
+    : undefined;
+
+  const params: Record<string, unknown> = {
+    max_depth: config.maxDepth,
+    max_pages: config.maxPages ?? 100,
+    include_external: config.includeExternal ?? false,
+  };
+
+  if (filterChain) {
+    params.filter_chain = filterChain;
+  }
+
+  if (config.scoreThreshold !== undefined) {
+    params.score_threshold = config.scoreThreshold;
+  }
+
+  return {
+    type: strategyName,
+    params,
+  };
+}
 
 /**
  * Register the crawl tool with pi.
@@ -18,10 +84,11 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
     description:
       "Crawl one or more URLs using crawl4ai with browser rendering and optional proxy support. " +
       "Returns markdown, HTML, or extracted links. Use this for scraping JavaScript-rendered pages, " +
-      "SPAs, or when you need structured content extraction.",
+      "SPAs, or when you need structured content extraction. " +
+      "Use deepCrawl to follow links and crawl multiple pages from a starting URL.",
     parameters: Type.Object({
       urls: Type.Array(Type.String(), {
-        description: "URLs to crawl (one or more)",
+        description: "URLs to crawl (one or more). For deep crawling, provide a single start URL.",
         minItems: 1,
       }),
       format: Type.Optional(
@@ -44,10 +111,69 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
           description: "Bypass crawl4ai cache and force fresh crawl",
         })
       ),
+      deepCrawl: Type.Optional(
+        Type.Object({
+          strategy: Type.Optional(
+            Type.Union(
+              [Type.Literal("bfs"), Type.Literal("dfs"), Type.Literal("best-first")],
+              { description: "Crawl strategy: bfs (breadth-first, default), dfs (depth-first), best-first (score-based)" }
+            )
+          ),
+          maxDepth: Type.Number({
+            description: "Maximum crawl depth (1 = start page only, 2 = start + linked pages, etc.)",
+            minimum: 1,
+          }),
+          maxPages: Type.Optional(
+            Type.Number({
+              description: "Maximum total pages to crawl (default: 100)",
+              minimum: 1,
+            })
+          ),
+          includeExternal: Type.Optional(
+            Type.Boolean({
+              description: "Follow links to external domains (default: false)",
+            })
+          ),
+          includePatterns: Type.Optional(
+            Type.Array(Type.String(), {
+              description: "URL glob patterns to include (e.g., '/docs/*', '*.html')",
+            })
+          ),
+          excludePatterns: Type.Optional(
+            Type.Array(Type.String(), {
+              description: "URL glob patterns to exclude (e.g., '/admin/*', '*.pdf')",
+            })
+          ),
+          allowedDomains: Type.Optional(
+            Type.Array(Type.String(), {
+              description: "Only follow links to these domains",
+            })
+          ),
+          scoreThreshold: Type.Optional(
+            Type.Number({
+              description: "Minimum relevance score for best-first strategy (0.0-1.0)",
+              minimum: 0,
+              maximum: 1,
+            })
+          ),
+        }, {
+          description: "Deep crawl configuration. Enables crawling linked pages up to maxDepth.",
+        })
+      ),
+      save: Type.Optional(
+        Type.Union([Type.Boolean(), Type.String()], {
+          description: "Save results to disk. true = save to ./output-crawl4ai, or provide a custom directory path.",
+        })
+      ),
     }),
 
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-      const { urls, format = "markdown", waitFor, jsCode, bypassCache } = params as CrawlToolParams;
+      const { urls, format = "markdown", waitFor, jsCode, bypassCache, deepCrawl, save } = params as CrawlToolParams;
+
+      // Validate deep crawl requires single URL
+      if (deepCrawl && urls.length !== 1) {
+        throw new Error("Deep crawling requires exactly one start URL. Use regular crawl for multiple URLs.");
+      }
 
       // Build the request payload
       const browserConfig = buildBrowserConfig(config);
@@ -65,6 +191,11 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
 
       if (bypassCache) {
         crawlerConfig.cache_mode = "BYPASS";
+      }
+
+      // Add deep crawl strategy if configured
+      if (deepCrawl) {
+        crawlerConfig.deep_crawl_strategy = buildDeepCrawlStrategy(deepCrawl);
       }
 
       // Note: markdown is the default output format in crawl4ai.
@@ -111,12 +242,46 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         // Format results based on requested format
         const formattedResults = data.results.map((result) => formatResult(result, format));
 
+        // Save to disk if requested
+        const outputDir = resolveOutputDir(save);
+        let savedPath: string | undefined;
+        if (outputDir) {
+          savedPath = saveCrawlResults(
+            outputDir,
+            urls,
+            data.results,
+            format,
+            config.proxyEnabled,
+            deepCrawl ? { maxDepth: deepCrawl.maxDepth, maxPages: deepCrawl.maxPages } : undefined
+          );
+        }
+
+        // For deep crawl, group by depth and show hierarchy
+        if (deepCrawl && data.results.length > 1) {
+          const summary = formatDeepCrawlResults(formattedResults, data.results, deepCrawl.maxDepth, savedPath);
+          return {
+            content: [{ type: "text", text: summary }],
+            details: {
+              results: data.results,
+              proxyUsed: config.proxyEnabled,
+              format,
+              savedPath,
+              deepCrawl: {
+                totalPages: data.results.length,
+                maxDepth: deepCrawl.maxDepth,
+              },
+            },
+          };
+        }
+
+        // Single URL or multi-URL (non-deep) format
+        const saveNotice = savedPath ? `\n\n*Results saved to: ${savedPath}*` : "";
         const summary =
           formattedResults.length === 1
-            ? `## ${formattedResults[0].url}\n\n${formattedResults[0].content}`
+            ? `## ${formattedResults[0].url}\n\n${formattedResults[0].content}${saveNotice}`
             : formattedResults
                 .map((r, i) => `---\n## Result ${i + 1}: ${r.url}\n\n${r.content}`)
-                .join("\n\n");
+                .join("\n\n") + saveNotice;
 
         return {
           content: [{ type: "text", text: summary }],
@@ -124,6 +289,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             results: data.results,
             proxyUsed: config.proxyEnabled,
             format,
+            savedPath,
           },
         };
       } catch (error) {
@@ -182,4 +348,51 @@ function formatResult(
   }
 
   return { url: result.url, content };
+}
+
+/**
+ * Format deep crawl results with depth grouping.
+ */
+function formatDeepCrawlResults(
+  formattedResults: Array<{ url: string; content: string }>,
+  rawResults: CrawlResult[],
+  maxDepth: number,
+  savedPath?: string
+): string {
+  // Group by depth
+  const byDepth: Map<number, Array<{ url: string; content: string; success: boolean }>> = new Map();
+
+  formattedResults.forEach((r, i) => {
+    const depth = rawResults[i].metadata?.depth ?? 0;
+    if (!byDepth.has(depth)) {
+      byDepth.set(depth, []);
+    }
+    byDepth.get(depth)!.push({
+      url: r.url,
+      content: r.content,
+      success: rawResults[i].success,
+    });
+  });
+
+  // Build hierarchical output
+  const sections: string[] = [];
+  sections.push(`# Deep Crawl Results (${formattedResults.length} pages, max depth: ${maxDepth})\n`);
+  
+  if (savedPath) {
+    sections.push(`*Results saved to: ${savedPath}*\n`);
+  }
+
+  for (let depth = 0; depth <= maxDepth; depth++) {
+    const pages = byDepth.get(depth);
+    if (!pages || pages.length === 0) continue;
+
+    sections.push(`\n## Depth ${depth} (${pages.length} pages)\n`);
+
+    pages.forEach((page) => {
+      const prefix = page.success ? "" : "❌ ";
+      sections.push(`\n### ${prefix}${page.url}\n\n${page.content}`);
+    });
+  }
+
+  return sections.join("\n");
 }

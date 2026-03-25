@@ -5,7 +5,9 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 ## Features
 
 - 🕷️ **Browser-rendered crawling** - Handles JavaScript, SPAs, and dynamic content
+- 🌳 **Deep crawling** - Follow links and crawl entire sites with configurable depth
 - 📝 **Multiple output formats** - Markdown, HTML, or extracted links
+- 💾 **Save to disk** - Optionally persist crawl results organized by domain and timestamp
 - 🌐 **Proxy support** - Generic proxy, Oxylabs ISP rotation, or custom providers
 - 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
 - 🔒 **Session management** - Sticky sessions with automatic rotation
@@ -184,6 +186,9 @@ CRAWL4AI_BASE_URL=http://localhost:11235
 # Optional: Request timeout
 CRAWL4AI_TIMEOUT=60000
 
+# Optional: Default output directory for saved crawls
+CRAWL4AI_OUTPUT_DIR=./output-crawl4ai
+
 # Proxy Option 1: Generic proxy URL
 CRAWL4AI_PROXY_URL=http://user:pass@proxy.example.com:8080
 
@@ -262,11 +267,34 @@ Pi: [uses crawl tool to fetch and process the page]
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `urls` | `string[]` | URLs to crawl (required) |
+| `urls` | `string[]` | URLs to crawl (required). For deep crawling, provide a single start URL. |
 | `format` | `"markdown"` \| `"html"` \| `"links"` | Output format (default: `markdown`) |
 | `waitFor` | `number` | Milliseconds to wait before extraction |
 | `jsCode` | `string` | JavaScript to execute before extraction |
 | `bypassCache` | `boolean` | Force fresh crawl, bypass cache |
+| `deepCrawl` | `object` | Deep crawl configuration (see below) |
+| `save` | `boolean` \| `string` | Save results to disk. `true` = default directory, or provide a custom path |
+
+### Deep Crawl Parameters
+
+Enable multi-page crawling by following links from a starting URL:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `strategy` | `"bfs"` \| `"dfs"` \| `"best-first"` | Crawl strategy (default: `bfs`) |
+| `maxDepth` | `number` | Maximum depth (required). 1 = start page only, 2 = start + linked pages |
+| `maxPages` | `number` | Maximum total pages to crawl (default: 100) |
+| `includeExternal` | `boolean` | Follow links to external domains (default: false) |
+| `includePatterns` | `string[]` | URL glob patterns to include (e.g., `/docs/*`, `*.html`) |
+| `excludePatterns` | `string[]` | URL glob patterns to exclude (e.g., `/admin/*`, `*.pdf`) |
+| `allowedDomains` | `string[]` | Only follow links to these domains |
+| `scoreThreshold` | `number` | Minimum relevance score for best-first strategy (0.0-1.0) |
+
+#### Crawl Strategies
+
+- **`bfs`** (Breadth-First Search) - Crawls level by level. Good for comprehensive site coverage.
+- **`dfs`** (Depth-First Search) - Dives deep into each path before backtracking. Good for deep hierarchies.
+- **`best-first`** - Prioritizes pages by relevance score. Use with `scoreThreshold` to filter low-relevance pages.
 
 ### Examples
 
@@ -285,6 +313,119 @@ Crawl https://example.com and list all the links
 
 # Custom JS execution
 Crawl https://example.com, click the "Load More" button first
+```
+
+### Deep Crawl Examples
+
+```
+# Crawl a documentation site, 2 levels deep
+Crawl https://docs.example.com with depth 2
+
+# Crawl with URL filtering
+Deep crawl https://example.com, only following /docs/* and /api/* pages, exclude /admin
+
+# Crawl with page limit
+Crawl https://blog.example.com with max depth 3 and limit to 50 pages
+
+# Cross-domain crawl
+Crawl https://blog.example.com following external links to docs.example.com
+
+# Best-first strategy with scoring
+Crawl https://news.example.com using best-first strategy with score threshold 0.5
+```
+
+#### Deep Crawl Output
+
+Deep crawl results are grouped by depth level for easy navigation:
+
+```markdown
+# Deep Crawl Results (15 pages, max depth: 2)
+
+## Depth 0 (1 page)
+### https://example.com
+Home page content...
+
+## Depth 1 (5 pages)
+### https://example.com/docs
+Documentation overview...
+
+## Depth 2 (9 pages)
+### https://example.com/docs/api
+API reference...
+```
+
+### Saving Results to Disk
+
+Use the `save` parameter to persist crawl results to disk. This is useful for:
+- Large crawls that exceed response size limits
+- Keeping a record of crawled content for later analysis
+- Building local documentation archives
+
+#### Save Options
+
+| Value | Behavior |
+|-------|----------|
+| `undefined` / `false` | Don't save (default) |
+| `true` | Save to `./output-crawl4ai` |
+| `"./custom/path"` | Save to specified directory |
+
+#### Directory Structure
+
+Saved results are organized by domain and timestamp:
+
+```
+output-crawl4ai/
+├── example.com-2025-03-25T14-30-00/
+│   ├── crawl-manifest.json
+│   └── example.com/
+│       ├── index.md
+│       ├── docs/
+│       │   ├── api.md
+│       │   └── guide.md
+│       └── about.md
+└── docs.python.org-2025-03-25T15-00-00/
+    └── ...
+```
+
+Each session includes a `crawl-manifest.json` with metadata:
+
+```json
+{
+  "timestamp": "2025-03-25T14:30:00.000Z",
+  "totalPages": 15,
+  "format": "markdown",
+  "urls": ["https://example.com"],
+  "proxyUsed": false,
+  "deepCrawl": {
+    "maxDepth": 2,
+    "maxPages": 100
+  },
+  "files": [
+    "example.com/index.md",
+    "example.com/docs/api.md"
+  ]
+}
+```
+
+#### Save Examples
+
+```
+# Save to default directory
+Crawl and save https://example.com
+
+# Save to custom directory
+Crawl https://example.com and save to ./my-crawls
+
+# Deep crawl and save
+Deep crawl https://docs.example.com with depth 3 and save
+```
+
+#### Custom Default Directory
+
+Set `CRAWL4AI_OUTPUT_DIR` to change the default save location:
+
+```bash
+CRAWL4AI_OUTPUT_DIR=./crawled-content
 ```
 
 ## IP Rotation
@@ -344,6 +485,7 @@ pi-crawl4ai/
 │   └── features/
 │       └── crawl/
 │           ├── crawlTool.ts  # Crawl tool implementation
+│           ├── saveOutput.ts # Save to disk functionality
 │           └── types.ts      # TypeScript types
 ├── package.json
 ├── tsconfig.json

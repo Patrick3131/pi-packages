@@ -8,6 +8,47 @@
 export type CrawlFormat = "markdown" | "html" | "links";
 
 /**
+ * Deep crawl strategy type.
+ */
+export type DeepCrawlStrategyType = "bfs" | "dfs" | "best-first";
+
+/**
+ * URL filter configuration for deep crawling.
+ */
+export interface URLFilterConfig {
+  /** URL patterns to include (glob patterns like "/docs/*", "*.html") */
+  includePatterns?: string[];
+  /** URL patterns to exclude */
+  excludePatterns?: string[];
+  /** Only crawl these domains (for cross-domain crawling) */
+  allowedDomains?: string[];
+  /** Content types to allow (e.g., ["text/html"]) */
+  allowedContentTypes?: string[];
+}
+
+/**
+ * Deep crawl configuration.
+ */
+export interface DeepCrawlConfig {
+  /** Crawl strategy: bfs (breadth-first), dfs (depth-first), best-first */
+  strategy?: DeepCrawlStrategyType;
+  /** Maximum depth from start URL (1 = only start page, 2 = start + links, etc.) */
+  maxDepth: number;
+  /** Maximum total pages to crawl (prevents runaway crawls) */
+  maxPages?: number;
+  /** Follow external links (links to other domains) */
+  includeExternal?: boolean;
+  /** URL patterns to include (glob patterns) */
+  includePatterns?: string[];
+  /** URL patterns to exclude (glob patterns) */
+  excludePatterns?: string[];
+  /** Only crawl these domains */
+  allowedDomains?: string[];
+  /** Score threshold for best-first strategy (0.0-1.0) */
+  scoreThreshold?: number;
+}
+
+/**
  * Parameters for the crawl tool.
  */
 export interface CrawlToolParams {
@@ -21,6 +62,15 @@ export interface CrawlToolParams {
   jsCode?: string;
   /** Whether to bypass cache */
   bypassCache?: boolean;
+  /** Deep crawl configuration - enables multi-page crawling */
+  deepCrawl?: DeepCrawlConfig;
+  /**
+   * Save results to disk.
+   * - undefined/false: don't save (default)
+   * - true: save to default directory (./output-crawl4ai or CRAWL4AI_OUTPUT_DIR)
+   * - string: save to custom directory path
+   */
+  save?: boolean | string;
 }
 
 /**
@@ -69,6 +119,10 @@ export interface CrawlResult {
     description?: string;
     keywords?: string[];
     author?: string;
+    /** Depth from start URL (deep crawl only) */
+    depth?: number;
+    /** Parent URL (deep crawl only) */
+    parent_url?: string;
   };
 }
 
