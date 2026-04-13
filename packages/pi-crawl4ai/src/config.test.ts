@@ -4,7 +4,7 @@
 
 import { join } from "node:path";
 import { mkdirSync, rmSync } from "node:fs";
-import { loadConfig, buildBrowserConfig } from "./config";
+import { loadConfig, buildBrowserConfig, resolveAuthSelection } from "./config";
 import { resetEnv } from "./test-utils";
 
 let tempDir: string;
@@ -71,6 +71,61 @@ describe("loadConfig", () => {
   });
 });
 
+describe("resolveAuthSelection", () => {
+  it("should resolve a profile by domain", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com", "twitter.com"],
+        matchSites: ["x", "twitter"],
+        cookies: [{ name: "auth_token", value: "secret" }],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["https://x.com/some/thread"],
+    });
+
+    expect(selection?.profileName).toBe("x-main");
+    expect(selection?.reason).toBe("domain");
+  });
+
+  it("should resolve a profile by site hint", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com", "twitter.com"],
+        matchSites: ["x", "twitter"],
+        cookies: [{ name: "auth_token", value: "secret" }],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["https://x.com/some/thread"],
+      site: "X",
+    });
+
+    expect(selection?.profileName).toBe("x-main");
+    expect(selection?.reason).toBe("site");
+  });
+
+  it("should reject explicit profiles for mismatched domains", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com", "twitter.com"],
+      },
+    };
+
+    expect(() =>
+      resolveAuthSelection(config, {
+        urls: ["https://reddit.com/r/test"],
+        authProfile: "x-main",
+      })
+    ).toThrow('Auth profile "x-main" is not allowed');
+  });
+});
+
 describe("buildBrowserConfig", () => {
   it("should return empty object when proxy is disabled", () => {
     const config = loadConfig({ cwd: tempDir });
@@ -107,5 +162,38 @@ describe("buildBrowserConfig", () => {
       username: "myuser",
       password: "mypass",
     });
+  });
+
+  it("should merge auth profile headers, user agent, and cookies", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com"],
+        headers: {
+          "x-test": "1",
+        },
+        userAgent: "Mozilla/5.0 Test",
+        cookies: [
+          { name: "auth_token", value: "secret" },
+          { name: "ct0", value: "csrf" },
+        ],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["https://x.com/some/thread"],
+      authProfile: "x-main",
+    });
+    const browserConfig = buildBrowserConfig(config, selection);
+
+    expect(browserConfig.headers).toEqual({
+      "x-test": "1",
+      Cookie: "auth_token=secret; ct0=csrf",
+    });
+    expect(browserConfig.user_agent).toBe("Mozilla/5.0 Test");
+    expect(browserConfig.cookies).toEqual([
+      { name: "auth_token", value: "secret" },
+      { name: "ct0", value: "csrf" },
+    ]);
   });
 });

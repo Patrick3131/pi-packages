@@ -5,7 +5,7 @@
 import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
-import { buildBrowserConfig } from "../../config";
+import { buildBrowserConfig, resolveAuthSelection } from "../../config";
 import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult, DeepCrawlConfig } from "./types";
 import { resolveOutputDir, saveCrawlResults } from "./saveOutput";
 
@@ -91,6 +91,16 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         description: "URLs to crawl (one or more). For deep crawling, provide a single start URL.",
         minItems: 1,
       }),
+      site: Type.Optional(
+        Type.String({
+          description: "Optional site hint for auth profile selection, e.g. x, twitter, reddit",
+        })
+      ),
+      authProfile: Type.Optional(
+        Type.String({
+          description: "Optional explicit auth profile name from config. Overrides automatic site/domain matching.",
+        })
+      ),
       format: Type.Optional(
         Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links")], {
           description: "Output format: markdown (default), html, or links",
@@ -168,15 +178,17 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
     }),
 
     async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-      const { urls, format = "markdown", waitFor, jsCode, bypassCache, deepCrawl, save } = params as CrawlToolParams;
+      const { urls, site, authProfile, format = "markdown", waitFor, jsCode, bypassCache, deepCrawl, save } = params as CrawlToolParams;
 
       // Validate deep crawl requires single URL
       if (deepCrawl && urls.length !== 1) {
         throw new Error("Deep crawling requires exactly one start URL. Use regular crawl for multiple URLs.");
       }
 
+      const authSelection = resolveAuthSelection(config, { urls, site, authProfile });
+
       // Build the request payload
-      const browserConfig = buildBrowserConfig(config);
+      const browserConfig = buildBrowserConfig(config, authSelection);
 
       const crawlerConfig: Record<string, unknown> = {};
 
@@ -265,6 +277,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
               results: data.results,
               proxyUsed: config.proxyEnabled,
               format,
+              authProfile: authSelection?.profileName,
+              authProfileReason: authSelection?.reason,
               savedPath,
               deepCrawl: {
                 totalPages: data.results.length,
@@ -289,6 +303,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             results: data.results,
             proxyUsed: config.proxyEnabled,
             format,
+            authProfile: authSelection?.profileName,
+            authProfileReason: authSelection?.reason,
             savedPath,
           },
         };

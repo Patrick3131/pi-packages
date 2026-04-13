@@ -54,6 +54,10 @@ export interface DeepCrawlConfig {
 export interface CrawlToolParams {
   /** URLs to crawl (single or multiple) */
   urls: string[];
+  /** Optional site hint for auth profile selection (e.g. x, twitter, reddit) */
+  site?: string;
+  /** Explicit auth profile name to use for this crawl */
+  authProfile?: string;
   /** Output format (default: markdown) */
   format?: CrawlFormat;
   /** Wait time in milliseconds before extracting content */

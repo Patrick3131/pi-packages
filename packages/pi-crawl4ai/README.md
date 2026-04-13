@@ -10,6 +10,7 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 💾 **Save to disk** - Optionally persist crawl results organized by domain and timestamp
 - 🌐 **Proxy support** - Generic proxy, Oxylabs ISP rotation, or custom providers
 - 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
+- 🔐 **Auth profiles** - Named cookie/header profiles for authenticated crawling across multiple sites
 - 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 - 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
@@ -137,6 +138,33 @@ By default, the crawl tool is disabled to avoid polluting the system prompt. Set
 }
 ```
 
+#### Auth Profiles (Named Cookies / Headers)
+
+Use `authProfiles` to define reusable authenticated browser contexts. This keeps cookies and headers out of prompts and lets the extension auto-select the right profile by site/domain.
+
+```json
+{
+  "authProfiles": {
+    "x-main": {
+      "matchSites": ["x", "twitter"],
+      "matchDomains": ["x.com", "twitter.com"],
+      "cookies": "${X_COOKIES_JSON}",
+      "userAgent": "${X_USER_AGENT}"
+    },
+    "reddit-main": {
+      "matchSites": ["reddit"],
+      "matchDomains": ["reddit.com"],
+      "cookies": "${REDDIT_COOKIES_JSON}"
+    }
+  }
+}
+```
+
+`cookies` may be either:
+- a JSON string containing an array of cookie objects
+- an inline array of cookie objects
+- a standard `Cookie` header string like `session=abc; csrf=def`
+
 #### Using Environment Variables (Safe for Version Control)
 
 Use `${ENV_VAR}` substitution to keep credentials out of your config file:
@@ -263,11 +291,15 @@ You: Crawl https://example.com and summarize the content
 Pi: [uses crawl tool to fetch and process the page]
 ```
 
+With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X".
+
 ### Tool Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `urls` | `string[]` | URLs to crawl (required). For deep crawling, provide a single start URL. |
+| `site` | `string` | Optional site hint for auth profile selection (e.g. `x`, `twitter`, `reddit`) |
+| `authProfile` | `string` | Explicit auth profile name from config. Overrides automatic matching |
 | `format` | `"markdown"` \| `"html"` \| `"links"` | Output format (default: `markdown`) |
 | `waitFor` | `number` | Milliseconds to wait before extraction |
 | `jsCode` | `string` | JavaScript to execute before extraction |

@@ -232,6 +232,63 @@ describe("mergeConfigWithEnv", () => {
     expect(config.proxyUrl).toBe("http://json:9090");
   });
 
+  describe("authProfiles", () => {
+    it("should resolve auth profiles with env substitution", () => {
+      process.env.X_COOKIES_JSON = JSON.stringify([
+        { name: "auth_token", value: "secret", domain: ".x.com" },
+        { name: "ct0", value: "csrf", domain: ".x.com" },
+      ]);
+      process.env.X_USER_AGENT = "Mozilla/5.0 Test";
+
+      const jsonConfig: Crawl4AIJsonConfig = {
+        authProfiles: {
+          "x-main": {
+            matchSites: ["X", "twitter"],
+            matchDomains: ["x.com", "twitter.com"],
+            cookies: "${X_COOKIES_JSON}",
+            headers: {
+              "x-test": "${X_USER_AGENT}",
+            },
+            userAgent: "${X_USER_AGENT}",
+          },
+        },
+      };
+
+      const config = mergeConfigWithEnv(jsonConfig);
+
+      expect(config.authProfiles?.["x-main"]).toEqual({
+        matchSites: ["x", "twitter"],
+        matchDomains: ["x.com", "twitter.com"],
+        cookies: [
+          { name: "auth_token", value: "secret", domain: ".x.com" },
+          { name: "ct0", value: "csrf", domain: ".x.com" },
+        ],
+        headers: {
+          "x-test": "Mozilla/5.0 Test",
+        },
+        userAgent: "Mozilla/5.0 Test",
+      });
+    });
+
+    it("should parse cookie header strings in auth profiles", () => {
+      const jsonConfig: Crawl4AIJsonConfig = {
+        authProfiles: {
+          "reddit-main": {
+            matchDomains: ["reddit.com"],
+            cookies: "session=abc; csrf=def",
+          },
+        },
+      };
+
+      const config = mergeConfigWithEnv(jsonConfig);
+
+      expect(config.authProfiles?.["reddit-main"]?.cookies).toEqual([
+        { name: "session", value: "abc" },
+        { name: "csrf", value: "def" },
+      ]);
+    });
+  });
+
   describe("enabledByDefault", () => {
     it("should default to false when not specified", () => {
       const config = mergeConfigWithEnv(null);

@@ -69,6 +69,17 @@ describe('registerCrawlTool', () => {
     // Check that deepCrawl is an optional object parameter
     expect(tool.parameters.properties.deepCrawl).toBeDefined();
   });
+
+  it('should include auth selection parameters in schema', () => {
+    const mockPi = createMockPi();
+    const config = loadConfig();
+
+    registerCrawlTool(mockPi, config);
+
+    const tool = mockPi.registeredTools[0];
+    expect(tool.parameters.properties.site).toBeDefined();
+    expect(tool.parameters.properties.authProfile).toBeDefined();
+  });
 });
 
 describe('crawl tool execute', () => {
@@ -442,6 +453,97 @@ describe('crawl tool execute', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.browser_config.proxy_config).toBeDefined();
     expect(body.browser_config.proxy_config.server).toBe('http://isp.oxylabs.io:7777');
+  });
+
+  it('should auto-select auth profile by domain', async () => {
+    const localMockPi = createMockPi();
+    const config = loadConfig();
+    config.raw.authProfiles = {
+      'x-main': {
+        matchDomains: ['x.com', 'twitter.com'],
+        cookies: [{ name: 'auth_token', value: 'secret' }],
+        headers: { 'x-test': '1' },
+      },
+    };
+    registerCrawlTool(localMockPi, config);
+    const execute = localMockPi.registeredTools[0].execute;
+
+    const fetchMock = mockFetch({
+      ok: true,
+      data: { success: true, results: [] },
+    });
+
+    const result = await execute(
+      'tool-call-id',
+      { urls: ['https://x.com/some/status/1'] },
+      undefined,
+      undefined,
+      {}
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.browser_config.headers).toEqual({
+      'x-test': '1',
+      Cookie: 'auth_token=secret',
+    });
+    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret' }]);
+    expect(result.details.authProfile).toBe('x-main');
+    expect(result.details.authProfileReason).toBe('domain');
+  });
+
+  it('should select auth profile by site hint', async () => {
+    const localMockPi = createMockPi();
+    const config = loadConfig();
+    config.raw.authProfiles = {
+      'x-main': {
+        matchSites: ['x', 'twitter'],
+        matchDomains: ['x.com', 'twitter.com'],
+        cookies: [{ name: 'auth_token', value: 'secret' }],
+      },
+    };
+    registerCrawlTool(localMockPi, config);
+    const execute = localMockPi.registeredTools[0].execute;
+
+    const fetchMock = mockFetch({
+      ok: true,
+      data: { success: true, results: [] },
+    });
+
+    const result = await execute(
+      'tool-call-id',
+      { urls: ['https://x.com/some/status/1'], site: 'X' },
+      undefined,
+      undefined,
+      {}
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret' }]);
+    expect(result.details.authProfile).toBe('x-main');
+    expect(result.details.authProfileReason).toBe('site');
+  });
+
+  it('should reject explicit auth profiles for mismatched domains', async () => {
+    const localMockPi = createMockPi();
+    const config = loadConfig();
+    config.raw.authProfiles = {
+      'x-main': {
+        matchDomains: ['x.com', 'twitter.com'],
+        cookies: [{ name: 'auth_token', value: 'secret' }],
+      },
+    };
+    registerCrawlTool(localMockPi, config);
+    const execute = localMockPi.registeredTools[0].execute;
+
+    await expect(
+      execute(
+        'tool-call-id',
+        { urls: ['https://reddit.com/r/test'], authProfile: 'x-main' },
+        undefined,
+        undefined,
+        {}
+      )
+    ).rejects.toThrow('Auth profile "x-main" is not allowed');
   });
 });
 

@@ -54,4 +54,8 @@ export function resetEnv(): void {
   delete process.env.OXYLABS_HOST;
   delete process.env.OXYLABS_PORT;
   delete process.env.OXYLABS_PORTS;
+
+  // Auth profile test vars
+  delete process.env.X_COOKIES_JSON;
+  delete process.env.X_USER_AGENT;
 }

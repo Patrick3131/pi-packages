@@ -32,3 +32,4 @@ packages/*/coverage/
 .jest-cache/
 
 packages/pi-crawl4ai/output-crawl4ai/
+.pi
