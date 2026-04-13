@@ -17,6 +17,7 @@ export interface AuthProfileConfig {
   cookies?: AuthCookie[] | string;
   headers?: Record<string, string>;
   userAgent?: string;
+  backoffMs?: number | string;
 }
 
 export interface ResolvedAuthProfile {
@@ -25,12 +26,14 @@ export interface ResolvedAuthProfile {
   cookies?: AuthCookie[];
   headers?: Record<string, string>;
   userAgent?: string;
+  backoffMs?: number;
 }
 
 export interface Crawl4AIJsonConfig {
   url?: string;
   timeoutMs?: number;
   enabledByDefault?: boolean;
+  backoffMs?: number | string;
   proxy?: {
     url?: string;
     provider?: "oxylabs" | "custom";
@@ -47,6 +50,7 @@ export interface ResolvedConfig {
   baseUrl: string;
   timeout: number;
   enabledByDefault: boolean;
+  backoffMs?: number;
   proxyUrl?: string;
   proxyProvider?: string;
   proxyHost?: string;

@@ -30,6 +30,13 @@ export function resolveEnvVars(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, (_, varName) => process.env[varName] || "");
 }
 
+export function resolveNumber(value?: number | string): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  const parsed = parseInt(resolveEnvVars(value), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function resolveJsonValue<T>(value: T): T {
   if (typeof value === "string") return resolveEnvVars(value) as T;
   if (Array.isArray(value)) return value.map((item) => resolveJsonValue(item)) as T;

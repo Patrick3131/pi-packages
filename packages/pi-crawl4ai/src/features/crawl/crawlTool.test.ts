@@ -4,6 +4,7 @@
 
 import { loadConfig } from '../../config';
 import { registerCrawlTool } from './crawlTool';
+import { resetBackoffState } from './backoff';
 import { mockFetch } from '../../test-utils';
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
 import { existsSync, rmSync, readFileSync } from 'node:fs';
@@ -87,6 +88,7 @@ describe('crawl tool execute', () => {
   let toolExecute: any;
 
   beforeEach(() => {
+    resetBackoffState();
     mockPi = createMockPi();
     const config = loadConfig();
     registerCrawlTool(mockPi, config);
@@ -544,6 +546,76 @@ describe('crawl tool execute', () => {
         {}
       )
     ).rejects.toThrow('Auth profile "x-main" is not allowed');
+  });
+
+  it('should apply global backoff between calls', async () => {
+    jest.useFakeTimers();
+
+    try {
+      const localMockPi = createMockPi();
+      const config = loadConfig();
+      config.raw.backoffMs = 5000;
+      registerCrawlTool(localMockPi, config);
+      const execute = localMockPi.registeredTools[0].execute;
+
+      const fetchMock = mockFetch({ ok: true, data: { success: true, results: [] } });
+
+      await execute('tool-call-id-1', { urls: ['https://example.com'] }, undefined, undefined, {});
+      const secondCall = execute('tool-call-id-2', { urls: ['https://example.com'] }, undefined, undefined, {});
+
+      await Promise.resolve();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(4999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(1);
+      const result = await secondCall;
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.details.backoffMs).toBe(5000);
+      expect(result.details.backoffWaitedMs).toBe(5000);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('should let auth profile backoff override the global backoff', async () => {
+    jest.useFakeTimers();
+
+    try {
+      const localMockPi = createMockPi();
+      const config = loadConfig();
+      config.raw.backoffMs = 5000;
+      config.raw.authProfiles = {
+        'x-main': {
+          matchDomains: ['x.com'],
+          cookies: [{ name: 'auth_token', value: 'secret' }],
+          backoffMs: 1000,
+        },
+      };
+      registerCrawlTool(localMockPi, config);
+      const execute = localMockPi.registeredTools[0].execute;
+
+      const fetchMock = mockFetch({ ok: true, data: { success: true, results: [] } });
+
+      await execute('tool-call-id-1', { urls: ['https://x.com/post/1'] }, undefined, undefined, {});
+      const secondCall = execute('tool-call-id-2', { urls: ['https://x.com/post/2'] }, undefined, undefined, {});
+
+      await Promise.resolve();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(1);
+      const result = await secondCall;
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.details.authProfile).toBe('x-main');
+      expect(result.details.backoffMs).toBe(1000);
+      expect(result.details.backoffWaitedMs).toBe(1000);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

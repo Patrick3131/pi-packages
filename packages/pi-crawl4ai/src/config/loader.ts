@@ -1,4 +1,4 @@
-import { loadEnvFile, resolveEnvVars } from "./env";
+import { loadEnvFile, resolveEnvVars, resolveNumber } from "./env";
 import { findConfigFile, loadJsonConfig } from "./files";
 import { resolveAuthProfiles } from "./authProfiles";
 import { applyEnvProxyConfig, applyJsonProxyConfig } from "./proxyResolution";
@@ -12,6 +12,7 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
     baseUrl: jsonConfig?.url ? resolveEnvVars(jsonConfig.url) : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
     timeout: jsonConfig?.timeoutMs || parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10),
     enabledByDefault: jsonConfig?.enabledByDefault ?? false,
+    backoffMs: jsonConfig?.backoffMs !== undefined ? resolveNumber(jsonConfig.backoffMs) : undefined,
     authProfiles: resolveAuthProfiles(jsonConfig?.authProfiles),
   };
 

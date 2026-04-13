@@ -7,6 +7,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
 import { buildBrowserConfig, resolveAuthSelection } from "../../config";
 import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult, DeepCrawlConfig } from "./types";
+import { applyBackoff } from "./backoff";
 import { resolveOutputDir, saveCrawlResults } from "./saveOutput";
 
 /**
@@ -231,6 +232,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       }
 
       try {
+        const backoff = await applyBackoff(config, authSelection, signal);
+
         const response = await fetch(`${config.baseUrl}/crawl`, {
           method: "POST",
           headers: {
@@ -279,6 +282,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
               format,
               authProfile: authSelection?.profileName,
               authProfileReason: authSelection?.reason,
+              backoffMs: backoff?.configuredMs,
+              backoffWaitedMs: backoff?.waitedMs,
               savedPath,
               deepCrawl: {
                 totalPages: data.results.length,
@@ -305,6 +310,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             format,
             authProfile: authSelection?.profileName,
             authProfileReason: authSelection?.reason,
+            backoffMs: backoff?.configuredMs,
+            backoffWaitedMs: backoff?.waitedMs,
             savedPath,
           },
         };

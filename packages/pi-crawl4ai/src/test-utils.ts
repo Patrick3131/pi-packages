@@ -58,4 +58,5 @@ export function resetEnv(): void {
   // Auth profile test vars
   delete process.env.X_COOKIES_JSON;
   delete process.env.X_USER_AGENT;
+  delete process.env.X_BACKOFF_MS;
 }

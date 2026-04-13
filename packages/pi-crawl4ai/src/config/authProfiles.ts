@@ -1,4 +1,4 @@
-import { resolveEnvVars, resolveJsonValue } from "./env";
+import { resolveEnvVars, resolveJsonValue, resolveNumber } from "./env";
 import type { AuthCookie, AuthProfileConfig, Crawl4AIJsonConfig, ResolvedConfig, ResolvedAuthProfile } from "./types";
 
 function normalizeList(values?: string[]): string[] | undefined {
@@ -46,5 +46,6 @@ export function resolveAuthProfiles(
     cookies: parseCookies(profile.cookies),
     headers: profile.headers ? resolveJsonValue(profile.headers) : undefined,
     userAgent: profile.userAgent ? resolveEnvVars(profile.userAgent) : undefined,
+    backoffMs: resolveNumber(profile.backoffMs),
   } satisfies ResolvedAuthProfile]));
 }
