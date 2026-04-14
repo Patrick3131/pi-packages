@@ -7,6 +7,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 | Package | Description | Version |
 |---------|-------------|---------|
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | [![npm](https://img.shields.io/npm/v/pi-crawl4ai.svg)](https://www.npmjs.com/package/pi-crawl4ai) |
+| [pi-context-inspector](./packages/pi-context-inspector) | Effective system prompt and context burden inspector with HTML + JSON reports | unpublished |
 
 ## Installation
 
@@ -14,13 +15,15 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 
 ```bash
 npm install pi-crawl4ai
+# or
+npm install pi-context-inspector
 ```
 
 Add to your Pi `settings.json`:
 
 ```json
 {
-  "packages": ["pi-crawl4ai"]
+  "packages": ["pi-crawl4ai", "pi-context-inspector"]
 }
 ```
 
@@ -87,6 +90,10 @@ npm publish
 ```
 pi-packages/
 ├── packages/
+│   ├── pi-context-inspector/
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── README.md
 │   └── pi-crawl4ai/
 │       ├── src/
 │       ├── package.json
