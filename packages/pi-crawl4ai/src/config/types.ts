@@ -3,12 +3,33 @@ import type { ProxyService } from "../proxy";
 export interface AuthCookie {
   name: string;
   value: string;
+  url?: string;
   domain?: string;
   path?: string;
   httpOnly?: boolean;
   secure?: boolean;
   sameSite?: "Strict" | "Lax" | "None";
   expires?: number;
+}
+
+export interface ProxySettingsConfig {
+  url?: string;
+  provider?: "oxylabs" | "custom";
+  host?: string;
+  port?: string | number;
+  ports?: string | number[];
+  username?: string;
+  password?: string;
+}
+
+export interface ResolvedProxySettings {
+  url?: string;
+  provider?: string;
+  host?: string;
+  port?: string;
+  ports?: number[];
+  username?: string;
+  password?: string;
 }
 
 export interface AuthProfileConfig {
@@ -18,6 +39,7 @@ export interface AuthProfileConfig {
   headers?: Record<string, string>;
   userAgent?: string;
   backoffMs?: number | string;
+  proxy?: ProxySettingsConfig;
 }
 
 export interface ResolvedAuthProfile {
@@ -27,6 +49,7 @@ export interface ResolvedAuthProfile {
   headers?: Record<string, string>;
   userAgent?: string;
   backoffMs?: number;
+  proxy?: ResolvedProxySettings;
 }
 
 export interface Crawl4AIJsonConfig {
@@ -34,15 +57,7 @@ export interface Crawl4AIJsonConfig {
   timeoutMs?: number;
   enabledByDefault?: boolean;
   backoffMs?: number | string;
-  proxy?: {
-    url?: string;
-    provider?: "oxylabs" | "custom";
-    host?: string;
-    port?: string | number;
-    ports?: string | number[];
-    username?: string;
-    password?: string;
-  };
+  proxy?: ProxySettingsConfig;
   authProfiles?: Record<string, AuthProfileConfig>;
 }
 

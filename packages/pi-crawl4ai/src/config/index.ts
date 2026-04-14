@@ -5,9 +5,11 @@ export type {
   AuthCookie,
   AuthProfileConfig,
   Crawl4AIConfig,
+  ProxySettingsConfig,
   Crawl4AIJsonConfig,
   ResolvedAuthProfile,
   ResolvedAuthSelection,
   ResolvedConfig,
+  ResolvedProxySettings,
   ResolveAuthProfileOptions,
 } from "./types";

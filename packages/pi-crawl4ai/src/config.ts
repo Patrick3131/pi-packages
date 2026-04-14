@@ -4,8 +4,10 @@ export type {
   AuthProfileConfig,
   Crawl4AIConfig,
   Crawl4AIJsonConfig,
+  ProxySettingsConfig,
   ResolvedAuthProfile,
   ResolvedAuthSelection,
   ResolvedConfig,
+  ResolvedProxySettings,
   ResolveAuthProfileOptions,
 } from "./config/index";

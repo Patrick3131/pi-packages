@@ -1,28 +1,44 @@
 import { resolveEnvVars } from "./env";
-import type { Crawl4AIJsonConfig, ResolvedConfig } from "./types";
+import type { Crawl4AIJsonConfig, ProxySettingsConfig, ResolvedConfig, ResolvedProxySettings } from "./types";
 
-function parsePorts(value?: string | number[]): number[] | undefined {
+export function parsePorts(value?: string | number[]): number[] | undefined {
   if (!value) return undefined;
   if (Array.isArray(value)) return value;
   const ports = value.split(",").map((port) => parseInt(port.trim(), 10)).filter((port) => !isNaN(port));
   return ports.length > 0 ? ports : undefined;
 }
 
-export function applyJsonProxyConfig(config: ResolvedConfig, jsonConfig: Crawl4AIJsonConfig | null): void {
-  const proxy = jsonConfig?.proxy;
-  if (!proxy) return;
+export function resolveProxySettings(proxy?: ProxySettingsConfig): ResolvedProxySettings | undefined {
+  if (!proxy) return undefined;
   if (proxy.url) {
-    config.proxyUrl = resolveEnvVars(proxy.url);
+    return { url: resolveEnvVars(proxy.url) };
+  }
+  if (proxy.provider !== "oxylabs" && !proxy.username) return undefined;
+
+  return {
+    provider: proxy.provider || "oxylabs",
+    host: proxy.host ? resolveEnvVars(proxy.host) : undefined,
+    port: typeof proxy.port === "number" ? String(proxy.port) : proxy.port,
+    ports: parsePorts(proxy.ports),
+    username: proxy.username ? resolveEnvVars(proxy.username) : process.env.OXYLABS_USER,
+    password: proxy.password ? resolveEnvVars(proxy.password) : process.env.OXYLABS_PASS,
+  };
+}
+
+export function applyJsonProxyConfig(config: ResolvedConfig, jsonConfig: Crawl4AIJsonConfig | null): void {
+  const resolved = resolveProxySettings(jsonConfig?.proxy);
+  if (!resolved) return;
+  if (resolved.url) {
+    config.proxyUrl = resolved.url;
     return;
   }
-  if (proxy.provider !== "oxylabs" && !proxy.username) return;
 
-  config.proxyProvider = proxy.provider || "oxylabs";
-  config.proxyHost = proxy.host ? resolveEnvVars(proxy.host) : undefined;
-  config.proxyPort = typeof proxy.port === "number" ? String(proxy.port) : proxy.port;
-  config.proxyPorts = parsePorts(proxy.ports);
-  config.proxyUsername = proxy.username ? resolveEnvVars(proxy.username) : process.env.OXYLABS_USER;
-  config.proxyPassword = proxy.password ? resolveEnvVars(proxy.password) : process.env.OXYLABS_PASS;
+  config.proxyProvider = resolved.provider;
+  config.proxyHost = resolved.host;
+  config.proxyPort = resolved.port;
+  config.proxyPorts = resolved.ports;
+  config.proxyUsername = resolved.username;
+  config.proxyPassword = resolved.password;
 }
 
 export function applyEnvProxyConfig(config: ResolvedConfig): void {

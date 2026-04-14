@@ -1,10 +1,16 @@
-import { createProxyService } from "../proxy";
+import { createProxyService, type ProxyService } from "../proxy";
 import { createCustomAdapter, type CustomProxySettings } from "../proxy/adapters";
 import type { ProxyAdapter, ProxyEndpoint } from "../proxy";
 import { loadConfig as loadResolvedConfig } from "./loader";
-import type { Crawl4AIConfig } from "./types";
+import type { Crawl4AIConfig, ResolvedProxySettings } from "./types";
 
-function createEndpoints(config: Crawl4AIConfig["raw"]): ProxyEndpoint[] | undefined {
+function createEndpoints(config: {
+  proxyProvider?: string;
+  proxyUsername?: string;
+  proxyPassword?: string;
+  proxyHost?: string;
+  proxyPorts?: number[];
+}): ProxyEndpoint[] | undefined {
   const username = config.proxyProvider === "oxylabs" && config.proxyUsername
     ? (config.proxyUsername.startsWith("user-") ? config.proxyUsername : `user-${config.proxyUsername}`)
     : config.proxyUsername;
@@ -18,23 +24,48 @@ function createEndpoints(config: Crawl4AIConfig["raw"]): ProxyEndpoint[] | undef
   }));
 }
 
+export function createProxyServiceFromResolvedSettings(
+  proxy: ResolvedProxySettings | undefined,
+  log?: (level: "info" | "warn" | "error", message: string) => void
+): ProxyService {
+  const customAdapters: ProxyAdapter[] = [];
+
+  if (proxy?.url || (proxy?.host && (proxy.port || proxy.ports))) {
+    customAdapters.push(createCustomAdapter({
+      url: proxy.url,
+      host: proxy.host,
+      port: proxy.port,
+      username: proxy.provider === "oxylabs" && proxy.username && !proxy.username.startsWith("user-")
+        ? `user-${proxy.username}`
+        : proxy.username,
+      password: proxy.password,
+      endpoints: createEndpoints({
+        proxyProvider: proxy.provider,
+        proxyUsername: proxy.username,
+        proxyPassword: proxy.password,
+        proxyHost: proxy.host,
+        proxyPorts: proxy.ports,
+      }),
+    } satisfies CustomProxySettings));
+  }
+
+  return createProxyService({ customAdapters, log });
+}
+
 export function loadRuntimeConfig(options?: { cwd?: string; log?: (level: "info" | "warn" | "error", message: string) => void; }): Crawl4AIConfig {
   const log = options?.log || (() => {});
   const raw = loadResolvedConfig(options?.cwd);
-  const customAdapters: ProxyAdapter[] = [];
-
-  if (raw.proxyUrl || (raw.proxyHost && (raw.proxyPort || raw.proxyPorts))) {
-    customAdapters.push(createCustomAdapter({
-      url: raw.proxyUrl,
-      host: raw.proxyHost,
-      port: raw.proxyPort,
-      username: raw.proxyProvider === "oxylabs" && raw.proxyUsername && !raw.proxyUsername.startsWith("user-") ? `user-${raw.proxyUsername}` : raw.proxyUsername,
-      password: raw.proxyPassword,
-      endpoints: createEndpoints(raw),
-    } satisfies CustomProxySettings));
+  const proxyService = createProxyServiceFromResolvedSettings({
+    url: raw.proxyUrl,
+    provider: raw.proxyProvider,
+    host: raw.proxyHost,
+    port: raw.proxyPort,
+    ports: raw.proxyPorts,
+    username: raw.proxyUsername,
+    password: raw.proxyPassword,
+  }, log);
+  if (proxyService.isEnabled()) {
     log("info", "Using proxy from config");
   }
-
-  const proxyService = createProxyService({ customAdapters, log });
   return { baseUrl: raw.baseUrl, timeout: raw.timeout, proxyService, proxyEnabled: proxyService.isEnabled(), raw };
 }

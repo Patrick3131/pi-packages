@@ -81,6 +81,43 @@ describe('registerCrawlTool', () => {
     expect(tool.parameters.properties.site).toBeDefined();
     expect(tool.parameters.properties.authProfile).toBeDefined();
   });
+
+  it('should include prompt guidance for site and auth profile selection', () => {
+    const mockPi = createMockPi();
+    const config = loadConfig();
+
+    registerCrawlTool(mockPi, config);
+
+    const tool = mockPi.registeredTools[0];
+    expect(tool.promptSnippet).toContain('auth profile selection');
+    expect(tool.promptGuidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('automatic domain-based auth profile selection'),
+        expect.stringContaining('site parameter'),
+        expect.stringContaining('authProfile'),
+      ])
+    );
+  });
+
+  it('should provide prepareArguments compatibility shims for site and auth profile aliases', () => {
+    const mockPi = createMockPi();
+    const config = loadConfig();
+
+    registerCrawlTool(mockPi, config);
+
+    const tool = mockPi.registeredTools[0];
+    expect(tool.prepareArguments({
+      urls: ['https://x.com/some/status/1'],
+      platform: 'x',
+      profile: 'x-main',
+    })).toEqual({
+      urls: ['https://x.com/some/status/1'],
+      platform: 'x',
+      profile: 'x-main',
+      site: 'x',
+      authProfile: 'x-main',
+    });
+  });
 });
 
 describe('crawl tool execute', () => {
@@ -170,10 +207,23 @@ describe('crawl tool execute', () => {
       {}
     );
 
+    expect(result.content[0].text).toContain('*Execution:*');
+    expect(result.content[0].text).toContain('auth=none');
+    expect(result.content[0].text).toContain('proxy=none');
     expect(result.content[0].text).toContain('# Example');
     expect(result.content[0].text).toContain('This is example content.');
     expect(result.details.format).toBe('markdown');
     expect(result.details.results).toHaveLength(1);
+    expect(result.details.execution).toEqual({
+      siteHint: undefined,
+      authProfile: undefined,
+      authProfileReason: 'none',
+      proxyUsed: false,
+      proxySource: 'none',
+      hasCookies: false,
+      hasHeaders: false,
+      hasUserAgent: false,
+    });
   });
 
   it('should handle MarkdownGenerationResult object from API', async () => {
@@ -488,9 +538,23 @@ describe('crawl tool execute', () => {
       'x-test': '1',
       Cookie: 'auth_token=secret',
     });
-    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret' }]);
+    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret', url: 'https://x.com/some/status/1' }]);
+    expect(result.content[0].text).toContain('auth=x-main');
+    expect(result.content[0].text).toContain('authReason=domain');
+    expect(result.content[0].text).toContain('proxy=none');
+    expect(result.content[0].text).toContain('cookies=yes');
     expect(result.details.authProfile).toBe('x-main');
     expect(result.details.authProfileReason).toBe('domain');
+    expect(result.details.execution).toEqual({
+      siteHint: undefined,
+      authProfile: 'x-main',
+      authProfileReason: 'domain',
+      proxyUsed: false,
+      proxySource: 'none',
+      hasCookies: true,
+      hasHeaders: true,
+      hasUserAgent: false,
+    });
   });
 
   it('should select auth profile by site hint', async () => {
@@ -520,9 +584,13 @@ describe('crawl tool execute', () => {
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret' }]);
+    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret', url: 'https://x.com/some/status/1' }]);
+    expect(result.content[0].text).toContain('siteHint=X');
+    expect(result.content[0].text).toContain('auth=x-main');
+    expect(result.content[0].text).toContain('authReason=site');
     expect(result.details.authProfile).toBe('x-main');
     expect(result.details.authProfileReason).toBe('site');
+    expect(result.details.siteHint).toBe('X');
   });
 
   it('should reject explicit auth profiles for mismatched domains', async () => {
@@ -546,6 +614,53 @@ describe('crawl tool execute', () => {
         {}
       )
     ).rejects.toThrow('Auth profile "x-main" is not allowed');
+  });
+
+  it('should use per-auth-profile proxy override in crawl payload', async () => {
+    process.env.OXYLABS_USER = 'testuser';
+    process.env.OXYLABS_PASS = 'testpass';
+    process.env.OXYLABS_PORT = '7777';
+
+    const localMockPi = createMockPi();
+    const config = loadConfig();
+    config.raw.authProfiles = {
+      'reddit-main': {
+        matchDomains: ['reddit.com'],
+        cookies: [{ name: 'reddit_session', value: 'secret' }],
+        proxy: {
+          provider: 'oxylabs',
+          host: 'isp.oxylabs.io',
+          ports: [8008],
+          username: 'testuser',
+          password: 'testpass',
+        },
+      },
+    };
+    registerCrawlTool(localMockPi, config);
+    const execute = localMockPi.registeredTools[0].execute;
+
+    const fetchMock = mockFetch({
+      ok: true,
+      data: { success: true, results: [] },
+    });
+
+    const result = await execute(
+      'tool-call-id',
+      { urls: ['https://reddit.com/r/test/comments/1'] },
+      undefined,
+      undefined,
+      {}
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.browser_config.proxy_config).toEqual({
+      server: 'http://isp.oxylabs.io:8008',
+      username: 'user-testuser',
+      password: 'testpass',
+    });
+    expect(result.content[0].text).toContain('proxy=auth-profile');
+    expect(result.details.proxyUsed).toBe(true);
+    expect(result.details.proxySource).toBe('auth-profile');
   });
 
   it('should apply global backoff between calls', async () => {
@@ -572,6 +687,7 @@ describe('crawl tool execute', () => {
       await jest.advanceTimersByTimeAsync(1);
       const result = await secondCall;
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.content[0].text).toContain('*Execution:*');
       expect(result.details.backoffMs).toBe(5000);
       expect(result.details.backoffWaitedMs).toBe(5000);
     } finally {
@@ -610,6 +726,7 @@ describe('crawl tool execute', () => {
       await jest.advanceTimersByTimeAsync(1);
       const result = await secondCall;
       expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.content[0].text).toContain('auth=x-main');
       expect(result.details.authProfile).toBe('x-main');
       expect(result.details.backoffMs).toBe(1000);
       expect(result.details.backoffWaitedMs).toBe(1000);

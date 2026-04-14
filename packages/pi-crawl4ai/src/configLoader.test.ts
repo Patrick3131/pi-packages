@@ -295,6 +295,35 @@ describe("mergeConfigWithEnv", () => {
         { name: "csrf", value: "def" },
       ]);
     });
+
+    it("should resolve per-auth-profile proxy overrides", () => {
+      const jsonConfig: Crawl4AIJsonConfig = {
+        authProfiles: {
+          "reddit-main": {
+            matchDomains: ["reddit.com"],
+            proxy: {
+              provider: "oxylabs",
+              host: "isp.oxylabs.io",
+              ports: [8008],
+              username: "${OXYLABS_USER}",
+              password: "${OXYLABS_PASS}",
+            },
+          },
+        },
+      };
+      process.env.OXYLABS_USER = "user1";
+      process.env.OXYLABS_PASS = "pass1";
+
+      const config = mergeConfigWithEnv(jsonConfig);
+
+      expect(config.authProfiles?.["reddit-main"]?.proxy).toEqual({
+        provider: "oxylabs",
+        host: "isp.oxylabs.io",
+        ports: [8008],
+        username: "user1",
+        password: "pass1",
+      });
+    });
   });
 
   describe("enabledByDefault", () => {

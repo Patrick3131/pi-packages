@@ -5,7 +5,15 @@ import { applyEnvProxyConfig, applyJsonProxyConfig } from "./proxyResolution";
 import type { Crawl4AIJsonConfig, ResolvedConfig } from "./types";
 
 export { findConfigFile, loadJsonConfig } from "./files";
-export type { AuthCookie, AuthProfileConfig, Crawl4AIJsonConfig, ResolvedAuthProfile, ResolvedConfig } from "./types";
+export type {
+  AuthCookie,
+  AuthProfileConfig,
+  Crawl4AIJsonConfig,
+  ProxySettingsConfig,
+  ResolvedAuthProfile,
+  ResolvedConfig,
+  ResolvedProxySettings,
+} from "./types";
 
 export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): ResolvedConfig {
   const config: ResolvedConfig = {

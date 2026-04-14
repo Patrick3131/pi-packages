@@ -157,11 +157,20 @@ Use `authProfiles` to define reusable authenticated browser contexts. This keeps
     "reddit-main": {
       "matchSites": ["reddit"],
       "matchDomains": ["reddit.com"],
-      "cookies": "${REDDIT_COOKIES_JSON}"
+      "cookies": "${REDDIT_COOKIES_JSON}",
+      "proxy": {
+        "provider": "oxylabs",
+        "host": "isp.oxylabs.io",
+        "ports": [8008],
+        "username": "${OXYLABS_USER}",
+        "password": "${OXYLABS_PASS}"
+      }
     }
   }
 }
 ```
+
+If an auth profile defines `proxy`, it overrides the top-level `proxy` config for crawls using that profile.
 
 `cookies` may be either:
 - a JSON string containing an array of cookie objects
@@ -295,6 +304,10 @@ Pi: [uses crawl tool to fetch and process the page]
 ```
 
 With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X". If `backoffMs` is configured in the JSON config, crawls are rate-limited between calls. Per-profile `backoffMs` overrides the global value.
+
+Each crawl result includes an execution summary showing the effective config used for that request, including site hint, auth profile, proxy source, and whether cookies, headers, and user agent were applied.
+
+The tool also accepts a few compatibility aliases when the model guesses different argument names: `platform`, `siteName`, or `sourceSite` map to `site`, and `profile`, `auth_profile`, or `auth` map to `authProfile`.
 
 ### Tool Parameters
 

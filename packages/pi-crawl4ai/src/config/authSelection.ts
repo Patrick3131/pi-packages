@@ -8,6 +8,18 @@ function normalizeHostname(value: string): string {
   return normalize(value).replace(/^www\./, "");
 }
 
+function ensureAbsoluteUrl(value: string): string {
+  const trimmed = value.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed.replace(/^\/\//, "")}`;
+}
+
+function getHostname(value: string): string {
+  return new URL(ensureAbsoluteUrl(value)).hostname;
+}
+
 function matchesDomain(hostname: string, domain: string): boolean {
   const host = normalizeHostname(hostname);
   const allowed = normalizeHostname(domain);
@@ -16,7 +28,7 @@ function matchesDomain(hostname: string, domain: string): boolean {
 
 function assertAllowedDomains(name: string, profile: ResolvedAuthProfile, urls: string[]): void {
   if (!profile.matchDomains?.length) return;
-  const invalid = urls.filter((url) => !profile.matchDomains!.some((domain) => matchesDomain(new URL(url).hostname, domain)));
+  const invalid = urls.filter((url) => !profile.matchDomains!.some((domain) => matchesDomain(getHostname(url), domain)));
   if (invalid.length > 0) {
     throw new Error(`Auth profile "${name}" is not allowed for: ${invalid.join(", ")}. Allowed domains: ${profile.matchDomains.join(", ")}`);
   }
@@ -36,7 +48,7 @@ function resolveBySite(profiles: Record<string, ResolvedAuthProfile>, site: stri
 }
 
 function resolveByDomain(profiles: Record<string, ResolvedAuthProfile>, urls: string[]): ResolvedAuthSelection | undefined {
-  const hosts = Array.from(new Set(urls.map((url) => normalizeHostname(new URL(url).hostname))));
+  const hosts = Array.from(new Set(urls.map((url) => normalizeHostname(getHostname(url)))));
   const matches = Object.entries(profiles).filter(([, profile]) => profile.matchDomains?.length
     && hosts.every((host) => profile.matchDomains!.some((domain) => matchesDomain(host, domain))));
   const match = singleMatch(matches, hosts.join(", "), "domains");

@@ -75,6 +75,73 @@ function buildDeepCrawlStrategy(config: DeepCrawlConfig): Record<string, unknown
   };
 }
 
+function buildExecutionDetails(
+  config: Crawl4AIConfig,
+  site: string | undefined,
+  authSelection: ReturnType<typeof resolveAuthSelection>
+): {
+  siteHint?: string;
+  authProfile?: string;
+  authProfileReason: string;
+  proxyUsed: boolean;
+  proxySource: "auth-profile" | "default" | "none";
+  hasCookies: boolean;
+  hasHeaders: boolean;
+  hasUserAgent: boolean;
+} {
+  const profile = authSelection?.profile;
+  const proxySource = profile?.proxy ? "auth-profile" : config.proxyEnabled ? "default" : "none";
+
+  return {
+    siteHint: site,
+    authProfile: authSelection?.profileName,
+    authProfileReason: authSelection?.reason ?? "none",
+    proxyUsed: proxySource !== "none",
+    proxySource,
+    hasCookies: Boolean(profile?.cookies?.length),
+    hasHeaders: Boolean(profile?.headers && Object.keys(profile.headers).length > 0),
+    hasUserAgent: Boolean(profile?.userAgent),
+  };
+}
+
+function formatExecutionSummary(details: ReturnType<typeof buildExecutionDetails>): string {
+  return [
+    "*Execution:*",
+    `siteHint=${details.siteHint ?? "none"}`,
+    `auth=${details.authProfile ?? "none"}`,
+    `authReason=${details.authProfileReason}`,
+    `proxy=${details.proxySource}`,
+    `cookies=${details.hasCookies ? "yes" : "no"}`,
+    `headers=${details.hasHeaders ? "yes" : "no"}`,
+    `userAgent=${details.hasUserAgent ? "yes" : "no"}`,
+  ].join(" ");
+}
+
+function prepareCrawlArguments(args: unknown): unknown {
+  if (!args || typeof args !== "object") {
+    return args;
+  }
+
+  const input = args as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...input };
+
+  if (next.site === undefined) {
+    const siteAlias = next.platform ?? next.siteName ?? next.sourceSite;
+    if (typeof siteAlias === "string") {
+      next.site = siteAlias;
+    }
+  }
+
+  if (next.authProfile === undefined) {
+    const authAlias = next.profile ?? next.auth_profile ?? next.auth;
+    if (typeof authAlias === "string") {
+      next.authProfile = authAlias;
+    }
+  }
+
+  return next;
+}
+
 /**
  * Register the crawl tool with pi.
  */
@@ -86,7 +153,16 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       "Crawl one or more URLs using crawl4ai with browser rendering and optional proxy support. " +
       "Returns markdown, HTML, or extracted links. Use this for scraping JavaScript-rendered pages, " +
       "SPAs, or when you need structured content extraction. " +
+      "Supports automatic auth profile selection by site/domain, and explicit authProfile overrides when needed. " +
       "Use deepCrawl to follow links and crawl multiple pages from a starting URL.",
+    promptSnippet:
+      "Crawl web pages with optional automatic auth profile selection by site/domain and deep crawling.",
+    promptGuidelines: [
+      "If the user provides URLs directly, rely on automatic domain-based auth profile selection by default. Do not pass authProfile unless the user explicitly asks for a specific account, login context, or named auth setup.",
+      "Use the site parameter only when the user refers to a platform or site by name instead of giving a domain, for example 'from X', 'from Reddit', or similar site-name phrasing.",
+      "Do not invent authProfile values. Only pass authProfile when the user explicitly requests a known profile or prior context established one.",
+    ],
+    prepareArguments: prepareCrawlArguments,
     parameters: Type.Object({
       urls: Type.Array(Type.String(), {
         description: "URLs to crawl (one or more). For deep crawling, provide a single start URL.",
@@ -178,7 +254,13 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       ),
     }),
 
-    async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
+    async execute(
+      _toolCallId: string,
+      params: CrawlToolParams,
+      signal?: AbortSignal,
+      _onUpdate?: unknown,
+      _ctx?: unknown
+    ) {
       const { urls, site, authProfile, format = "markdown", waitFor, jsCode, bypassCache, deepCrawl, save } = params as CrawlToolParams;
 
       // Validate deep crawl requires single URL
@@ -187,9 +269,10 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       }
 
       const authSelection = resolveAuthSelection(config, { urls, site, authProfile });
+      const executionDetails = buildExecutionDetails(config, site, authSelection);
 
       // Build the request payload
-      const browserConfig = buildBrowserConfig(config, authSelection);
+      const browserConfig = buildBrowserConfig(config, authSelection, urls);
 
       const crawlerConfig: Record<string, unknown> = {};
 
@@ -273,15 +356,25 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
 
         // For deep crawl, group by depth and show hierarchy
         if (deepCrawl && data.results.length > 1) {
-          const summary = formatDeepCrawlResults(formattedResults, data.results, deepCrawl.maxDepth, savedPath);
+          const summary = [
+            formatExecutionSummary(executionDetails),
+            "",
+            formatDeepCrawlResults(formattedResults, data.results, deepCrawl.maxDepth, savedPath),
+          ].join("\n");
           return {
             content: [{ type: "text", text: summary }],
             details: {
               results: data.results,
-              proxyUsed: config.proxyEnabled,
+              proxyUsed: executionDetails.proxyUsed,
+              proxySource: executionDetails.proxySource,
+              hasCookies: executionDetails.hasCookies,
+              hasHeaders: executionDetails.hasHeaders,
+              hasUserAgent: executionDetails.hasUserAgent,
+              siteHint: executionDetails.siteHint,
               format,
-              authProfile: authSelection?.profileName,
-              authProfileReason: authSelection?.reason,
+              authProfile: executionDetails.authProfile,
+              authProfileReason: executionDetails.authProfileReason,
+              execution: executionDetails,
               backoffMs: backoff?.configuredMs,
               backoffWaitedMs: backoff?.waitedMs,
               savedPath,
@@ -295,21 +388,28 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
 
         // Single URL or multi-URL (non-deep) format
         const saveNotice = savedPath ? `\n\n*Results saved to: ${savedPath}*` : "";
-        const summary =
+        const resultBody =
           formattedResults.length === 1
             ? `## ${formattedResults[0].url}\n\n${formattedResults[0].content}${saveNotice}`
             : formattedResults
                 .map((r, i) => `---\n## Result ${i + 1}: ${r.url}\n\n${r.content}`)
                 .join("\n\n") + saveNotice;
+        const summary = [formatExecutionSummary(executionDetails), "", resultBody].join("\n");
 
         return {
           content: [{ type: "text", text: summary }],
           details: {
             results: data.results,
-            proxyUsed: config.proxyEnabled,
+            proxyUsed: executionDetails.proxyUsed,
+            proxySource: executionDetails.proxySource,
+            hasCookies: executionDetails.hasCookies,
+            hasHeaders: executionDetails.hasHeaders,
+            hasUserAgent: executionDetails.hasUserAgent,
+            siteHint: executionDetails.siteHint,
             format,
-            authProfile: authSelection?.profileName,
-            authProfileReason: authSelection?.reason,
+            authProfile: executionDetails.authProfile,
+            authProfileReason: executionDetails.authProfileReason,
+            execution: executionDetails,
             backoffMs: backoff?.configuredMs,
             backoffWaitedMs: backoff?.waitedMs,
             savedPath,
@@ -320,7 +420,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         throw new Error(`Crawl failed: ${message}`);
       }
     },
-  });
+  } as any);
 }
 
 /**

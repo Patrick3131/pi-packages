@@ -109,6 +109,23 @@ describe("resolveAuthSelection", () => {
     expect(selection?.reason).toBe("site");
   });
 
+  it("should resolve a profile by domain when the URL is missing https", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com", "twitter.com"],
+        cookies: [{ name: "auth_token", value: "secret" }],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["x.com/some/thread"],
+    });
+
+    expect(selection?.profileName).toBe("x-main");
+    expect(selection?.reason).toBe("domain");
+  });
+
   it("should reject explicit profiles for mismatched domains", () => {
     const config = loadConfig({ cwd: tempDir });
     config.raw.authProfiles = {
@@ -184,7 +201,7 @@ describe("buildBrowserConfig", () => {
       urls: ["https://x.com/some/thread"],
       authProfile: "x-main",
     });
-    const browserConfig = buildBrowserConfig(config, selection);
+    const browserConfig = buildBrowserConfig(config, selection, ["https://x.com/some/thread"]);
 
     expect(browserConfig.headers).toEqual({
       "x-test": "1",
@@ -192,8 +209,84 @@ describe("buildBrowserConfig", () => {
     });
     expect(browserConfig.user_agent).toBe("Mozilla/5.0 Test");
     expect(browserConfig.cookies).toEqual([
-      { name: "auth_token", value: "secret" },
-      { name: "ct0", value: "csrf" },
+      { name: "auth_token", value: "secret", url: "https://x.com/some/thread" },
+      { name: "ct0", value: "csrf", url: "https://x.com/some/thread" },
     ]);
+  });
+
+  it("should preserve cookies that already include domain and path", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com"],
+        cookies: [
+          { name: "auth_token", value: "secret", domain: ".x.com", path: "/" },
+        ],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["https://x.com/some/thread"],
+      authProfile: "x-main",
+    });
+    const browserConfig = buildBrowserConfig(config, selection, ["https://x.com/some/thread"]);
+
+    expect(browserConfig.cookies).toEqual([
+      { name: "auth_token", value: "secret", domain: ".x.com", path: "/" },
+    ]);
+  });
+
+  it("should add https when deriving cookie url from a scheme-less target URL", () => {
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "x-main": {
+        matchDomains: ["x.com"],
+        cookies: [
+          { name: "auth_token", value: "secret" },
+        ],
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["x.com/some/thread"],
+      authProfile: "x-main",
+    });
+    const browserConfig = buildBrowserConfig(config, selection, ["x.com/some/thread"]);
+
+    expect(browserConfig.cookies).toEqual([
+      { name: "auth_token", value: "secret", url: "https://x.com/some/thread" },
+    ]);
+  });
+
+  it("should use per-auth-profile proxy override instead of top-level proxy", () => {
+    process.env.OXYLABS_USER = "testuser";
+    process.env.OXYLABS_PASS = "testpass";
+    process.env.OXYLABS_PORT = "7777";
+
+    const config = loadConfig({ cwd: tempDir });
+    config.raw.authProfiles = {
+      "reddit-main": {
+        matchDomains: ["reddit.com"],
+        proxy: {
+          provider: "oxylabs",
+          host: "isp.oxylabs.io",
+          ports: [8008],
+          username: "testuser",
+          password: "testpass",
+        },
+      },
+    };
+
+    const selection = resolveAuthSelection(config, {
+      urls: ["https://reddit.com/r/test/comments/1"],
+      authProfile: "reddit-main",
+    });
+    const browserConfig = buildBrowserConfig(config, selection, ["https://reddit.com/r/test/comments/1"]);
+
+    expect(browserConfig.proxy_config).toEqual({
+      server: "http://isp.oxylabs.io:8008",
+      username: "user-testuser",
+      password: "testpass",
+    });
   });
 });

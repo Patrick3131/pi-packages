@@ -1,4 +1,5 @@
 import { resolveEnvVars, resolveJsonValue, resolveNumber } from "./env";
+import { resolveProxySettings } from "./proxyResolution";
 import type { AuthCookie, AuthProfileConfig, Crawl4AIJsonConfig, ResolvedConfig, ResolvedAuthProfile } from "./types";
 
 function normalizeList(values?: string[]): string[] | undefined {
@@ -47,5 +48,6 @@ export function resolveAuthProfiles(
     headers: profile.headers ? resolveJsonValue(profile.headers) : undefined,
     userAgent: profile.userAgent ? resolveEnvVars(profile.userAgent) : undefined,
     backoffMs: resolveNumber(profile.backoffMs),
+    proxy: resolveProxySettings(profile.proxy),
   } satisfies ResolvedAuthProfile]));
 }
