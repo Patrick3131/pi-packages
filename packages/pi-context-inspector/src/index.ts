@@ -6,6 +6,11 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-cod
 
 import { collectContextInspectionReport } from "./collect-report.js";
 import { openInBrowser } from "./open-browser.js";
+import {
+  captureProviderPayloadSnapshot,
+  recordModelSelection,
+  restorePayloadCaptureState,
+} from "./payload-capture-store.js";
 import { renderReportHtml } from "./report-html.js";
 import { renderReportJson } from "./report-json.js";
 
@@ -55,8 +60,33 @@ export async function generateContextReport(
 }
 
 export default function (pi: ExtensionAPI) {
+  const restoreState = (ctx: { sessionManager: ExtensionCommandContext["sessionManager"] }) => {
+    restorePayloadCaptureState(ctx as unknown as Parameters<typeof restorePayloadCaptureState>[0]);
+  };
+
+  pi.on("session_start", async (_event, ctx) => {
+    restoreState(ctx as ExtensionCommandContext);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    restoreState(ctx as ExtensionCommandContext);
+  });
+
+  pi.on("before_provider_request", (event, ctx) => {
+    captureProviderPayloadSnapshot(pi, ctx, event.payload);
+    return undefined;
+  });
+
+  pi.on("model_select", async (event) => {
+    recordModelSelection(pi, {
+      source: event.source,
+      model: event.model,
+      previousModel: event.previousModel,
+    });
+  });
+
   pi.registerCommand("context-report", {
-    description: "Generate an HTML and JSON report for the current effective system prompt and context burden",
+    description: "Generate an HTML and JSON report for the current effective system prompt and best-available captured session context",
     handler: async (_args, ctx) => {
       await generateContextReport(pi, ctx);
     },

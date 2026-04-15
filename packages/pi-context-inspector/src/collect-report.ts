@@ -13,9 +13,22 @@ import {
   type LoadedExtension,
 } from "./base-trace/index.js";
 import { readDiscoveredPromptFiles } from "./file-reading.js";
+import { analyzeNormalizedPayload } from "./payload-analysis.js";
+import {
+  getPayloadCaptureState,
+  getLatestPayloadCapture,
+  loadRawPayload,
+} from "./payload-capture-store.js";
 import { buildToolDefinitionsSection, buildToolDefinitionsSummary, estimateTokens, parseSystemPrompt } from "./parser.js";
 import { discoverPromptPaths } from "./path-discovery.js";
-import type { ContextInspectionReport, ReportDiagnostic, SourceFileRecord } from "./types.js";
+import { normalizeProviderPayload } from "./provider-normalization.js";
+import type {
+  ContextInspectionReport,
+  LatestPayloadCaptureReport,
+  PayloadCurrentContextSummary,
+  ReportDiagnostic,
+  SourceFileRecord,
+} from "./types.js";
 
 function createReportId(): string {
   return `${new Date().toISOString().replaceAll(/[:.]/g, "-")}-${Math.random().toString(36).slice(2, 8)}`;
@@ -90,6 +103,148 @@ async function collectBaseTrace(
   }
 }
 
+function buildPromptOnlyContextSummary(
+  effectivePrompt: string,
+  usage: ReturnType<ExtensionCommandContext["getContextUsage"]>
+): PayloadCurrentContextSummary {
+  const effectiveSystemPromptTokens = estimateTokens(effectivePrompt);
+  const summaryLines = [
+    `Effective system prompt visible right now: ~${String(effectiveSystemPromptTokens)} tokens.`,
+    usage?.tokens != null
+      ? `Runtime context usage metadata currently reports ${String(usage.tokens)} tokens in use${usage.contextWindow ? ` of ${String(usage.contextWindow)}` : ""}.`
+      : "Runtime context usage metadata is not currently available from ctx.getContextUsage().",
+    "No provider request payload has been captured yet for this branch, so conversation/tool/request JSON details below are not available yet.",
+  ];
+
+  return {
+    bestAvailableView: "prompt-only",
+    effectiveSystemPromptTokens,
+    effectiveSystemPromptChars: effectivePrompt.length,
+    runtimeContextUsageTokens: usage?.tokens ?? undefined,
+    contextWindow: usage?.contextWindow ?? undefined,
+    visibility: "prompt-only-fallback",
+    summaryLines,
+    caveat:
+      "Best available current context is prompt-only until a provider request payload is captured after the extension is loaded.",
+  };
+}
+
+function buildCapturedContextSummary(
+  effectivePrompt: string,
+  payload: NonNullable<LatestPayloadCaptureReport["normalization"]>,
+  analysis: NonNullable<LatestPayloadCaptureReport["analysis"]>,
+  reportPayload: Pick<LatestPayloadCaptureReport, "visibility" | "latestCapture">,
+  usage: ReturnType<ExtensionCommandContext["getContextUsage"]>
+): PayloadCurrentContextSummary {
+  const effectiveSystemPromptTokens = estimateTokens(effectivePrompt);
+  const normalizedPayloadSystemTokens = payload.system.reduce((sum, item) => sum + item.tokens, 0);
+  const normalizedPayloadSystemChars = payload.system.reduce((sum, item) => sum + item.chars, 0);
+  const normalizedPayloadMessageTokens = payload.messages.reduce((sum, item) => sum + item.tokens, 0);
+  const normalizedPayloadToolTokens = payload.tools.reduce((sum, item) => sum + item.tokens, 0);
+  const summaryLines = [
+    `Effective system prompt visible from ctx.getSystemPrompt(): ~${String(effectiveSystemPromptTokens)} tokens.`,
+    `Latest normalized provider payload captured ${String(payload.system.length)} system/developer instruction block(s), ${String(payload.messages.length)} conversation message(s), and ${String(payload.tools.length)} tool definition block(s).`,
+    `Latest normalized payload estimate: ~${String(analysis.normalizedPayloadTokensEstimate)} tokens. Captured request JSON estimate: ~${String(analysis.requestJsonTokensEstimate)} tokens.`,
+    usage?.tokens != null
+      ? `Runtime context usage currently reports ${String(usage.tokens)} tokens${usage.contextWindow ? ` of ${String(usage.contextWindow)}` : ""}.`
+      : "Runtime context usage metadata is not currently available from ctx.getContextUsage().",
+  ];
+
+  let caveat: string | undefined;
+  if (reportPayload.visibility !== "exact-payload" || payload.status !== "full") {
+    caveat =
+      "This summary is best-effort: the payload capture may be partial and normalization may omit provider-specific or non-text fields.";
+  }
+
+  return {
+    bestAvailableView: "captured-payload",
+    effectiveSystemPromptTokens,
+    effectiveSystemPromptChars: effectivePrompt.length,
+    normalizedPayloadSystemTokens,
+    normalizedPayloadSystemChars,
+    normalizedPayloadMessageCount: payload.messages.length,
+    normalizedPayloadMessageTokens,
+    normalizedPayloadToolCount: payload.tools.length,
+    normalizedPayloadToolTokens,
+    normalizedPayloadTokensEstimate: analysis.normalizedPayloadTokensEstimate,
+    requestJsonTokensEstimate: analysis.requestJsonTokensEstimate,
+    runtimeContextUsageTokens: usage?.tokens ?? undefined,
+    contextWindow: usage?.contextWindow ?? reportPayload.latestCapture?.contextWindow,
+    visibility: reportPayload.visibility,
+    normalizationStatus: payload.status,
+    summaryLines,
+    caveat,
+  };
+}
+
+function buildPayloadReport(
+  ctx: ExtensionCommandContext,
+  effectivePrompt: string,
+  diagnostics: ReportDiagnostic[]
+): LatestPayloadCaptureReport {
+  const state = getPayloadCaptureState();
+  const latestCapture = getLatestPayloadCapture();
+  const usage = ctx.getContextUsage();
+
+  if (!latestCapture) {
+    diagnostics.push({
+      level: "info",
+      message:
+        "No provider payload capture was available for the current branch. This report is using prompt-derived analysis only. Trigger at least one model turn after loading the extension to capture the provider request payload.",
+    });
+    diagnostics.push({
+      level: "info",
+      message:
+        "If before_provider_request does not expose enough request detail for your provider, pair this package with pi-llm-debugging for deeper raw request logging.",
+    });
+    return {
+      available: false,
+      visibility: "prompt-only-fallback",
+      source: "none",
+      currentContextSummary: buildPromptOnlyContextSummary(effectivePrompt, usage),
+      history: state.captures,
+      modelHistory: state.modelSelections,
+    };
+  }
+
+  const rawPayload = loadRawPayload(latestCapture);
+  const normalization = normalizeProviderPayload(rawPayload);
+  const analysis = analyzeNormalizedPayload(normalization, rawPayload, {
+    reportContextUsageTokens: usage?.tokens ?? undefined,
+    captureContextUsageTokens: latestCapture.contextUsageTokens,
+  });
+
+  if (normalization.status !== "full") {
+    diagnostics.push({
+      level: "warning",
+      message:
+        `Provider payload normalization is ${normalization.status}. Some provider-specific fields may be partially mapped into normalized system, conversation, tools, or unclassified request JSON buckets.`,
+    });
+  }
+
+  if (usage?.tokens != null) {
+    const delta = usage.tokens - analysis.requestJsonTokensEstimate;
+    diagnostics.push({
+      level: Math.abs(delta) > 512 ? "warning" : "info",
+      message:
+        `Payload comparison: normalized payload ~${String(analysis.normalizedPayloadTokensEstimate)} tokens, captured request JSON ~${String(analysis.requestJsonTokensEstimate)} tokens, ctx.getContextUsage() reports ${String(usage.tokens)} tokens, runtime-vs-request delta ${delta >= 0 ? "+" : ""}${String(delta)}. Differences can come from provider framing, hidden/default fields, estimator mismatch, cached/session accounting, or context that is not visible in serialized request JSON.`,
+    });
+  }
+
+  return {
+    available: true,
+    visibility: latestCapture.visibility,
+    source: latestCapture.source,
+    latestCapture,
+    rawPayload,
+    normalization,
+    analysis,
+    currentContextSummary: buildCapturedContextSummary(effectivePrompt, normalization, analysis, { visibility: latestCapture.visibility, latestCapture }, usage),
+    history: state.captures,
+    modelHistory: state.modelSelections,
+  };
+}
+
 export async function collectContextInspectionReport(
   pi: ExtensionAPI,
   ctx: ExtensionCommandContext
@@ -137,6 +292,7 @@ export async function collectContextInspectionReport(
     : undefined;
 
   const totalSkillTokens = parsedPrompt.skills.reduce((sum, skill) => sum + skill.tokens, 0);
+  const payload = buildPayloadReport(ctx, effectivePrompt, diagnostics);
 
   return {
     meta: {
@@ -163,6 +319,7 @@ export async function collectContextInspectionReport(
       totalTokens: totalSkillTokens,
       items: parsedPrompt.skills,
     },
+    payload,
     trace,
     diagnostics,
   };
