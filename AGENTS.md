@@ -15,6 +15,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions published as 
 ## Scope
 
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
+- `packages/pi-brave-search` - Brave Web Search extension for discovery workflows
 - Future extensions added to `packages/`
 
 ## Commands
