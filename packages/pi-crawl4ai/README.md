@@ -15,6 +15,7 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 - 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
+- 🤖 **Subagent-friendly** - Explicit tool selection like `--tools crawl` is honored even when lazy activation is enabled
 
 ## Prerequisites
 
@@ -274,6 +275,8 @@ curl http://localhost:11235/health
 ## Usage
 
 The `crawl` tool is **disabled by default** to avoid polluting the system prompt. You must enable it when needed.
+
+If Pi is started with an explicit tool selection such as `--tools crawl`, that explicit selection is honored for the session even when `enabledByDefault` is `false`. This is useful for subagents or specialized agents that request `crawl` directly.
 
 ### Enabling the Tool
 

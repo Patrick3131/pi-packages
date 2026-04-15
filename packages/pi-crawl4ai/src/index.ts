@@ -7,6 +7,7 @@
  * The crawl tool is disabled by default to avoid polluting the system prompt.
  * Use `/crawl-on` to enable it and `/crawl-off` to disable it.
  * Set `enabledByDefault: true` in config to enable at startup.
+ * Explicit tool selection (for example `--tools crawl`) is also honored.
  *
  * Configuration (environment variables):
  * - CRAWL4AI_BASE_URL: crawl4ai Docker API URL (default: http://localhost:11235)
@@ -84,13 +85,24 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  // Apply current tool selection
-  function applyCrawlState() {
+  // Apply current tool selection.
+  // When `preserveExplicitSelection` is true, an already-active `crawl` tool
+  // (for example from `--tools crawl`) is left enabled even if lazy activation
+  // is otherwise off and no branch state has been persisted yet.
+  function applyCrawlState(options?: { preserveExplicitSelection?: boolean }) {
     const activeNames = pi.getActiveTools();
+    const crawlAlreadyActive = activeNames.includes("crawl");
 
-    if (crawlEnabled && !activeNames.includes("crawl")) {
+    if (crawlEnabled && !crawlAlreadyActive) {
       pi.setActiveTools([...activeNames, "crawl"]);
-    } else if (!crawlEnabled && activeNames.includes("crawl")) {
+      return;
+    }
+
+    if (!crawlEnabled && crawlAlreadyActive) {
+      if (options?.preserveExplicitSelection) {
+        return;
+      }
+
       pi.setActiveTools(activeNames.filter((n) => n !== "crawl"));
     }
   }
@@ -103,19 +115,23 @@ export default function (pi: ExtensionAPI) {
       customType?: string;
       data?: { enabled?: boolean };
     }>;
+    let hasPersistedState = false;
 
     for (const entry of branchEntries) {
       if (entry.type === "custom" && entry.customType === "crawl-config") {
         if (entry.data?.enabled !== undefined) {
           crawlEnabled = entry.data.enabled;
+          hasPersistedState = true;
         }
       }
     }
 
-    applyCrawlState();
+    const explicitToolSelectionRequested = !hasPersistedState && pi.getActiveTools().includes("crawl");
+
+    applyCrawlState({ preserveExplicitSelection: explicitToolSelectionRequested });
 
     // Log current state
-    if (crawlEnabled) {
+    if (crawlEnabled || explicitToolSelectionRequested) {
       console.log(`[pi-crawl4ai] Crawl tool enabled.`);
     } else {
       console.log(`[pi-crawl4ai] Crawl tool disabled. Use /crawl-on to enable.`);
