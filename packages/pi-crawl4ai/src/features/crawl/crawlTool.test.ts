@@ -4,7 +4,7 @@
 
 import { loadConfig } from '../../config';
 import { registerCrawlTool } from './crawlTool';
-import { resetBackoffState } from './backoff';
+import { resetRequestPacingState } from './requestPacing';
 import { mockFetch } from '../../test-utils';
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
 import { existsSync, rmSync, readFileSync } from 'node:fs';
@@ -125,7 +125,7 @@ describe('crawl tool execute', () => {
   let toolExecute: any;
 
   beforeEach(() => {
-    resetBackoffState();
+    resetRequestPacingState();
     mockPi = createMockPi();
     const config = loadConfig();
     registerCrawlTool(mockPi, config);
@@ -663,13 +663,13 @@ describe('crawl tool execute', () => {
     expect(result.details.proxySource).toBe('auth-profile');
   });
 
-  it('should apply global backoff between calls', async () => {
+  it('should apply global request pacing between calls', async () => {
     jest.useFakeTimers();
 
     try {
       const localMockPi = createMockPi();
       const config = loadConfig();
-      config.raw.backoffMs = 5000;
+      config.raw.minRequestIntervalMs = 5000;
       registerCrawlTool(localMockPi, config);
       const execute = localMockPi.registeredTools[0].execute;
 
@@ -688,25 +688,25 @@ describe('crawl tool execute', () => {
       const result = await secondCall;
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(result.content[0].text).toContain('*Execution:*');
-      expect(result.details.backoffMs).toBe(5000);
-      expect(result.details.backoffWaitedMs).toBe(5000);
+      expect(result.details.minRequestIntervalMs).toBe(5000);
+      expect(result.details.rateLimitWaitedMs).toBe(5000);
     } finally {
       jest.useRealTimers();
     }
   });
 
-  it('should let auth profile backoff override the global backoff', async () => {
+  it('should let auth profile request pacing override the global value', async () => {
     jest.useFakeTimers();
 
     try {
       const localMockPi = createMockPi();
       const config = loadConfig();
-      config.raw.backoffMs = 5000;
+      config.raw.minRequestIntervalMs = 5000;
       config.raw.authProfiles = {
         'x-main': {
           matchDomains: ['x.com'],
           cookies: [{ name: 'auth_token', value: 'secret' }],
-          backoffMs: 1000,
+          minRequestIntervalMs: 1000,
         },
       };
       registerCrawlTool(localMockPi, config);
@@ -728,8 +728,8 @@ describe('crawl tool execute', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(result.content[0].text).toContain('auth=x-main');
       expect(result.details.authProfile).toBe('x-main');
-      expect(result.details.backoffMs).toBe(1000);
-      expect(result.details.backoffWaitedMs).toBe(1000);
+      expect(result.details.minRequestIntervalMs).toBe(1000);
+      expect(result.details.rateLimitWaitedMs).toBe(1000);
     } finally {
       jest.useRealTimers();
     }

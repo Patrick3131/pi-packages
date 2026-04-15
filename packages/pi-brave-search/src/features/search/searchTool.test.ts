@@ -193,4 +193,61 @@ describe('brave_search execute', () => {
       jest.useRealTimers();
     }
   });
+
+  it('serializes parallel requests so only one starts at a time', async () => {
+    jest.useFakeTimers();
+    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '1000';
+
+    let resolveFirstFetch!: (value: any) => void;
+    const firstFetchResponse = new Promise((resolve) => {
+      resolveFirstFetch = resolve;
+    });
+
+    const fetchMock = jest.fn()
+      .mockImplementationOnce(() => firstFetchResponse)
+      .mockImplementation(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ query: { original: 'second' }, web: { results: [] } }),
+        text: async () => '',
+      }));
+
+    (global as any).fetch = fetchMock;
+
+    const secondMockPi = createMockPi();
+    registerBraveSearchTool(secondMockPi, loadConfig());
+    const execute = secondMockPi.registeredTools[0].execute;
+
+    try {
+      const firstPromise = execute('tool-call-id-1', { query: 'first' });
+      const secondPromise = execute('tool-call-id-2', { query: 'second' });
+
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      resolveFirstFetch({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ query: { original: 'first' }, web: { results: [] } }),
+        text: async () => '',
+      });
+      await firstPromise;
+
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(1000);
+      const secondResult = await secondPromise;
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(secondResult.details.effectiveQuery).toBe('second');
+      expect(secondResult.details.rateLimitWaitedMs).toBeGreaterThanOrEqual(1000);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

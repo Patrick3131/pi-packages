@@ -11,7 +11,7 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 🌐 **Proxy support** - Generic proxy, Oxylabs ISP rotation, or custom providers
 - 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
 - 🔐 **Auth profiles** - Named cookie/header profiles for authenticated crawling across multiple sites
-- ⏱️ **Configurable backoff** - Global crawl pacing with per-auth-profile overrides
+- ⏱️ **Configurable request pacing** - Global crawl pacing with per-auth-profile overrides
 - 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 - 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
@@ -83,7 +83,7 @@ Create a config file in one of these locations (searched in order):
   "url": "http://localhost:11235",
   "timeoutMs": 60000,
   "enabledByDefault": false,
-  "backoffMs": 5000
+  "minRequestIntervalMs": 5000
 }
 ```
 
@@ -153,7 +153,7 @@ Use `authProfiles` to define reusable authenticated browser contexts. This keeps
       "matchDomains": ["x.com", "twitter.com"],
       "cookies": "${X_COOKIES_JSON}",
       "userAgent": "${X_USER_AGENT}",
-      "backoffMs": 5000
+      "minRequestIntervalMs": 5000
     },
     "reddit-main": {
       "matchSites": ["reddit"],
@@ -229,6 +229,9 @@ CRAWL4AI_TIMEOUT=60000
 
 # Optional: Default output directory for saved crawls
 CRAWL4AI_OUTPUT_DIR=./output-crawl4ai
+
+# Optional: Minimum interval between crawl requests in ms
+CRAWL4AI_MIN_REQUEST_INTERVAL_MS=1000
 
 # Proxy Option 1: Generic proxy URL
 CRAWL4AI_PROXY_URL=http://user:pass@proxy.example.com:8080
@@ -306,7 +309,7 @@ You: Crawl https://example.com and summarize the content
 Pi: [uses crawl tool to fetch and process the page]
 ```
 
-With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X". If `backoffMs` is configured in the JSON config, crawls are rate-limited between calls. Per-profile `backoffMs` overrides the global value.
+With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X". If `minRequestIntervalMs` is configured, crawls are rate-limited between calls. Per-profile `minRequestIntervalMs` overrides the global value.
 
 Each crawl result includes an execution summary showing the effective config used for that request, including site hint, auth profile, proxy source, and whether cookies, headers, and user agent were applied.
 

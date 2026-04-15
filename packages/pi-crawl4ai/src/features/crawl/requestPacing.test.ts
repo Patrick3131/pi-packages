@@ -1,11 +1,11 @@
 /**
- * Tests for crawl backoff logic
+ * Tests for crawl request pacing logic
  */
 
-import { applyBackoff, resetBackoffState } from "./backoff";
+import { applyRequestPacing, resetRequestPacingState } from "./requestPacing";
 import type { Crawl4AIConfig, ResolvedAuthSelection } from "../../config";
 
-function createConfig(backoffMs?: number): Crawl4AIConfig {
+function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
   return {
     baseUrl: "http://localhost:11235",
     timeout: 60000,
@@ -18,42 +18,42 @@ function createConfig(backoffMs?: number): Crawl4AIConfig {
       baseUrl: "http://localhost:11235",
       timeout: 60000,
       enabledByDefault: false,
-      backoffMs,
+      minRequestIntervalMs,
     },
   };
 }
 
-function createAuthSelection(name: string, backoffMs?: number): ResolvedAuthSelection {
+function createAuthSelection(name: string, minRequestIntervalMs?: number): ResolvedAuthSelection {
   return {
     profileName: name,
     reason: "explicit-profile",
     profile: {
-      backoffMs,
+      minRequestIntervalMs,
     },
   };
 }
 
-describe("applyBackoff", () => {
+describe("applyRequestPacing", () => {
   beforeEach(() => {
-    resetBackoffState();
+    resetRequestPacingState();
     jest.useFakeTimers();
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    resetBackoffState();
+    resetRequestPacingState();
   });
 
-  it("should do nothing when no backoff is configured", async () => {
-    const result = await applyBackoff(createConfig());
+  it("should do nothing when no request pacing is configured", async () => {
+    const result = await applyRequestPacing(createConfig());
     expect(result).toBeUndefined();
   });
 
-  it("should use the global backoff bucket", async () => {
+  it("should use the global pacing bucket", async () => {
     const config = createConfig(5000);
 
-    const first = await applyBackoff(config);
-    const secondPromise = applyBackoff(config);
+    const first = await applyRequestPacing(config);
+    const secondPromise = applyRequestPacing(config);
 
     await Promise.resolve();
     await jest.advanceTimersByTimeAsync(4999);
@@ -67,16 +67,16 @@ describe("applyBackoff", () => {
     await jest.advanceTimersByTimeAsync(1);
     const second = await secondPromise;
 
-    expect(first).toEqual({ bucket: "global", configuredMs: 5000, waitedMs: 0 });
-    expect(second).toEqual({ bucket: "global", configuredMs: 5000, waitedMs: 5000 });
+    expect(first).toEqual({ bucket: "global", minRequestIntervalMs: 5000, waitedMs: 0 });
+    expect(second).toEqual({ bucket: "global", minRequestIntervalMs: 5000, waitedMs: 5000 });
   });
 
-  it("should let auth profile backoff override the global value", async () => {
+  it("should let auth profile pacing override the global value", async () => {
     const config = createConfig(5000);
     const authSelection = createAuthSelection("x-main", 1000);
 
-    const first = await applyBackoff(config, authSelection);
-    const secondPromise = applyBackoff(config, authSelection);
+    const first = await applyRequestPacing(config, authSelection);
+    const secondPromise = applyRequestPacing(config, authSelection);
 
     await Promise.resolve();
     await jest.advanceTimersByTimeAsync(999);
@@ -90,8 +90,8 @@ describe("applyBackoff", () => {
     await jest.advanceTimersByTimeAsync(1);
     const second = await secondPromise;
 
-    expect(first).toEqual({ bucket: "auth:x-main", configuredMs: 1000, waitedMs: 0 });
-    expect(second).toEqual({ bucket: "auth:x-main", configuredMs: 1000, waitedMs: 1000 });
+    expect(first).toEqual({ bucket: "auth:x-main", minRequestIntervalMs: 1000, waitedMs: 0 });
+    expect(second).toEqual({ bucket: "auth:x-main", minRequestIntervalMs: 1000, waitedMs: 1000 });
   });
 
   it("should isolate auth buckets from each other", async () => {
@@ -99,18 +99,18 @@ describe("applyBackoff", () => {
     const xSelection = createAuthSelection("x-main", 1000);
     const redditSelection = createAuthSelection("reddit-main", 1000);
 
-    await applyBackoff(config, xSelection);
-    const reddit = await applyBackoff(config, redditSelection);
+    await applyRequestPacing(config, xSelection);
+    const reddit = await applyRequestPacing(config, redditSelection);
 
-    expect(reddit).toEqual({ bucket: "auth:reddit-main", configuredMs: 1000, waitedMs: 0 });
+    expect(reddit).toEqual({ bucket: "auth:reddit-main", minRequestIntervalMs: 1000, waitedMs: 0 });
   });
 
   it("should support cancellation while waiting", async () => {
     const config = createConfig(5000);
     const controller = new AbortController();
 
-    await applyBackoff(config);
-    const pending = applyBackoff(config, undefined, controller.signal);
+    await applyRequestPacing(config);
+    const pending = applyRequestPacing(config, undefined, controller.signal);
 
     controller.abort();
 

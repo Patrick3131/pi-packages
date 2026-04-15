@@ -47,7 +47,7 @@ export function resolveAuthProfiles(
     cookies: parseCookies(profile.cookies),
     headers: profile.headers ? resolveJsonValue(profile.headers) : undefined,
     userAgent: profile.userAgent ? resolveEnvVars(profile.userAgent) : undefined,
-    backoffMs: resolveNumber(profile.backoffMs),
+    minRequestIntervalMs: resolveNumber(profile.minRequestIntervalMs),
     proxy: resolveProxySettings(profile.proxy),
   } satisfies ResolvedAuthProfile]));
 }

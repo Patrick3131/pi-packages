@@ -20,7 +20,10 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
     baseUrl: jsonConfig?.url ? resolveEnvVars(jsonConfig.url) : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
     timeout: jsonConfig?.timeoutMs || parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10),
     enabledByDefault: jsonConfig?.enabledByDefault ?? false,
-    backoffMs: jsonConfig?.backoffMs !== undefined ? resolveNumber(jsonConfig.backoffMs) : undefined,
+    minRequestIntervalMs:
+      jsonConfig?.minRequestIntervalMs !== undefined
+        ? resolveNumber(jsonConfig.minRequestIntervalMs)
+        : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
     authProfiles: resolveAuthProfiles(jsonConfig?.authProfiles),
   };
 

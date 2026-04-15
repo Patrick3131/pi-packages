@@ -9,6 +9,7 @@ import type {
 } from "./types";
 
 let lastRequestStartedAt = 0;
+let requestQueue: Promise<void> = Promise.resolve();
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) {
@@ -43,8 +44,23 @@ async function applyRateLimit(config: BraveSearchConfig, signal?: AbortSignal): 
   return waitMs;
 }
 
+function enqueueBraveSearch<T>(job: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const run = async () => {
+    if (signal?.aborted) {
+      throw new Error("Request cancelled");
+    }
+
+    return job();
+  };
+
+  const scheduled = requestQueue.then(run, run);
+  requestQueue = scheduled.then(() => undefined, () => undefined);
+  return scheduled;
+}
+
 export function resetBraveSearchRateLimit(): void {
   lastRequestStartedAt = 0;
+  requestQueue = Promise.resolve();
 }
 
 function prepareArguments(args: unknown): unknown {
@@ -171,70 +187,74 @@ export function registerBraveSearchTool(pi: ExtensionAPI, config: BraveSearchCon
       signal?.addEventListener("abort", abortHandler, { once: true });
 
       try {
-        const url = new URL(`${config.baseUrl}/web/search`);
-        url.searchParams.set("q", params.query);
-        url.searchParams.set("count", String(params.count ?? 10));
+        const result = await enqueueBraveSearch(async () => {
+          const url = new URL(`${config.baseUrl}/web/search`);
+          url.searchParams.set("q", params.query);
+          url.searchParams.set("count", String(params.count ?? 10));
 
-        if (params.offset !== undefined) {
-          url.searchParams.set("offset", String(params.offset));
-        }
-        if (params.country) {
-          url.searchParams.set("country", params.country);
-        }
-        if (params.searchLang) {
-          url.searchParams.set("search_lang", params.searchLang);
-        }
-        if (params.uiLang) {
-          url.searchParams.set("ui_lang", params.uiLang);
-        }
-        if (params.safesearch) {
-          url.searchParams.set("safesearch", params.safesearch);
-        }
-        if (params.freshness) {
-          url.searchParams.set("freshness", params.freshness);
-        }
-        if (params.extraSnippets !== undefined) {
-          url.searchParams.set("extra_snippets", String(params.extraSnippets));
-        }
+          if (params.offset !== undefined) {
+            url.searchParams.set("offset", String(params.offset));
+          }
+          if (params.country) {
+            url.searchParams.set("country", params.country);
+          }
+          if (params.searchLang) {
+            url.searchParams.set("search_lang", params.searchLang);
+          }
+          if (params.uiLang) {
+            url.searchParams.set("ui_lang", params.uiLang);
+          }
+          if (params.safesearch) {
+            url.searchParams.set("safesearch", params.safesearch);
+          }
+          if (params.freshness) {
+            url.searchParams.set("freshness", params.freshness);
+          }
+          if (params.extraSnippets !== undefined) {
+            url.searchParams.set("extra_snippets", String(params.extraSnippets));
+          }
 
-        const rateLimitWaitedMs = await applyRateLimit(config, signal);
+          const rateLimitWaitedMs = await applyRateLimit(config, signal);
 
-        const response = await fetch(url.toString(), {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            "X-Subscription-Token": config.apiKey,
-          },
-          signal: controller.signal,
-        });
+          const response = await fetch(url.toString(), {
+            method: "GET",
+            headers: {
+              Accept: "application/json",
+              "X-Subscription-Token": config.apiKey,
+            },
+            signal: controller.signal,
+          });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Brave Search API error (${response.status}): ${errorText}`);
-        }
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Brave Search API error (${response.status}): ${errorText}`);
+          }
 
-        const data = (await response.json()) as BraveWebSearchApiResponse;
-        const results = (data.web?.results ?? []).map(normalizeResult).filter(Boolean) as BraveWebSearchResult[];
-        const effectiveQuery = data.query?.altered || data.query?.original || params.query;
+          const data = (await response.json()) as BraveWebSearchApiResponse;
+          const results = (data.web?.results ?? []).map(normalizeResult).filter(Boolean) as BraveWebSearchResult[];
+          const effectiveQuery = data.query?.altered || data.query?.original || params.query;
 
-        const body = results.length
-          ? results.map((result, index) => formatResult(result, index + 1)).join("\n\n")
-          : "No web results returned.";
+          const body = results.length
+            ? results.map((result, index) => formatResult(result, index + 1)).join("\n\n")
+            : "No web results returned.";
 
-        return {
-          content: [{
-            type: "text",
-            text: [`# Brave Search`, ``, `Query: ${effectiveQuery}`, `Results: ${results.length}`, ``, body].join("\n"),
-          }],
-          details: {
-            query: params.query,
-            effectiveQuery,
-            results,
-            resultCount: results.length,
-            rateLimitWaitedMs,
-            minRequestIntervalMs: config.minRequestIntervalMs,
-          },
-        };
+          return {
+            content: [{
+              type: "text",
+              text: [`# Brave Search`, ``, `Query: ${effectiveQuery}`, `Results: ${results.length}`, ``, body].join("\n"),
+            }],
+            details: {
+              query: params.query,
+              effectiveQuery,
+              results,
+              resultCount: results.length,
+              rateLimitWaitedMs,
+              minRequestIntervalMs: config.minRequestIntervalMs,
+            },
+          };
+        }, signal);
+
+        return result;
       } catch (error) {
         if (controller.signal.aborted && !signal?.aborted) {
           throw new Error(`Brave Search failed: Request timed out after ${config.timeoutMs}ms`);

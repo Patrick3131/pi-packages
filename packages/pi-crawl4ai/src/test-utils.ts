@@ -44,6 +44,7 @@ export function resetEnv(): void {
   // Core config
   delete process.env.CRAWL4AI_BASE_URL;
   delete process.env.CRAWL4AI_TIMEOUT;
+  delete process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS;
 
   // Generic proxy
   delete process.env.CRAWL4AI_PROXY_URL;
@@ -58,5 +59,5 @@ export function resetEnv(): void {
   // Auth profile test vars
   delete process.env.X_COOKIES_JSON;
   delete process.env.X_USER_AGENT;
-  delete process.env.X_BACKOFF_MS;
+  delete process.env.X_MIN_REQUEST_INTERVAL_MS;
 }

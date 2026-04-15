@@ -38,7 +38,7 @@ export interface AuthProfileConfig {
   cookies?: AuthCookie[] | string;
   headers?: Record<string, string>;
   userAgent?: string;
-  backoffMs?: number | string;
+  minRequestIntervalMs?: number | string;
   proxy?: ProxySettingsConfig;
 }
 
@@ -48,7 +48,7 @@ export interface ResolvedAuthProfile {
   cookies?: AuthCookie[];
   headers?: Record<string, string>;
   userAgent?: string;
-  backoffMs?: number;
+  minRequestIntervalMs?: number;
   proxy?: ResolvedProxySettings;
 }
 
@@ -56,7 +56,7 @@ export interface Crawl4AIJsonConfig {
   url?: string;
   timeoutMs?: number;
   enabledByDefault?: boolean;
-  backoffMs?: number | string;
+  minRequestIntervalMs?: number | string;
   proxy?: ProxySettingsConfig;
   authProfiles?: Record<string, AuthProfileConfig>;
 }
@@ -65,7 +65,7 @@ export interface ResolvedConfig {
   baseUrl: string;
   timeout: number;
   enabledByDefault: boolean;
-  backoffMs?: number;
+  minRequestIntervalMs?: number;
   proxyUrl?: string;
   proxyProvider?: string;
   proxyHost?: string;

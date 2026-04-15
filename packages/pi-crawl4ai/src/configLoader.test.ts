@@ -129,7 +129,7 @@ describe("mergeConfigWithEnv", () => {
 
     expect(config.baseUrl).toBe("http://localhost:11235");
     expect(config.timeout).toBe(60000);
-    expect(config.backoffMs).toBeUndefined();
+    expect(config.minRequestIntervalMs).toBeUndefined();
     expect(config.proxyUrl).toBeUndefined();
   });
 
@@ -141,7 +141,7 @@ describe("mergeConfigWithEnv", () => {
 
     expect(config.baseUrl).toBe("http://env:9999");
     expect(config.timeout).toBe(45000);
-    expect(config.backoffMs).toBeUndefined();
+    expect(config.minRequestIntervalMs).toBeUndefined();
   });
 
   it("should prefer JSON config over env vars", () => {
@@ -151,14 +151,14 @@ describe("mergeConfigWithEnv", () => {
     const jsonConfig: Crawl4AIJsonConfig = {
       url: "http://json:8888",
       timeoutMs: 30000,
-      backoffMs: 1500,
+      minRequestIntervalMs: 1500,
     };
 
     const config = mergeConfigWithEnv(jsonConfig);
 
     expect(config.baseUrl).toBe("http://json:8888");
     expect(config.timeout).toBe(30000);
-    expect(config.backoffMs).toBe(1500);
+    expect(config.minRequestIntervalMs).toBe(1500);
   });
 
   it("should use env vars for missing JSON fields", () => {
@@ -172,7 +172,7 @@ describe("mergeConfigWithEnv", () => {
 
     expect(config.baseUrl).toBe("http://env:9999");
     expect(config.timeout).toBe(30000);
-    expect(config.backoffMs).toBeUndefined();
+    expect(config.minRequestIntervalMs).toBeUndefined();
   });
 
   it("should extract proxy URL from JSON config", () => {
@@ -244,7 +244,7 @@ describe("mergeConfigWithEnv", () => {
         { name: "ct0", value: "csrf", domain: ".x.com" },
       ]);
       process.env.X_USER_AGENT = "Mozilla/5.0 Test";
-      process.env.X_BACKOFF_MS = "5000";
+      process.env.X_MIN_REQUEST_INTERVAL_MS = "5000";
 
       const jsonConfig: Crawl4AIJsonConfig = {
         authProfiles: {
@@ -256,7 +256,7 @@ describe("mergeConfigWithEnv", () => {
               "x-test": "${X_USER_AGENT}",
             },
             userAgent: "${X_USER_AGENT}",
-            backoffMs: "${X_BACKOFF_MS}",
+            minRequestIntervalMs: "${X_MIN_REQUEST_INTERVAL_MS}",
           },
         },
       };
@@ -274,7 +274,7 @@ describe("mergeConfigWithEnv", () => {
           "x-test": "Mozilla/5.0 Test",
         },
         userAgent: "Mozilla/5.0 Test",
-        backoffMs: 5000,
+        minRequestIntervalMs: 5000,
       });
     });
 
