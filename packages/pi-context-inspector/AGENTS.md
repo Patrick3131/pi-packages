@@ -26,10 +26,11 @@ Applies to all files in `packages/pi-context-inspector/`.
   - inferred provenance
   - non-prompt metadata
 - Do not claim to expose the exact full provider payload unless that data is actually captured.
+- For AGENTS.md analysis, discovered files on disk are not enough; prompt/payload evidence must support any presence claim.
 
 ## Testing
 
-- Prioritize parser compatibility, report serialization, and HTML rendering stability.
+- Prioritize parser compatibility, report serialization, HTML rendering stability, and AGENTS coverage truthfulness.
 - Keep browser-opening logic isolated for easy testing/mocking.
 
 ## Documentation

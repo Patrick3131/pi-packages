@@ -12,6 +12,7 @@ import {
   type BasePromptTraceResult,
   type LoadedExtension,
 } from "./base-trace/index.js";
+import { analyzeAgentsCoverage } from "./agents-coverage.js";
 import { readDiscoveredPromptFiles } from "./file-reading.js";
 import { analyzeNormalizedPayload } from "./payload-analysis.js";
 import {
@@ -293,6 +294,31 @@ export async function collectContextInspectionReport(
 
   const totalSkillTokens = parsedPrompt.skills.reduce((sum, skill) => sum + skill.tokens, 0);
   const payload = buildPayloadReport(ctx, effectivePrompt, diagnostics);
+  const agentsCoverage = analyzeAgentsCoverage({
+    diskFiles: files.agents,
+    promptBlocks: parsedPrompt.agentsFiles,
+    payloadSystemBlocks: payload.normalization?.system.map((section) => ({
+      label: section.label,
+      text: section.text,
+    })) ?? [],
+    payloadVisibility: payload.visibility,
+    payloadNormalizationStatus: payload.normalization?.status,
+  });
+
+  for (const file of files.agents) {
+    file.agentsCoverage = agentsCoverage.items.find((item) => item.path === file.path);
+    if (file.agentsCoverage) {
+      file.includedInPrompt = file.agentsCoverage.presentInVisiblePrompt;
+    }
+  }
+
+  for (const coverageDiagnostic of agentsCoverage.diagnostics) {
+    diagnostics.push({
+      level: coverageDiagnostic.level,
+      source: coverageDiagnostic.path,
+      message: `AGENTS coverage: ${coverageDiagnostic.message}`,
+    });
+  }
 
   return {
     meta: {
@@ -313,6 +339,7 @@ export async function collectContextInspectionReport(
       sections: parsedPrompt.sections,
     },
     files,
+    agentsCoverage,
     tools: toolSummary,
     skills: {
       count: parsedPrompt.skills.length,

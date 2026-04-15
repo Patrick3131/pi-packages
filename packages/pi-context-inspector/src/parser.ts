@@ -2,6 +2,7 @@ import { encode } from "gpt-tokenizer/encoding/o200k_base";
 
 import type {
   ParsedPrompt,
+  PromptAgentsFileBlock,
   ReportChildSection,
   ReportSection,
   SkillReport,
@@ -120,8 +121,8 @@ function parseAgentFileSubsections(
   return children;
 }
 
-function parseAgentsFiles(contextBlock: string): ReportChildSection[] {
-  const files: ReportChildSection[] = [];
+export function parseAgentsFileBlocks(contextBlock: string): PromptAgentsFileBlock[] {
+  const files: PromptAgentsFileBlock[] = [];
   const headingPattern = /^## (.+)$/gm;
   const matches = [...contextBlock.matchAll(headingPattern)].filter((match) =>
     isLikelyPromptContextPathHeading(match[1]?.trim() ?? "")
@@ -136,10 +137,18 @@ function parseAgentsFiles(contextBlock: string): ReportChildSection[] {
       index + 1 < matches.length
         ? ((matches[index + 1]?.index as number | undefined) ?? contextBlock.length)
         : contextBlock.length;
-    const content = contextBlock.slice(blockStart, blockEnd).trim();
-    const subsections = parseAgentFileSubsections(heading, content, childIndex);
-    files.push(...subsections);
-    childIndex += subsections.length;
+    const rawBlock = contextBlock.slice(blockStart, blockEnd).trim();
+    const bodyText = rawBlock.replace(/^## .+\n*/, "").trim();
+    const children = parseAgentFileSubsections(heading, rawBlock, childIndex);
+    files.push({
+      path: heading,
+      rawBlock,
+      bodyText,
+      chars: bodyText.length,
+      tokens: estimateTokens(bodyText),
+      children,
+    });
+    childIndex += children.length;
   }
 
   return files;
@@ -180,6 +189,7 @@ function withPercentages(parsed: ParsedPrompt): ParsedPrompt {
 
 export function parseSystemPrompt(prompt: string): ParsedPrompt {
   const sections: ReportSection[] = [];
+  let agentsFiles: PromptAgentsFileBlock[] = [];
   const projectContextIdx = prompt.indexOf("\n\n# Project Context\n");
   const skillsPreambleIdx = prompt.indexOf(
     "\n\nThe following skills provide specialized instructions"
@@ -219,9 +229,15 @@ export function parseSystemPrompt(prompt: string): ParsedPrompt {
       contextEnd >= 0
         ? prompt.slice(contextStart, contextEnd).trim()
         : prompt.slice(contextStart).trim();
-    const children = parseAgentsFiles(contextBlock);
+    agentsFiles = parseAgentsFileBlocks(contextBlock);
     sections.push(
-      measureSection("agents-files", "agents", "AGENTS.md files", contextBlock, children)
+      measureSection(
+        "agents-files",
+        "agents",
+        "AGENTS.md files",
+        contextBlock,
+        agentsFiles.flatMap((file) => file.children ?? [])
+      )
     );
   }
 
@@ -281,6 +297,7 @@ export function parseSystemPrompt(prompt: string): ParsedPrompt {
     totalChars: prompt.length,
     totalTokens: estimateTokens(prompt),
     skills,
+    agentsFiles,
   });
 }
 

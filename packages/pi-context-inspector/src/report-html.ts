@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type {
+  AgentsFileCoverage,
   ContextInspectionReport,
   LatestPayloadCaptureReport,
   PayloadAnalysisSectionSummary,
@@ -56,6 +57,11 @@ function renderCodeBlock(text: string): string {
   return `<pre class="code-block">${escapeHtml(text)}</pre>`;
 }
 
+function renderInfoHint(label: string, hint: string): string {
+  const escapedHint = escapeHtml(hint);
+  return `${escapeHtml(label)} <span class="info-hint" data-tooltip="${escapedHint}" aria-label="${escapedHint}" tabindex="0">?</span>`;
+}
+
 function renderHelpBox(title: string, lines: string[]): string {
   return `<details class="card" style="margin-top:16px;"><summary><strong>${escapeHtml(title)}</strong></summary><div class="list" style="margin-top:12px;">${lines
     .map((line) => `<p class="small" style="margin:0;">${escapeHtml(line)}</p>`)
@@ -104,6 +110,7 @@ function renderSourceFile(file: SourceFileRecord): string {
         <div><strong>Role:</strong> ${escapeHtml(file.role)}</div>
         <div><strong>Status:</strong> ${status}</div>
         <div><strong>Included in prompt:</strong> ${file.includedInPrompt == null ? "inferred unknown" : String(file.includedInPrompt)}</div>
+        ${file.agentsCoverage ? `<div><strong>AGENTS coverage status:</strong> ${escapeHtml(file.agentsCoverage.status)}</div>` : ""}
       </div>
       ${renderBadges([
         { label: `${formatInt(file.tokens)} tokens` },
@@ -382,6 +389,76 @@ function renderSystemAndToolCards(reportPayload: LatestPayloadCaptureReport): st
   return `<div class="grid" style="margin-top:16px;">${cards.join("")}</div>`;
 }
 
+function renderAgentsCoverageStatus(status: AgentsFileCoverage["status"]): { label: string; className?: string } {
+  switch (status) {
+    case "full":
+      return { label: "full" };
+    case "partial":
+      return { label: "partial", className: "warning" };
+    case "transformed":
+      return { label: "transformed", className: "warning" };
+    case "not-present":
+      return { label: "not present", className: "warning" };
+    case "unable-to-determine":
+      return { label: "unable to determine", className: "warning" };
+  }
+}
+
+function renderAgentsCoverage(report: ContextInspectionReport): string {
+  const coverage = report.agentsCoverage;
+  return `
+    <section id="agents-coverage" class="section">
+      <div class="card">
+        <h3>AGENTS coverage</h3>
+        <p class="small">This section compares discovered AGENTS.md files on disk against headed AGENTS blocks in <code>ctx.getSystemPrompt()</code> and, when available, normalized captured payload instructions. Discovered ancestors are not assumed to be in context, and files may be reported as discovered on disk but not observed in current prompt/context evidence.</p>
+        ${renderBadges([
+          { label: `${formatInt(coverage.summary.totalDiscovered)} discovered` },
+          { label: `${formatInt(coverage.summary.presentInVisiblePrompt)} present in visible prompt` },
+          { label: `${formatInt(coverage.summary.seenInCapturedPayload)} seen in captured payload` },
+          { label: `${formatInt(coverage.summary.full)} full` },
+          { label: `${formatInt(coverage.summary.partial)} partial`, className: coverage.summary.partial > 0 ? "warning" : undefined },
+          { label: `${formatInt(coverage.summary.transformed)} transformed`, className: coverage.summary.transformed > 0 ? "warning" : undefined },
+          { label: `${formatInt(coverage.summary.notPresent)} not present`, className: coverage.summary.notPresent > 0 ? "warning" : undefined },
+          { label: `${formatInt(coverage.summary.unableToDetermine)} unable to determine`, className: coverage.summary.unableToDetermine > 0 ? "warning" : undefined },
+        ])}
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead><tr><th>File path</th><th>Discovered / readable</th><th>Prompt evidence</th><th>Payload evidence</th><th>Coverage</th><th>Status</th></tr></thead>
+            <tbody>
+              ${coverage.items.map((item) => `
+                <tr>
+                  <td><code>${escapeHtml(item.path)}</code></td>
+                  <td>${item.discovered ? "yes" : "no"} / ${item.readable ? "yes" : "no"}</td>
+                  <td>${item.presentInVisiblePrompt ? "present in visible prompt" : "not observed"}</td>
+                  <td>${item.seenInCapturedPayload ? "seen in captured payload" : "not observed"}</td>
+                  <td>${formatPercent(item.coveragePercent)}</td>
+                  <td>${renderBadges([renderAgentsCoverageStatus(item.status)])}</td>
+                </tr>
+                <tr>
+                  <td colspan="6">
+                    <details>
+                      <summary>Details · ${escapeHtml(item.reason)}</summary>
+                      <div class="list" style="margin-top:12px;">
+                        <div class="small"><strong>Evidence source:</strong> ${escapeHtml(item.evidence.source)}</div>
+                        <div class="small"><strong>Reason:</strong> ${escapeHtml(item.reason)}</div>
+                        ${(item.notes ?? []).map((note) => `<div class="small"><strong>Note:</strong> ${escapeHtml(note)}</div>`).join("")}
+                        ${(item.caveats ?? []).map((caveat) => `<div class="small"><strong>Caveat:</strong> ${escapeHtml(caveat)}</div>`).join("")}
+                        ${item.normalizedDiskText ? `<details><summary>${renderInfoHint("On-disk normalized content", "The AGENTS.md file content from disk after light normalization for comparison, such as line-ending and whitespace cleanup. This is comparison input, not proof that the full file is in current context.")}</summary><div>${renderCodeBlock(item.normalizedDiskText)}</div></details>` : ""}
+                        ${item.promptBlockText ? `<details><summary>${renderInfoHint("Prompt-extracted AGENTS block", "The AGENTS block text found directly in the effective system prompt. This is the strongest visible evidence that this file is present in the current prompt.")}</summary><div>${renderCodeBlock(item.promptBlockText)}</div></details>` : ""}
+                        ${item.payloadEvidenceText ? `<details><summary>${renderInfoHint("Payload-matched instruction text", "Instruction text from the captured provider request that appears to match this AGENTS file. This supports that the content reached the model request, but may be reformatted or incomplete.")}</summary><div>${renderCodeBlock(item.payloadEvidenceText)}</div></details>` : ""}
+                        ${item.missingFromPromptExcerpt ? `<details><summary>${renderInfoHint("Missing from prompt/context excerpt", "A representative excerpt from the on-disk AGENTS file that was not found in current prompt/payload evidence. Useful for understanding why coverage is partial.")}</summary><div>${renderCodeBlock(item.missingFromPromptExcerpt)}</div></details>` : ""}
+                        ${item.extraInPromptExcerpt ? `<details><summary>${renderInfoHint("Extra in prompt/payload excerpt", "A representative excerpt that appeared in prompt/payload evidence for this AGENTS file but did not match the normalized on-disk file exactly. This often indicates wrapping, reformatting, or transformation.")}</summary><div>${renderCodeBlock(item.extraInPromptExcerpt)}</div></details>` : ""}
+                      </div>
+                    </details>
+                  </td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>`;
+}
+
 function renderPayload(reportPayload: LatestPayloadCaptureReport): string {
   if (!reportPayload.available || !reportPayload.latestCapture || !reportPayload.normalization || !reportPayload.analysis) {
     return `
@@ -506,6 +583,7 @@ export function renderReportHtml(report: ContextInspectionReport): string {
           <li><a href="#effective-prompt">Effective Prompt</a></li>
           <li><a href="#prompt-breakdown">Prompt Breakdown</a></li>
           <li><a href="#source-files">Source Files</a></li>
+          <li><a href="#agents-coverage">AGENTS Coverage</a></li>
           <li><a href="#base-trace">Base Prompt Trace</a></li>
           <li><a href="#tool-definitions">Tool Definitions</a></li>
           <li><a href="#skills">Skills</a></li>
@@ -525,6 +603,7 @@ export function renderReportHtml(report: ContextInspectionReport): string {
           ${renderSummaryCard("Normalized payload estimate", report.payload.analysis ? `~${formatInt(report.payload.analysis.normalizedPayloadTokensEstimate)}` : "—", report.payload.analysis ? `request JSON minus normalized ~${formatInt(report.payload.analysis.requestJsonMinusNormalizedTokensEstimate)}` : "no payload capture")}
           ${renderSummaryCard("Serialized request JSON estimate", report.payload.analysis ? `~${formatInt(report.payload.analysis.requestJsonTokensEstimate)}` : "—", "captured request body as JSON text")}
           ${renderSummaryCard("Tool definition tokens", formatInt(report.tools.totalTokens), `${formatInt(report.tools.count)} tools`)}
+          ${renderSummaryCard("AGENTS coverage", `${formatInt(report.agentsCoverage.summary.presentInVisiblePrompt)}/${formatInt(report.agentsCoverage.summary.totalDiscovered)}`, `${formatInt(report.agentsCoverage.summary.full)} full · ${formatInt(report.agentsCoverage.summary.partial + report.agentsCoverage.summary.transformed)} partial/transformed`)}
           ${renderSummaryCard("Skills", formatInt(report.skills.count), `${formatInt(report.skills.totalTokens)} tokens`)}
           ${renderSummaryCard("Runtime context usage", formatInt(report.meta.usedContextTokens), `window ${formatInt(report.meta.contextWindow)}`)}
           ${renderSummaryCard("Model", report.meta.modelId ?? "unknown", report.meta.reportId)}
@@ -581,13 +660,15 @@ export function renderReportHtml(report: ContextInspectionReport): string {
         </section>
 
         <section id="source-files" class="section">
-          <div class="card"><h3>Source files</h3><p class="small">Discovered prompt-related files on disk. Inclusion is inferred where exact attribution is not available.</p></div>
+          <div class="card"><h3>Source files</h3><p class="small">Discovered prompt-related files on disk. Inclusion is inferred where exact attribution is not available. For AGENTS.md files, the dedicated AGENTS coverage section below is the canonical truth.</p></div>
           <div class="grid">
             ${[...report.files.system, ...report.files.appendSystem, ...report.files.agents]
               .map((file) => renderSourceFile(file))
               .join("")}
           </div>
         </section>
+
+        ${renderAgentsCoverage(report)}
 
         <section id="base-trace" class="section">
           <div class="card"><h3>Base prompt trace</h3><p class="small">Inferred attribution for the base prompt using extension tool snippets and prompt guidelines.</p></div>

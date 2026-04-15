@@ -26,7 +26,81 @@ const report: ContextInspectionReport = {
   files: {
     system: [],
     appendSystem: [],
-    agents: [],
+    agents: [{
+      path: '/repo/AGENTS.md',
+      scope: 'project',
+      role: 'agents',
+      exists: true,
+      readable: true,
+      includedInPrompt: true,
+      chars: 57,
+      tokens: 10,
+      content: '# AGENTS\n\n## Purpose\nVisible only.\n\n## Scope\nMissing',
+    }],
+  },
+  agentsCoverage: {
+    summary: {
+      totalDiscovered: 1,
+      readable: 1,
+      full: 0,
+      partial: 1,
+      transformed: 0,
+      notPresent: 0,
+      unableToDetermine: 0,
+      presentInVisiblePrompt: 1,
+      seenInCapturedPayload: 1,
+    },
+    items: [{
+      path: '/repo/AGENTS.md',
+      discovered: true,
+      readable: true,
+      promptEvidence: {
+        found: true,
+        sourceType: 'prompt',
+        sourceLabel: '/repo/AGENTS.md',
+        rawText: '# AGENTS\n\n## Purpose\nVisible only.',
+        normalizedText: '# AGENTS\n\n## Purpose\nVisible only.',
+        exactMatch: false,
+        normalizedMatch: false,
+        matchedChars: 20,
+        matchedTokens: 6,
+        totalChars: 40,
+        totalTokens: 10,
+        coveragePercent: 50,
+        contiguousCoveragePercent: 50,
+        missingExcerpt: '## Scope\nMissing',
+      },
+      payloadEvidence: {
+        found: true,
+        sourceType: 'payload',
+        sourceLabel: 'instructions',
+        rawText: '# AGENTS\n\n## Purpose\nVisible only.',
+        normalizedText: '# AGENTS\n\n## Purpose\nVisible only.',
+        exactMatch: false,
+        normalizedMatch: false,
+        matchedChars: 20,
+        matchedTokens: 6,
+        totalChars: 40,
+        totalTokens: 10,
+        coveragePercent: 50,
+        contiguousCoveragePercent: 50,
+      },
+      evidence: { prompt: true, payload: true, source: 'mixed' },
+      presentInVisiblePrompt: true,
+      seenInCapturedPayload: true,
+      coveragePercent: 50,
+      matchedChars: 20,
+      matchedTokens: 6,
+      status: 'partial',
+      reason: 'A visible AGENTS block for this file is present in ctx.getSystemPrompt(), but only part of the on-disk content is visible.',
+      notes: [],
+      caveats: [],
+      promptBlockText: '# AGENTS\n\n## Purpose\nVisible only.',
+      payloadEvidenceText: '# AGENTS\n\n## Purpose\nVisible only.',
+      normalizedDiskText: '# AGENTS\n\n## Purpose\nVisible only.\n\n## Scope\nMissing',
+      missingFromPromptExcerpt: '## Scope\nMissing',
+    }],
+    diagnostics: [],
   },
   tools: {
     count: 1,
@@ -158,6 +232,11 @@ test('renderReportHtml contains major sections and explainers', () => {
   assert.match(html, /Conversation messages/);
   assert.match(html, /Normalized system \/ developer instructions/);
   assert.match(html, /Effective system prompt/);
+  assert.match(html, /AGENTS coverage/);
+  assert.match(html, /present in visible prompt/);
+  assert.match(html, /seen in captured payload/);
+  assert.match(html, /not observed in current prompt\/context evidence/);
+  assert.match(html, /Missing from prompt\/context excerpt/);
   assert.match(html, /Detailed tool definitions/);
   assert.match(html, /Tree view/);
   assert.match(html, /Formatted/);
@@ -171,4 +250,6 @@ test('renderReportJson emits JSON string', () => {
   assert.match(json, /"reportId": "test-report"/);
   assert.match(json, /"currentContextSummary"/);
   assert.match(json, /"normalizedPayloadTokensEstimate": 7/);
+  assert.match(json, /"agentsCoverage"/);
+  assert.match(json, /"status": "partial"/);
 });

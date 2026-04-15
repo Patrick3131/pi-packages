@@ -25,6 +25,7 @@ Adds a `/context-report` command that:
 - prompt sections such as base prompt, appended system text, AGENTS files, skills, metadata
 - tool definition burden from registered tools
 - discovered global/project `SYSTEM.md`, `APPEND_SYSTEM.md`, and `AGENTS.md` files
+- AGENTS coverage analysis showing which discovered AGENTS files are actually visible in the prompt, partially included, only corroborated by payload evidence, or not observed
 - inferred base prompt provenance from extension tool snippets and prompt guidelines
 - context usage metadata when available
 
@@ -39,6 +40,10 @@ The HTML report now distinguishes four commonly confused numbers:
 
 The report also calls out:
 
+- **AGENTS coverage**: discovered ancestor/global `AGENTS.md` files are compared against headed AGENTS blocks from `ctx.getSystemPrompt()` and normalized captured payload instruction text when available. Discovery on disk does **not** imply the file is in context.
+- **Coverage %**: a conservative estimate of how much of an on-disk AGENTS file was matched in prompt/payload evidence.
+- **Prompt vs payload evidence**: prompt evidence is authoritative for “present in visible prompt”; payload evidence is supportive only and may be limited by provider visibility/normalization.
+
 - **Request JSON minus normalized payload**: the portion of the captured request JSON estimate that was not mapped into the normalized instruction/message/tool buckets
 - **Raw JSON tree/object size**: report/export artifact size, not exact model-context size
 - **Best available current context**: prompt-only if no payload has been captured yet, otherwise prompt + latest captured payload with explicit caveats when visibility is partial
@@ -50,6 +55,7 @@ When available, the report captures the actual provider request payload via `bef
 Important caveats:
 
 - completeness still depends on what Pi exposes in the hook for the active provider
+- AGENTS coverage statuses are best-effort and intentionally conservative; when payload visibility is partial, the report may use `unable-to-determine` instead of overclaiming absence
 - token accounting is approximate and may differ from provider billing
 - some multimodal/provider-specific fields are only partially normalized
 - the first payload-backed report requires at least one prior model turn after the extension is loaded

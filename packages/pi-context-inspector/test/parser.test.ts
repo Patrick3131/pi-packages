@@ -61,6 +61,9 @@ test('parseSystemPrompt only treats project-context file headings as AGENTS file
   assert.equal(agents.children?.[0]?.label, '/repo/AGENTS.md');
   assert.equal(agents.children?.some((child) => child.label === 'Purpose'), true);
   assert.equal(agents.children?.some((child) => child.label === 'Scope'), true);
+  assert.equal(parsed.agentsFiles[0]?.path, '/repo/AGENTS.md');
+  assert.match(parsed.agentsFiles[0]?.bodyText ?? '', /# AGENTS/);
+  assert.equal(parsed.agentsFiles[0]?.children?.some((child) => child.label === 'Purpose'), true);
 });
 
 test('parseSystemPrompt supports older date and time footer marker', () => {

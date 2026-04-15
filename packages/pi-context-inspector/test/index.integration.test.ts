@@ -44,5 +44,7 @@ test('generateContextReport writes html and json reports', async () => {
   assert.equal(fs.existsSync(result.htmlPath!), true);
   assert.equal(fs.existsSync(result.jsonPath!), true);
   assert.equal(notifications.length > 0, true);
-  assert.match(fs.readFileSync(result.jsonPath!, 'utf8'), /"payload"/);
+  const json = fs.readFileSync(result.jsonPath!, 'utf8');
+  assert.match(json, /"payload"/);
+  assert.match(json, /"agentsCoverage"/);
 });

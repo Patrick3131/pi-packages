@@ -26,6 +26,7 @@ before_provider_request
      -> src/parser.ts
      -> src/path-discovery.ts
      -> src/file-reading.ts
+     -> src/agents-coverage.ts
      -> src/payload-capture-store.ts
      -> src/provider-normalization.ts
      -> src/payload-analysis.ts
@@ -48,6 +49,8 @@ before_provider_request
 ## Output model
 
 The canonical report object is the source of truth for both HTML and JSON output. HTML is a presentation layer only.
+
+It now includes a dedicated `agentsCoverage` analysis object that compares discovered on-disk AGENTS files with prompt-extracted AGENTS blocks and normalized payload instruction text.
 
 The report intentionally keeps these concepts separate:
 
@@ -76,6 +79,9 @@ For OpenAI Responses payloads, top-level `instructions` is treated as system/dev
 `src/report-html.ts` should preserve the distinctions above and avoid implying more certainty than the capture actually provides.
 
 Current rendering rules:
+
+- render a dedicated AGENTS coverage section with careful wording such as “present in visible prompt”, “seen in captured payload”, and “discovered on disk but not observed in current prompt/context evidence”
+- expose expandable prompt/payload/disk details only when available so the standalone report remains usable
 
 - include a visible glossary/help section in the standalone HTML
 - include a dedicated “what is in context right now?” summary block

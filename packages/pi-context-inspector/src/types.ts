@@ -60,11 +60,102 @@ export interface SkillReport {
   tokens: number;
 }
 
+export interface PromptAgentsFileBlock {
+  path: string;
+  rawBlock: string;
+  bodyText: string;
+  chars: number;
+  tokens: number;
+  children?: ReportChildSection[];
+}
+
 export interface ParsedPrompt {
   sections: ReportSection[];
   totalChars: number;
   totalTokens: number;
   skills: SkillReport[];
+  agentsFiles: PromptAgentsFileBlock[];
+}
+
+export type AgentsCoverageStatus =
+  | "full"
+  | "partial"
+  | "transformed"
+  | "not-present"
+  | "unable-to-determine";
+
+export type AgentsCoverageEvidenceSource = "prompt" | "payload" | "mixed" | "none";
+
+export interface AgentsCoverageComparison {
+  found: boolean;
+  sourceType: "prompt" | "payload";
+  sourceLabel?: string;
+  rawText?: string;
+  normalizedText?: string;
+  exactMatch?: boolean;
+  normalizedMatch?: boolean;
+  matchedChars?: number;
+  matchedTokens?: number;
+  totalChars?: number;
+  totalTokens?: number;
+  coveragePercent?: number;
+  contiguousCoveragePercent?: number;
+  missingExcerpt?: string;
+  extraExcerpt?: string;
+  ambiguousWithPaths?: string[];
+}
+
+export interface AgentsCoverageEvidence {
+  prompt: boolean;
+  payload: boolean;
+  source: AgentsCoverageEvidenceSource;
+}
+
+export interface AgentsFileCoverage {
+  path: string;
+  discovered: boolean;
+  readable: boolean;
+  promptEvidence?: AgentsCoverageComparison;
+  payloadEvidence?: AgentsCoverageComparison;
+  evidence: AgentsCoverageEvidence;
+  presentInVisiblePrompt: boolean;
+  seenInCapturedPayload: boolean;
+  coveragePercent?: number;
+  matchedChars?: number;
+  matchedTokens?: number;
+  status: AgentsCoverageStatus;
+  reason: string;
+  notes?: string[];
+  caveats?: string[];
+  promptBlockText?: string;
+  payloadEvidenceText?: string;
+  normalizedDiskText?: string;
+  missingFromPromptExcerpt?: string;
+  extraInPromptExcerpt?: string;
+}
+
+export interface AgentsCoverageDiagnostic {
+  level: DiagnosticLevel;
+  path: string;
+  message: string;
+}
+
+export interface AgentsCoverageSummary {
+  totalDiscovered: number;
+  readable: number;
+  full: number;
+  partial: number;
+  transformed: number;
+  notPresent: number;
+  unableToDetermine: number;
+  presentInVisiblePrompt: number;
+  seenInCapturedPayload: number;
+}
+
+export interface AgentsCoverageAnalysis {
+  summary: AgentsCoverageSummary;
+  items: AgentsFileCoverage[];
+  diagnostics: AgentsCoverageDiagnostic[];
 }
 
 export interface SourceFileRecord {
@@ -78,6 +169,7 @@ export interface SourceFileRecord {
   tokens?: number;
   content?: string;
   diagnostics?: string[];
+  agentsCoverage?: AgentsFileCoverage;
 }
 
 export interface DiscoveredPromptPaths {
@@ -268,6 +360,7 @@ export interface ContextInspectionReport {
     appendSystem: SourceFileRecord[];
     agents: SourceFileRecord[];
   };
+  agentsCoverage: AgentsCoverageAnalysis;
   tools: ToolDefinitionsSummary;
   skills: {
     count: number;
