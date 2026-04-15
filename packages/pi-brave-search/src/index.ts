@@ -21,7 +21,18 @@ export default function (pi: ExtensionAPI) {
   console.log(`[pi-brave-search] Initialized with baseUrl: ${config.baseUrl}`);
   console.log(`[pi-brave-search] API key ${config.apiKey ? "configured" : "missing"}`);
 
-  registerBraveSearchTool(pi, config);
+  let toolRegistered = false;
+
+  function ensureToolRegistered() {
+    if (toolRegistered) {
+      return;
+    }
+
+    registerBraveSearchTool(pi, config);
+    toolRegistered = true;
+  }
+
+  ensureToolRegistered();
 
   let searchEnabled = config.enabledByDefault;
 
@@ -47,6 +58,32 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function wasToolExplicitlyRequested(): boolean {
+    const activeTools = pi.getActiveTools();
+    if (activeTools.includes("brave_search")) {
+      return true;
+    }
+
+    for (let index = 0; index < process.argv.length; index += 1) {
+      const arg = process.argv[index];
+      if (arg === "--tools") {
+        const value = process.argv[index + 1] ?? "";
+        if (value.split(",").map((entry) => entry.trim()).includes("brave_search")) {
+          return true;
+        }
+      }
+
+      if (arg.startsWith("--tools=")) {
+        const value = arg.slice("--tools=".length);
+        if (value.split(",").map((entry) => entry.trim()).includes("brave_search")) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   function restoreFromBranch(ctx: { sessionManager: { getBranch: () => unknown[] } }) {
     const branchEntries = ctx.sessionManager.getBranch() as Array<{
       type: string;
@@ -64,7 +101,10 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    const explicitSelection = !hasPersistedState && pi.getActiveTools().includes("brave_search");
+    const explicitSelection = !hasPersistedState && wasToolExplicitlyRequested();
+    if (explicitSelection) {
+      ensureToolRegistered();
+    }
     applyState({ preserveExplicitSelection: explicitSelection });
 
     if (searchEnabled || explicitSelection) {

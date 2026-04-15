@@ -11,6 +11,8 @@ import type {
 let lastRequestStartedAt = 0;
 let requestQueue: Promise<void> = Promise.resolve();
 
+const MAX_429_RETRIES = 2;
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) {
     return Promise.resolve();
@@ -79,6 +81,63 @@ function prepareArguments(args: unknown): unknown {
   }
 
   return next;
+}
+
+function getHeader(response: Response, name: string): string | null {
+  const headers = (response as { headers?: { get?: (headerName: string) => string | null } }).headers;
+  return headers?.get?.(name) ?? null;
+}
+
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+
+  const dateMs = Date.parse(value);
+  if (Number.isNaN(dateMs)) {
+    return undefined;
+  }
+
+  return Math.max(0, dateMs - Date.now());
+}
+
+async function fetchWith429Retry(
+  url: URL,
+  config: BraveSearchConfig,
+  controller: AbortController,
+  signal?: AbortSignal
+): Promise<{ response: Response; retryCount: number; retryWaitedMs: number }> {
+  let retryCount = 0;
+  let retryWaitedMs = 0;
+
+  while (true) {
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Subscription-Token": config.apiKey!,
+      },
+      signal: controller.signal,
+    });
+
+    if (response.status !== 429 || retryCount >= MAX_429_RETRIES) {
+      return { response, retryCount, retryWaitedMs };
+    }
+
+    const retryAfterMs = parseRetryAfterMs(getHeader(response, "retry-after"));
+    const backoffMs = retryAfterMs ?? config.minRequestIntervalMs * 2 ** retryCount;
+    const waitMs = Math.max(config.minRequestIntervalMs, backoffMs);
+
+    await sleep(waitMs, signal);
+    retryWaitedMs += waitMs;
+    lastRequestStartedAt = Date.now();
+    retryCount += 1;
+  }
 }
 
 function normalizeResult(item: BraveWebSearchApiItem): BraveWebSearchResult | undefined {
@@ -215,15 +274,7 @@ export function registerBraveSearchTool(pi: ExtensionAPI, config: BraveSearchCon
           }
 
           const rateLimitWaitedMs = await applyRateLimit(config, signal);
-
-          const response = await fetch(url.toString(), {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-              "X-Subscription-Token": config.apiKey,
-            },
-            signal: controller.signal,
-          });
+          const { response, retryCount, retryWaitedMs } = await fetchWith429Retry(url, config, controller, signal);
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -249,6 +300,8 @@ export function registerBraveSearchTool(pi: ExtensionAPI, config: BraveSearchCon
               results,
               resultCount: results.length,
               rateLimitWaitedMs,
+              retryCount,
+              retryWaitedMs,
               minRequestIntervalMs: config.minRequestIntervalMs,
             },
           };

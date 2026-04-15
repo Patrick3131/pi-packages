@@ -55,9 +55,11 @@ pi-brave-search is a Pi extension that exposes Brave Web Search through a single
 
 1. Pi invokes `brave_search` with a query.
 2. `searchTool.ts` builds a Brave Search request.
-3. The extension sends `GET /web/search` with the subscription token.
-4. The response is normalized into compact result objects.
-5. Pi can use result URLs directly or pass them to `crawl` later.
+3. The extension applies per-process pacing via `minRequestIntervalMs`.
+4. The extension sends `GET /web/search` with the subscription token.
+5. If Brave returns `429`, the extension retries with backoff (respecting `Retry-After` when present).
+6. The response is normalized into compact result objects.
+7. Pi can use result URLs directly or pass them to `crawl` later.
 
 ## Configuration Layers
 

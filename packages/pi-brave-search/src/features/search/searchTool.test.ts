@@ -143,25 +143,70 @@ describe('brave_search execute', () => {
         },
       ],
       rateLimitWaitedMs: 0,
+      retryCount: 0,
+      retryWaitedMs: 0,
       minRequestIntervalMs: 1000,
     });
   });
 
-  it('surfaces API errors', async () => {
-    mockFetch({
-      ok: false,
-      status: 429,
-      text: 'rate limit',
-    });
+  it('retries 429 responses before surfacing the final API error', async () => {
+    const fetchMock = mockFetch([
+      {
+        ok: false,
+        status: 429,
+        text: 'rate limit',
+      },
+      {
+        ok: false,
+        status: 429,
+        text: 'rate limit',
+      },
+      {
+        ok: false,
+        status: 429,
+        text: 'rate limit',
+      },
+    ]);
 
     await expect(toolExecute('tool-call-id', { query: 'pi coding agent' })).rejects.toThrow(
       'Brave Search failed: Brave Search API error (429): rate limit'
     );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries 429 responses and succeeds after backoff', async () => {
+    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '10';
+
+    const secondMockPi = createMockPi();
+    registerBraveSearchTool(secondMockPi, loadConfig());
+    const execute = secondMockPi.registeredTools[0].execute;
+
+    const fetchMock = mockFetch([
+      {
+        ok: false,
+        status: 429,
+        text: 'rate limit',
+      },
+      {
+        ok: true,
+        data: {
+          query: { original: 'pi coding agent' },
+          web: { results: [] },
+        },
+      },
+    ]);
+
+    const result = await execute('tool-call-id', { query: 'pi coding agent' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.details.retryCount).toBe(1);
+    expect(result.details.retryWaitedMs).toBe(10);
+    expect(result.details.minRequestIntervalMs).toBe(10);
   });
 
   it('waits between requests to respect the minimum interval', async () => {
     jest.useFakeTimers();
-    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '1000';
+    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '1200';
 
     const fetchMock = mockFetch({
       ok: true,
@@ -184,11 +229,11 @@ describe('brave_search execute', () => {
       await Promise.resolve();
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1200);
       const secondResult = await secondPromise;
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(secondResult.details.rateLimitWaitedMs).toBeGreaterThanOrEqual(1000);
+      expect(secondResult.details.rateLimitWaitedMs).toBeGreaterThanOrEqual(1200);
     } finally {
       jest.useRealTimers();
     }
@@ -196,7 +241,7 @@ describe('brave_search execute', () => {
 
   it('serializes parallel requests so only one starts at a time', async () => {
     jest.useFakeTimers();
-    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '1000';
+    process.env.BRAVE_SEARCH_MIN_INTERVAL_MS = '1200';
 
     let resolveFirstFetch!: (value: any) => void;
     const firstFetchResponse = new Promise((resolve) => {
@@ -240,12 +285,12 @@ describe('brave_search execute', () => {
       await Promise.resolve();
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      jest.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1200);
       const secondResult = await secondPromise;
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(secondResult.details.effectiveQuery).toBe('second');
-      expect(secondResult.details.rateLimitWaitedMs).toBeGreaterThanOrEqual(1000);
+      expect(secondResult.details.rateLimitWaitedMs).toBeGreaterThanOrEqual(1200);
     } finally {
       jest.useRealTimers();
     }

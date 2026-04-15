@@ -10,7 +10,8 @@ It is designed to work well with `pi-crawl4ai`: use `brave_search` to discover r
 - 🧭 Normalized search results with title, URL, and snippet
 - 🌍 Optional localization and freshness filters
 - 🎛️ Lazy activation with `/brave-search-on` and `/brave-search-off`
-- ⏱️ Built-in request pacing for Brave plan limits (default: 1 request/sec)
+- ⏱️ Built-in request pacing for Brave plan limits (`minRequestIntervalMs`, configurable per setup)
+- 🔁 Automatic retry/backoff on Brave 429 responses
 - 🤝 Pairs naturally with `pi-crawl4ai`
 
 ## Installation

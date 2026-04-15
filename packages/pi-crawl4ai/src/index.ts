@@ -107,6 +107,32 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function wasToolExplicitlyRequested(): boolean {
+    const activeTools = pi.getActiveTools();
+    if (activeTools.includes("crawl")) {
+      return true;
+    }
+
+    for (let index = 0; index < process.argv.length; index += 1) {
+      const arg = process.argv[index];
+      if (arg === "--tools") {
+        const value = process.argv[index + 1] ?? "";
+        if (value.split(",").map((entry) => entry.trim()).includes("crawl")) {
+          return true;
+        }
+      }
+
+      if (arg.startsWith("--tools=")) {
+        const value = arg.slice("--tools=".length);
+        if (value.split(",").map((entry) => entry.trim()).includes("crawl")) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   // Restore state from session branch (if persisted), then apply current state.
   // On first load, no state is persisted so defaults are used.
   function restoreFromBranch(ctx: { sessionManager: { getBranch: () => unknown[] } }) {
@@ -126,7 +152,11 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    const explicitToolSelectionRequested = !hasPersistedState && pi.getActiveTools().includes("crawl");
+    const explicitToolSelectionRequested = !hasPersistedState && wasToolExplicitlyRequested();
+
+    if (explicitToolSelectionRequested) {
+      ensureToolRegistered();
+    }
 
     applyCrawlState({ preserveExplicitSelection: explicitToolSelectionRequested });
 
