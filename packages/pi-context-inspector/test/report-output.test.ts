@@ -56,10 +56,21 @@ test('buildToolDefinitionsSummary serializes tool definitions', () => {
 });
 
 test('renderReportHtml contains major sections', () => {
-  const html = renderReportHtml(report);
+  const html = renderReportHtml({
+    ...report,
+    prompt: {
+      ...report.prompt,
+      effective: 'Line one\n\nLine two',
+    },
+  });
   assert.match(html, /Pi Context Inspector/);
   assert.match(html, /Effective system prompt/);
-  assert.match(html, /Raw JSON/);
+  assert.match(html, /Detailed tool definitions/);
+  assert.match(html, /Tree view/);
+  assert.match(html, /Formatted/);
+  assert.match(html, /Raw JSON string/);
+  assert.match(html, /chars/);
+  assert.match(html, /tok/);
 });
 
 test('renderReportJson emits JSON string', () => {

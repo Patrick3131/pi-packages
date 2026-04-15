@@ -102,12 +102,6 @@ export async function collectContextInspectionReport(
   const allTools = pi.getAllTools();
   const toolSummary = buildToolDefinitionsSummary(allTools);
   const toolSection = buildToolDefinitionsSection(toolSummary);
-  if (toolSection) {
-    parsedPrompt.sections.push({
-      ...toolSection,
-      percentageOfPrompt: parsedPrompt.totalTokens > 0 ? (toolSection.tokens / parsedPrompt.totalTokens) * 100 : 0,
-    });
-  }
 
   const discoveredPaths = discoverPromptPaths(cwd);
   const files = readDiscoveredPromptFiles(discoveredPaths, diagnostics);
@@ -127,6 +121,14 @@ export async function collectContextInspectionReport(
 
   if (!toolSection) {
     diagnostics.push({ level: "info", message: "No tools were registered for tool-definition analysis." });
+  }
+
+  if (effectivePrompt.includes("Available tools:\n(none)") && toolSummary.count > 0) {
+    diagnostics.push({
+      level: "warning",
+      message:
+        `The effective system prompt reports no prompt-visible tools, but ${String(toolSummary.count)} registered tool definitions were discovered separately. This likely means ctx.getSystemPrompt() reflects a prompt variant that omits tool snippets for this command context.`,
+    });
   }
 
   const basePromptText = parsedPrompt.sections.find((section) => section.kind === "base")?.content ?? "";

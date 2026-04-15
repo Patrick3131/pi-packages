@@ -58,27 +58,30 @@ function renderSectionCard(section: ReportSection): string {
         { label: `${formatInt(section.chars)} chars` },
         { label: formatPercent(section.percentageOfPrompt) },
       ])}
-      ${section.content ? `<details open><summary>Raw section</summary><div>${renderCodeBlock(section.content)}</div></details>` : ""}
+      ${section.content ? `<details><summary>Raw section</summary><div>${renderCodeBlock(section.content)}</div></details>` : ""}
       ${section.children && section.children.length > 0 ? `
         <details>
           <summary>Children (${String(section.children.length)})</summary>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Label</th><th>Tokens</th><th>Chars</th><th>Source</th></tr></thead>
-              <tbody>
-                ${section.children
-                  .map(
-                    (child) => `<tr><td>${escapeHtml(child.label)}</td><td>${formatInt(child.tokens)}</td><td>${formatInt(child.chars)}</td><td>${child.sourcePath ? escapeHtml(child.sourcePath) : "—"}</td></tr>`
-                  )
-                  .join("")}
-              </tbody>
-            </table>
+          <div class="list">
+            ${section.children
+              .map(
+                (child) => `
+                  <details>
+                    <summary>${escapeHtml(child.label)} · ${formatInt(child.tokens)} tokens · ${formatInt(child.chars)} chars${child.sourcePath ? ` · ${escapeHtml(child.sourcePath)}` : ""}</summary>
+                    <div>
+                      ${child.sourcePath ? `<div class="small" style="margin-bottom:10px;">${escapeHtml(child.sourcePath)}</div>` : ""}
+                      ${child.content ? renderCodeBlock(child.content) : `<div class="small">No raw child content.</div>`}
+                    </div>
+                  </details>`
+              )
+              .join("")}
           </div>
         </details>` : ""}
     </section>`;
 }
 
 function renderSourceFile(file: SourceFileRecord): string {
+  const status = !file.exists ? "Not present" : file.readable ? "Present" : "Unreadable";
   return `
     <div class="card">
       <h4>${escapeHtml(path.basename(file.path))}</h4>
@@ -86,14 +89,13 @@ function renderSourceFile(file: SourceFileRecord): string {
         <div><strong>Path:</strong> ${escapeHtml(file.path)}</div>
         <div><strong>Scope:</strong> ${escapeHtml(file.scope)}</div>
         <div><strong>Role:</strong> ${escapeHtml(file.role)}</div>
-        <div><strong>Exists:</strong> ${String(file.exists)}</div>
-        <div><strong>Readable:</strong> ${String(file.readable)}</div>
+        <div><strong>Status:</strong> ${status}</div>
         <div><strong>Included in prompt:</strong> ${file.includedInPrompt == null ? "inferred unknown" : String(file.includedInPrompt)}</div>
       </div>
       ${renderBadges([
         { label: `${formatInt(file.tokens)} tokens` },
         { label: `${formatInt(file.chars)} chars` },
-        ...(file.diagnostics ?? []).map((message) => ({ label: message, className: "warning" })),
+        ...(file.diagnostics ?? []).map((message) => ({ label: message, className: !file.exists ? "" : "warning" })),
       ])}
       ${file.content ? `<details><summary>File contents</summary><div>${renderCodeBlock(file.content)}</div></details>` : ""}
     </div>`;
@@ -150,9 +152,70 @@ function renderTrace(report: ContextInspectionReport): string {
     </div>`;
 }
 
+function estimateJsonSummary(value: unknown): { chars: number; tokens: number } {
+  const serialized = value === undefined ? "undefined" : JSON.stringify(value, null, 2);
+  return {
+    chars: serialized.length,
+    tokens: Math.ceil(serialized.length / 4),
+  };
+}
+
+function renderJsonScalar(value: unknown, label?: string): string {
+  const summary = estimateJsonSummary(value);
+  if (typeof value === "string") {
+    const isMultiline = value.includes("\n");
+    const isLong = value.length > 160;
+    if (isMultiline || isLong) {
+      const lineCount = value.split("\n").length;
+      return `
+        <details>
+          <summary>${label ? `<strong>${escapeHtml(label)}</strong>: ` : ""}string · ${formatInt(summary.chars)} chars · ~${formatInt(summary.tokens)} tok · ${formatInt(lineCount)} lines</summary>
+          <div class="list">
+            <div>
+              <div class="small" style="margin-bottom:8px;">Formatted</div>
+              ${renderCodeBlock(value)}
+            </div>
+            <details>
+              <summary>Raw JSON string · ${formatInt(summary.chars)} chars · ~${formatInt(summary.tokens)} tok</summary>
+              <div>${renderCodeBlock(JSON.stringify(value))}</div>
+            </details>
+          </div>
+        </details>`;
+    }
+  }
+
+  const rendered = value === undefined ? "undefined" : JSON.stringify(value);
+  return `<div>${label ? `<strong>${escapeHtml(label)}:</strong> ` : ""}<code>${escapeHtml(rendered)}</code> <span class="small">(${formatInt(summary.chars)} chars · ~${formatInt(summary.tokens)} tok)</span></div>`;
+}
+
+function renderJsonTree(value: unknown, label?: string): string {
+  const summary = estimateJsonSummary(value);
+  if (value === null || typeof value !== "object") {
+    return renderJsonScalar(value, label);
+  }
+
+  if (Array.isArray(value)) {
+    return `
+      <details>
+        <summary>${escapeHtml(label ?? "array")} [${String(value.length)}] · ${formatInt(summary.chars)} chars · ~${formatInt(summary.tokens)} tok</summary>
+        <div class="list">
+          ${value.map((item, index) => renderJsonTree(item, String(index))).join("")}
+        </div>
+      </details>`;
+  }
+
+  const entries = Object.entries(value);
+  return `
+    <details>
+      <summary>${escapeHtml(label ?? "object")} {${String(entries.length)}} · ${formatInt(summary.chars)} chars · ~${formatInt(summary.tokens)} tok</summary>
+      <div class="list">
+        ${entries.map(([key, child]) => renderJsonTree(child, key)).join("")}
+      </div>
+    </details>`;
+}
+
 export function renderReportHtml(report: ContextInspectionReport): string {
   const styles = readStyles();
-  const reportJson = JSON.stringify(report, null, 2);
 
   return `<!doctype html>
 <html lang="en">
@@ -204,7 +267,31 @@ export function renderReportHtml(report: ContextInspectionReport): string {
         </section>
 
         <section id="prompt-breakdown" class="section grid">
-          ${report.prompt.sections.map((section) => renderSectionCard(section)).join("")}
+          ${report.prompt.sections.filter((section) => section.kind !== "tools").map((section) => renderSectionCard(section)).join("")}
+        </section>
+
+        <section id="tool-definitions" class="section">
+          <div class="card">
+            <h3>Tool definitions</h3>
+            <p class="small">Registered tool schemas discovered via <code>pi.getAllTools()</code>. These are separate from the visible tool bullets in the effective system prompt.</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Description</th><th>Tokens</th><th>Chars</th></tr></thead>
+                <tbody>
+                  ${report.tools.items
+                    .map(
+                      (tool) => `<tr><td>${escapeHtml(tool.name)}</td><td>${escapeHtml(tool.description || "")}</td><td>${formatInt(tool.tokens)}</td><td>${formatInt(tool.chars)}</td></tr>`
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+            <details><summary>Detailed tool definitions</summary><div class="list">${report.tools.items
+              .map(
+                (tool) => `<details><summary>${escapeHtml(tool.name)} · ${formatInt(tool.tokens)} tokens · ${formatInt(tool.chars)} chars</summary><div>${renderCodeBlock(tool.serialized)}</div></details>`
+              )
+              .join("")}</div></details>
+          </div>
         </section>
 
         <section id="source-files" class="section">
@@ -219,29 +306,6 @@ export function renderReportHtml(report: ContextInspectionReport): string {
         <section id="base-trace" class="section">
           <div class="card"><h3>Base prompt trace</h3><p class="small">Inferred attribution for the base prompt using extension tool snippets and prompt guidelines.</p></div>
           ${renderTrace(report)}
-        </section>
-
-        <section id="tool-definitions" class="section">
-          <div class="card">
-            <h3>Tool definitions</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Name</th><th>Description</th><th>Tokens</th><th>Chars</th></tr></thead>
-                <tbody>
-                  ${report.tools.items
-                    .map(
-                      (tool) => `<tr><td>${escapeHtml(tool.name)}</td><td>${escapeHtml(tool.description || "")}</td><td>${formatInt(tool.tokens)}</td><td>${formatInt(tool.chars)}</td></tr>`
-                    )
-                    .join("")}
-                </tbody>
-              </table>
-            </div>
-            <details><summary>Serialized definitions</summary><div class="list">${report.tools.items
-              .map(
-                (tool) => `<div><h4>${escapeHtml(tool.name)}</h4>${renderCodeBlock(tool.serialized)}</div>`
-              )
-              .join("")}</div></details>
-          </div>
         </section>
 
         <section id="skills" class="section">
@@ -270,7 +334,14 @@ export function renderReportHtml(report: ContextInspectionReport): string {
         <section id="raw-json" class="section">
           <div class="card">
             <h3>Raw JSON</h3>
-            ${renderCodeBlock(reportJson)}
+            <details>
+              <summary>Tree view</summary>
+              <div>${renderJsonTree(report)}</div>
+            </details>
+            <details>
+              <summary>Raw JSON text</summary>
+              <div>${renderCodeBlock(JSON.stringify(report, null, 2))}</div>
+            </details>
           </div>
         </section>
       </main>

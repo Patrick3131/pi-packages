@@ -21,7 +21,7 @@ function readFileRecord(
       role,
       exists: false,
       readable: false,
-      diagnostics: ["File not found"],
+      diagnostics: ["Not present"],
     };
   }
 

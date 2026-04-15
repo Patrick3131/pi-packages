@@ -72,11 +72,62 @@ function findBasePromptEnd(
   return firstPositive(projectContextIdx, skillsPreambleIdx, metadataIdx);
 }
 
+function isLikelyPromptContextPathHeading(heading: string): boolean {
+  return /^(?:\/|[A-Za-z]:[\\/]).+\.md$/.test(heading);
+}
+
+function parseAgentFileSubsections(
+  filePath: string,
+  fileBlock: string,
+  startIndex: number
+): ReportChildSection[] {
+  const children: ReportChildSection[] = [
+    {
+      id: `agent-${startIndex}`,
+      label: filePath,
+      content: fileBlock,
+      chars: fileBlock.length,
+      tokens: estimateTokens(fileBlock),
+      sourcePath: filePath,
+    },
+  ];
+
+  const contentAfterPathHeading = fileBlock.replace(/^## .+\n*/, "").trim();
+  const subsectionPattern = /^## (.+)$/gm;
+  const subsectionMatches = [...contentAfterPathHeading.matchAll(subsectionPattern)].filter(
+    (match) => !isLikelyPromptContextPathHeading(match[1]?.trim() ?? "")
+  );
+
+  for (let subsectionIndex = 0; subsectionIndex < subsectionMatches.length; subsectionIndex += 1) {
+    const match = subsectionMatches[subsectionIndex];
+    const label = match[1]?.trim() ?? "unknown";
+    const blockStart = match.index ?? 0;
+    const blockEnd =
+      subsectionIndex + 1 < subsectionMatches.length
+        ? ((subsectionMatches[subsectionIndex + 1]?.index as number | undefined) ?? contentAfterPathHeading.length)
+        : contentAfterPathHeading.length;
+    const content = contentAfterPathHeading.slice(blockStart, blockEnd).trim();
+    children.push({
+      id: `agent-${startIndex + subsectionIndex + 1}`,
+      label,
+      content,
+      chars: content.length,
+      tokens: estimateTokens(content),
+      sourcePath: filePath,
+    });
+  }
+
+  return children;
+}
+
 function parseAgentsFiles(contextBlock: string): ReportChildSection[] {
   const files: ReportChildSection[] = [];
   const headingPattern = /^## (.+)$/gm;
-  const matches = [...contextBlock.matchAll(headingPattern)];
+  const matches = [...contextBlock.matchAll(headingPattern)].filter((match) =>
+    isLikelyPromptContextPathHeading(match[1]?.trim() ?? "")
+  );
 
+  let childIndex = 0;
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
     const heading = match[1]?.trim() ?? "unknown";
@@ -86,14 +137,9 @@ function parseAgentsFiles(contextBlock: string): ReportChildSection[] {
         ? ((matches[index + 1]?.index as number | undefined) ?? contextBlock.length)
         : contextBlock.length;
     const content = contextBlock.slice(blockStart, blockEnd).trim();
-    files.push({
-      id: `agent-${index}`,
-      label: heading,
-      content,
-      chars: content.length,
-      tokens: estimateTokens(content),
-      sourcePath: heading.startsWith("/") ? heading : undefined,
-    });
+    const subsections = parseAgentFileSubsections(heading, content, childIndex);
+    files.push(...subsections);
+    childIndex += subsections.length;
   }
 
   return files;
