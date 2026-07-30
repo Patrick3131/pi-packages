@@ -37,6 +37,12 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { loadConfig } from "./config";
 import { registerCrawlTool } from "./features/crawl/crawlTool";
+import {
+  cleanupCrawlSessions,
+  formatCleanupSummary,
+  listCrawlSessions,
+} from "./features/crawl/cleanup";
+import { getDefaultOutputDir } from "./features/crawl/saveOutput";
 
 export { loadConfig } from "./config";
 export { loadConfig as loadConfigFromFile, type Crawl4AIJsonConfig, type ResolvedConfig } from "./configLoader";
@@ -154,10 +160,8 @@ export default function (pi: ExtensionAPI) {
 
     const explicitToolSelectionRequested = !hasPersistedState && wasToolExplicitlyRequested();
 
-    if (explicitToolSelectionRequested) {
-      ensureToolRegistered();
-    }
-
+    // Explicit CLI selection (e.g. --tools crawl) is honored even when lazy
+    // activation is otherwise off and no branch state has been persisted yet.
     applyCrawlState({ preserveExplicitSelection: explicitToolSelectionRequested });
 
     // Log current state
@@ -203,6 +207,42 @@ export default function (pi: ExtensionAPI) {
       applyCrawlState();
       persistState();
       ctx.ui.notify("Crawl tool disabled", "info");
+    },
+  });
+
+  const outputRoot = () => getDefaultOutputDir(config.raw.outputDir);
+
+  // List saved crawl sessions
+  pi.registerCommand("crawl-sessions", {
+    description: "List saved crawl sessions under the output directory",
+    handler: async (_args, ctx) => {
+      const root = outputRoot();
+      const sessions = listCrawlSessions(root);
+      if (sessions.length === 0) {
+        ctx.ui.notify(`No crawl sessions in ${root}`, "info");
+        return;
+      }
+      const lines = sessions.map((session, index) => {
+        const mb = (session.sizeBytes / (1024 * 1024)).toFixed(2);
+        const when = session.timestamp ?? new Date(session.mtimeMs).toISOString();
+        return `${index + 1}. ${session.name}  ${mb} MB  ${when}`;
+      });
+      ctx.ui.notify(`Crawl sessions in ${root} (${sessions.length}):\n${lines.join("\n")}`, "info");
+    },
+  });
+
+  // Manual retention cleanup
+  pi.registerCommand("crawl-cleanup", {
+    description:
+      "Prune old crawl sessions (usage: /crawl-cleanup [dry-run]). Uses retention maxSessions/maxAgeDays/maxTotalMb.",
+    handler: async (args, ctx) => {
+      const root = outputRoot();
+      const dryRun = /\bdry-?run\b/i.test(args ?? "");
+      const policy = { ...config.raw.retention, enabled: true };
+      const result = cleanupCrawlSessions(root, policy, { dryRun });
+      const summary = formatCleanupSummary(result, dryRun);
+      console.log(`[pi-crawl4ai] ${summary}`);
+      ctx.ui.notify(summary, result.deleted.length > 0 ? "warning" : "info");
     },
   });
 }

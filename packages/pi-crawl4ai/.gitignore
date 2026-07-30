@@ -25,3 +25,8 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Crawl session output (auto-saved pages)
+output-crawl4ai/
+__test_*/
+src/__test_temp__/

@@ -6,18 +6,33 @@ import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
 import { buildBrowserConfig, resolveAuthSelection } from "../../config";
-import type { CrawlToolParams, CrawlResult, Crawl4AIResponse, MarkdownGenerationResult, DeepCrawlConfig } from "./types";
+import type {
+  CrawlToolParams,
+  CrawlResult,
+  Crawl4AIResponse,
+  DeepCrawlConfig,
+  ReturnMode,
+} from "./types";
 import { applyRequestPacing } from "./requestPacing";
-import { resolveOutputDir, saveCrawlResults } from "./saveOutput";
+import { resolveOutputDir, saveCrawlResultsDetailed } from "./saveOutput";
+import { formatCleanupSummary } from "./cleanup";
+import {
+  DEFAULT_TOKEN_BUDGET,
+  buildBudgetedToolText,
+  decideReturnMode,
+  slimResultDetails,
+  toFormattedPages,
+  type TokenBudgetConfig,
+} from "./tokenBudget";
 
 /**
  * Build a crawl4ai-compatible deep crawl strategy object.
  * Uses the {type, params} serialization format expected by crawl4ai API.
  */
-function buildDeepCrawlStrategy(config: DeepCrawlConfig): Record<string, unknown> {
+function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages: number): Record<string, unknown> {
   const strategyMap: Record<string, string> = {
-    "bfs": "BFSDeepCrawlStrategy",
-    "dfs": "DFSDeepCrawlStrategy",
+    bfs: "BFSDeepCrawlStrategy",
+    dfs: "DFSDeepCrawlStrategy",
     "best-first": "BestFirstCrawlingStrategy",
   };
 
@@ -29,7 +44,7 @@ function buildDeepCrawlStrategy(config: DeepCrawlConfig): Record<string, unknown
   if (config.includePatterns || config.excludePatterns) {
     const patterns = [
       ...(config.includePatterns || []),
-      ...(config.excludePatterns?.map(p => `!${p}`) || []),
+      ...(config.excludePatterns?.map((p) => `!${p}`) || []),
     ];
     if (patterns.length > 0) {
       filters.push({
@@ -51,13 +66,14 @@ function buildDeepCrawlStrategy(config: DeepCrawlConfig): Record<string, unknown
     });
   }
 
-  const filterChain = filters.length > 0
-    ? { type: "FilterChain", params: { filters } }
-    : undefined;
+  const filterChain =
+    filters.length > 0
+      ? { type: "FilterChain", params: { filters } }
+      : undefined;
 
   const params: Record<string, unknown> = {
     max_depth: config.maxDepth,
-    max_pages: config.maxPages ?? 100,
+    max_pages: config.maxPages ?? defaultMaxPages,
     include_external: config.includeExternal ?? false,
   };
 
@@ -90,7 +106,11 @@ function buildExecutionDetails(
   hasUserAgent: boolean;
 } {
   const profile = authSelection?.profile;
-  const proxySource = profile?.proxy ? "auth-profile" : config.proxyEnabled ? "default" : "none";
+  const proxySource = profile?.proxy
+    ? "auth-profile"
+    : config.proxyEnabled
+      ? "default"
+      : "none";
 
   return {
     siteHint: site,
@@ -142,25 +162,46 @@ function prepareCrawlArguments(args: unknown): unknown {
   return next;
 }
 
+function resolveTokenBudget(
+  config: Crawl4AIConfig,
+  params: Pick<
+    CrawlToolParams,
+    "returnMode" | "maxCharsPerPage" | "maxCharsPerCall" | "preferFitMarkdown"
+  >
+): TokenBudgetConfig {
+  const defaults = config.raw.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
+  return {
+    maxCharsPerPage: params.maxCharsPerPage ?? defaults.maxCharsPerPage,
+    maxCharsPerCall: params.maxCharsPerCall ?? defaults.maxCharsPerCall,
+    returnMode: (params.returnMode ?? defaults.returnMode) as ReturnMode,
+    preferFitMarkdown: params.preferFitMarkdown ?? defaults.preferFitMarkdown,
+    deepCrawlDefaultMaxPages: defaults.deepCrawlDefaultMaxPages,
+    excerptChars: defaults.excerptChars,
+  };
+}
+
 /**
  * Register the crawl tool with pi.
  */
 export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): void {
+  const budgetDefaults = config.raw.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
+
   pi.registerTool({
     name: "crawl",
     label: "Crawl Website",
     description:
-      "Crawl one or more URLs using crawl4ai with browser rendering and optional proxy support. " +
-      "Returns markdown, HTML, or extracted links. Use this for scraping JavaScript-rendered pages, " +
-      "SPAs, or when you need structured content extraction. " +
-      "Supports automatic auth profile selection by site/domain, and explicit authProfile overrides when needed. " +
-      "Use deepCrawl to follow links and crawl multiple pages from a starting URL.",
+      "Crawl one or more URLs with crawl4ai (browser render, optional proxy/auth). " +
+      "Defaults keep large bodies off the model: prefer fit markdown, char budgets, and files/index mode for deep or large crawls. " +
+      "Use returnMode/maxChars* to override; pair with brave_search for discovery.",
     promptSnippet:
-      "Crawl web pages with optional automatic auth profile selection by site/domain and deep crawling.",
+      "Crawl pages with auth/deep-crawl support; large results auto-save and return an index to save tokens.",
     promptGuidelines: [
+      "Prefer discovering URLs with search first; crawl only the pages you need.",
       "If the user provides URLs directly, rely on automatic domain-based auth profile selection by default. Do not pass authProfile unless the user explicitly asks for a specific account, login context, or named auth setup.",
       "Use the site parameter only when the user refers to a platform or site by name instead of giving a domain, for example 'from X', 'from Reddit', or similar site-name phrasing.",
       "Do not invent authProfile values. Only pass authProfile when the user explicitly requests a known profile or prior context established one.",
+      "For multi-page or deep crawls, expect a page index + disk paths; use read on specific saved files instead of re-inlining everything.",
+      "Use returnMode=inline only when you truly need full bodies in-context for a small page set.",
     ],
     prepareArguments: prepareCrawlArguments,
     parameters: Type.Object({
@@ -175,7 +216,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       ),
       authProfile: Type.Optional(
         Type.String({
-          description: "Optional explicit auth profile name from config. Overrides automatic site/domain matching.",
+          description:
+            "Optional explicit auth profile name from config. Overrides automatic site/domain matching.",
         })
       ),
       format: Type.Optional(
@@ -199,57 +241,89 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         })
       ),
       deepCrawl: Type.Optional(
-        Type.Object({
-          strategy: Type.Optional(
-            Type.Union(
-              [Type.Literal("bfs"), Type.Literal("dfs"), Type.Literal("best-first")],
-              { description: "Crawl strategy: bfs (breadth-first, default), dfs (depth-first), best-first (score-based)" }
-            )
-          ),
-          maxDepth: Type.Number({
-            description: "Maximum crawl depth (1 = start page only, 2 = start + linked pages, etc.)",
-            minimum: 1,
-          }),
-          maxPages: Type.Optional(
-            Type.Number({
-              description: "Maximum total pages to crawl (default: 100)",
+        Type.Object(
+          {
+            strategy: Type.Optional(
+              Type.Union(
+                [Type.Literal("bfs"), Type.Literal("dfs"), Type.Literal("best-first")],
+                {
+                  description:
+                    "Crawl strategy: bfs (default), dfs, or best-first",
+                }
+              )
+            ),
+            maxDepth: Type.Number({
+              description: "Maximum crawl depth (1 = start page only)",
               minimum: 1,
-            })
-          ),
-          includeExternal: Type.Optional(
-            Type.Boolean({
-              description: "Follow links to external domains (default: false)",
-            })
-          ),
-          includePatterns: Type.Optional(
-            Type.Array(Type.String(), {
-              description: "URL glob patterns to include (e.g., '/docs/*', '*.html')",
-            })
-          ),
-          excludePatterns: Type.Optional(
-            Type.Array(Type.String(), {
-              description: "URL glob patterns to exclude (e.g., '/admin/*', '*.pdf')",
-            })
-          ),
-          allowedDomains: Type.Optional(
-            Type.Array(Type.String(), {
-              description: "Only follow links to these domains",
-            })
-          ),
-          scoreThreshold: Type.Optional(
-            Type.Number({
-              description: "Minimum relevance score for best-first strategy (0.0-1.0)",
-              minimum: 0,
-              maximum: 1,
-            })
-          ),
-        }, {
-          description: "Deep crawl configuration. Enables crawling linked pages up to maxDepth.",
-        })
+            }),
+            maxPages: Type.Optional(
+              Type.Number({
+                description: `Maximum total pages to crawl (default: ${budgetDefaults.deepCrawlDefaultMaxPages})`,
+                minimum: 1,
+              })
+            ),
+            includeExternal: Type.Optional(
+              Type.Boolean({
+                description: "Follow links to external domains (default: false)",
+              })
+            ),
+            includePatterns: Type.Optional(
+              Type.Array(Type.String(), {
+                description: "URL glob patterns to include (e.g., '/docs/*')",
+              })
+            ),
+            excludePatterns: Type.Optional(
+              Type.Array(Type.String(), {
+                description: "URL glob patterns to exclude (e.g., '/admin/*')",
+              })
+            ),
+            allowedDomains: Type.Optional(
+              Type.Array(Type.String(), {
+                description: "Only follow links to these domains",
+              })
+            ),
+            scoreThreshold: Type.Optional(
+              Type.Number({
+                description: "Minimum relevance score for best-first (0.0-1.0)",
+                minimum: 0,
+                maximum: 1,
+              })
+            ),
+          },
+          {
+            description:
+              "Deep crawl linked pages. Multi-page results default to files/index mode to save tokens.",
+          }
+        )
       ),
       save: Type.Optional(
         Type.Union([Type.Boolean(), Type.String()], {
-          description: "Save results to disk. true = save to ./output-crawl4ai, or provide a custom directory path.",
+          description:
+            "Save results to disk. true = ./output-crawl4ai (or CRAWL4AI_OUTPUT_DIR), or a custom path. Auto mode may save when over budget even if omitted.",
+        })
+      ),
+      returnMode: Type.Optional(
+        Type.Union([Type.Literal("auto"), Type.Literal("inline"), Type.Literal("files")], {
+          description:
+            "auto (default): inline small results, files/index for large/deep crawls. inline: bodies in tool result (budgeted). files: index only + disk.",
+        })
+      ),
+      maxCharsPerPage: Type.Optional(
+        Type.Number({
+          description: `Max body chars per page in the tool result (default: ${budgetDefaults.maxCharsPerPage})`,
+          minimum: 500,
+        })
+      ),
+      maxCharsPerCall: Type.Optional(
+        Type.Number({
+          description: `Max total body chars for this call (default: ${budgetDefaults.maxCharsPerCall})`,
+          minimum: 1000,
+        })
+      ),
+      preferFitMarkdown: Type.Optional(
+        Type.Boolean({
+          description:
+            "Prefer crawl4ai fit_markdown (main content) over raw_markdown when available (default: true)",
         })
       ),
     }),
@@ -261,15 +335,39 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       _onUpdate?: unknown,
       _ctx?: unknown
     ) {
-      const { urls, site, authProfile, format = "markdown", waitFor, jsCode, bypassCache, deepCrawl, save } = params as CrawlToolParams;
+      const {
+        urls,
+        site,
+        authProfile,
+        format = "markdown",
+        waitFor,
+        jsCode,
+        bypassCache,
+        deepCrawl,
+        save,
+        returnMode,
+        maxCharsPerPage,
+        maxCharsPerCall,
+        preferFitMarkdown,
+      } = params as CrawlToolParams;
 
       // Validate deep crawl requires single URL
       if (deepCrawl && urls.length !== 1) {
-        throw new Error("Deep crawling requires exactly one start URL. Use regular crawl for multiple URLs.");
+        throw new Error(
+          "Deep crawling requires exactly one start URL. Use regular crawl for multiple URLs."
+        );
       }
+
+      const tokenBudget = resolveTokenBudget(config, {
+        returnMode,
+        maxCharsPerPage,
+        maxCharsPerCall,
+        preferFitMarkdown,
+      });
 
       const authSelection = resolveAuthSelection(config, { urls, site, authProfile });
       const executionDetails = buildExecutionDetails(config, site, authSelection);
+      const executionSummary = formatExecutionSummary(executionDetails);
 
       // Build the request payload
       const browserConfig = buildBrowserConfig(config, authSelection, urls);
@@ -291,14 +389,16 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
 
       // Add deep crawl strategy if configured
       if (deepCrawl) {
-        crawlerConfig.deep_crawl_strategy = buildDeepCrawlStrategy(deepCrawl);
+        crawlerConfig.deep_crawl_strategy = buildDeepCrawlStrategy(
+          deepCrawl,
+          tokenBudget.deepCrawlDefaultMaxPages
+        );
       }
 
       // Note: markdown is the default output format in crawl4ai.
       // We don't need to set markdown_generator - the default behavior
       // already generates markdown. Setting it to `true` causes a bug
       // where crawl4ai receives a boolean instead of a MarkdownGenerationStrategy.
-      // See: https://github.com/unclecode/crawl4ai/issues (bool object has no attribute 'generate_markdown')
 
       const payload = {
         urls,
@@ -337,69 +437,75 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
           throw new Error("Crawl request failed");
         }
 
-        // Format results based on requested format
-        const formattedResults = data.results.map((result) => formatResult(result, format));
+        const pages = toFormattedPages(data.results, format, tokenBudget);
+        const isDeepCrawl = Boolean(deepCrawl);
+        const decision = decideReturnMode({
+          requestedMode: tokenBudget.returnMode,
+          pages,
+          isDeepCrawl,
+          urlCount: urls.length,
+          maxCharsPerCall: tokenBudget.maxCharsPerCall,
+          saveRequested: save,
+        });
 
-        // Save to disk if requested
-        const outputDir = resolveOutputDir(save);
+        // Resolve save path: explicit save wins; auto-save when over budget / files mode
+        const configuredOutputDir = config.raw.outputDir;
+        let outputDir = resolveOutputDir(save, configuredOutputDir);
+        if (!outputDir && decision.autoSave && save !== false) {
+          // Auto-save oversized/files-mode results so content is recoverable via read
+          outputDir = resolveOutputDir(true, configuredOutputDir);
+        }
+
         let savedPath: string | undefined;
+        let cleanupSummary: string | undefined;
+        let cleanupDetails: ReturnType<typeof saveCrawlResultsDetailed>["cleanup"];
         if (outputDir) {
-          savedPath = saveCrawlResults(
+          const saved = saveCrawlResultsDetailed(
             outputDir,
             urls,
             data.results,
             format,
             config.proxyEnabled,
-            deepCrawl ? { maxDepth: deepCrawl.maxDepth, maxPages: deepCrawl.maxPages } : undefined
+            deepCrawl
+              ? {
+                  maxDepth: deepCrawl.maxDepth,
+                  maxPages: deepCrawl.maxPages ?? tokenBudget.deepCrawlDefaultMaxPages,
+                }
+              : undefined,
+            {
+              preferFitMarkdown: tokenBudget.preferFitMarkdown,
+              retention: config.raw.retention,
+            }
           );
+          savedPath = saved.sessionDir;
+          cleanupDetails = saved.cleanup;
+          if (saved.cleanup && saved.cleanup.deleted.length > 0) {
+            cleanupSummary = formatCleanupSummary(saved.cleanup);
+          }
         }
 
-        // For deep crawl, group by depth and show hierarchy
-        if (deepCrawl && data.results.length > 1) {
-          const summary = [
-            formatExecutionSummary(executionDetails),
-            "",
-            formatDeepCrawlResults(formattedResults, data.results, deepCrawl.maxDepth, savedPath),
-          ].join("\n");
-          return {
-            content: [{ type: "text", text: summary }],
-            details: {
-              results: data.results,
-              proxyUsed: executionDetails.proxyUsed,
-              proxySource: executionDetails.proxySource,
-              hasCookies: executionDetails.hasCookies,
-              hasHeaders: executionDetails.hasHeaders,
-              hasUserAgent: executionDetails.hasUserAgent,
-              siteHint: executionDetails.siteHint,
-              format,
-              authProfile: executionDetails.authProfile,
-              authProfileReason: executionDetails.authProfileReason,
-              execution: executionDetails,
-              minRequestIntervalMs: requestPacing?.minRequestIntervalMs,
-              rateLimitWaitedMs: requestPacing?.waitedMs,
-              savedPath,
-              deepCrawl: {
-                totalPages: data.results.length,
-                maxDepth: deepCrawl.maxDepth,
-              },
-            },
-          };
-        }
+        const built = buildBudgetedToolText({
+          pages,
+          rawResults: data.results,
+          budget: tokenBudget,
+          decision,
+          isDeepCrawl,
+          maxDepth: deepCrawl?.maxDepth,
+          savedPath,
+          executionSummary,
+        });
 
-        // Single URL or multi-URL (non-deep) format
-        const saveNotice = savedPath ? `\n\n*Results saved to: ${savedPath}*` : "";
-        const resultBody =
-          formattedResults.length === 1
-            ? `## ${formattedResults[0].url}\n\n${formattedResults[0].content}${saveNotice}`
-            : formattedResults
-                .map((r, i) => `---\n## Result ${i + 1}: ${r.url}\n\n${r.content}`)
-                .join("\n\n") + saveNotice;
-        const summary = [formatExecutionSummary(executionDetails), "", resultBody].join("\n");
+        const slimResults = slimResultDetails(built.pages, data.results);
+        const text = cleanupSummary
+          ? `${built.text}
+
+*Retention:* ${cleanupSummary.split("\n")[0]}`
+          : built.text;
 
         return {
-          content: [{ type: "text", text: summary }],
+          content: [{ type: "text", text }],
           details: {
-            results: data.results,
+            results: slimResults,
             proxyUsed: executionDetails.proxyUsed,
             proxySource: executionDetails.proxySource,
             hasCookies: executionDetails.hasCookies,
@@ -413,6 +519,34 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             minRequestIntervalMs: requestPacing?.minRequestIntervalMs,
             rateLimitWaitedMs: requestPacing?.waitedMs,
             savedPath,
+            returnMode: built.mode,
+            returnModeReason: decision.reason,
+            truncated: built.truncated,
+            totalOriginalChars: built.totalOriginalChars,
+            totalReturnedChars: built.totalReturnedChars,
+            tokenBudget: {
+              maxCharsPerPage: tokenBudget.maxCharsPerPage,
+              maxCharsPerCall: tokenBudget.maxCharsPerCall,
+              preferFitMarkdown: tokenBudget.preferFitMarkdown,
+              requestedReturnMode: tokenBudget.returnMode,
+            },
+            cleanup: cleanupDetails
+              ? {
+                  deleted: cleanupDetails.deleted,
+                  kept: cleanupDetails.kept,
+                  scanned: cleanupDetails.scanned,
+                  freedBytes: cleanupDetails.freedBytes,
+                }
+              : undefined,
+            ...(deepCrawl
+              ? {
+                  deepCrawl: {
+                    totalPages: data.results.length,
+                    maxDepth: deepCrawl.maxDepth,
+                    maxPages: deepCrawl.maxPages ?? tokenBudget.deepCrawlDefaultMaxPages,
+                  },
+                }
+              : {}),
           },
         };
       } catch (error) {
@@ -421,101 +555,4 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       }
     },
   } as any);
-}
-
-/**
- * Format a single crawl result based on the requested format.
- */
-function formatResult(
-  result: CrawlResult,
-  format: string
-): { url: string; content: string } {
-  if (!result.success) {
-    return {
-      url: result.url,
-      content: `**Error crawling ${result.url}:** ${result.error_message || "Unknown error"}`,
-    };
-  }
-
-  let content: string;
-
-  switch (format) {
-    case "html":
-      content = result.html || "*No HTML content extracted*";
-      break;
-    case "links":
-      const internal = result.links?.internal || [];
-      const external = result.links?.external || [];
-      content = [
-        `### Internal Links (${internal.length})`,
-        ...internal.slice(0, 50).map((l) => `- [${l.text}](${l.href})`),
-        internal.length > 50 ? `... and ${internal.length - 50} more` : "",
-        "",
-        `### External Links (${external.length})`,
-        ...external.slice(0, 50).map((l) => `- [${l.text}](${l.href})`),
-        external.length > 50 ? `... and ${external.length - 50} more` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-      break;
-    case "markdown":
-    default:
-      // Handle both string and MarkdownGenerationResult object from crawl4ai API
-      if (typeof result.markdown === "object" && result.markdown !== null) {
-        const md = result.markdown as MarkdownGenerationResult;
-        content = md.raw_markdown || "*No markdown content extracted*";
-      } else {
-        content = result.markdown || "*No markdown content extracted*";
-      }
-      break;
-  }
-
-  return { url: result.url, content };
-}
-
-/**
- * Format deep crawl results with depth grouping.
- */
-function formatDeepCrawlResults(
-  formattedResults: Array<{ url: string; content: string }>,
-  rawResults: CrawlResult[],
-  maxDepth: number,
-  savedPath?: string
-): string {
-  // Group by depth
-  const byDepth: Map<number, Array<{ url: string; content: string; success: boolean }>> = new Map();
-
-  formattedResults.forEach((r, i) => {
-    const depth = rawResults[i].metadata?.depth ?? 0;
-    if (!byDepth.has(depth)) {
-      byDepth.set(depth, []);
-    }
-    byDepth.get(depth)!.push({
-      url: r.url,
-      content: r.content,
-      success: rawResults[i].success,
-    });
-  });
-
-  // Build hierarchical output
-  const sections: string[] = [];
-  sections.push(`# Deep Crawl Results (${formattedResults.length} pages, max depth: ${maxDepth})\n`);
-  
-  if (savedPath) {
-    sections.push(`*Results saved to: ${savedPath}*\n`);
-  }
-
-  for (let depth = 0; depth <= maxDepth; depth++) {
-    const pages = byDepth.get(depth);
-    if (!pages || pages.length === 0) continue;
-
-    sections.push(`\n## Depth ${depth} (${pages.length} pages)\n`);
-
-    pages.forEach((page) => {
-      const prefix = page.success ? "" : "❌ ";
-      sections.push(`\n### ${prefix}${page.url}\n\n${page.content}`);
-    });
-  }
-
-  return sections.join("\n");
 }

@@ -99,17 +99,35 @@ POST to CRAWL4AI_BASE_URL/crawl
 }
 ```
 
-### 3. Response Processing
+### 3. Response Processing (token-budgeted)
 
 ```
 crawl4ai returns CrawlResult[]
   │
   ▼
-formatResult() based on format param
+toFormattedPages()  // prefer fit_markdown, normalize
   │
   ▼
-Return to Pi as tool result
+decideReturnMode()  // auto | inline | files
+  │
+  ├─ inline: apply char budgets, optional truncate + save
+  └─ files:  auto-save full bodies, return page index + excerpts
+  │
+  ▼
+Return slim details (no raw HTML/markdown dump) to Pi
 ```
+
+Token-budget defaults live in `config.tokenBudget` / env (`CRAWL4AI_MAX_CHARS_*`, `CRAWL4AI_RETURN_MODE`, …) and can be overridden per call.
+
+### 4. Retention / cleanup
+
+Saved sessions under `outputDir` are pruned after saves when `retention.enabled` is true:
+
+- `maxSessions` — keep newest N
+- `maxAgeDays` — drop older than N days
+- `maxTotalMb` — soft total size cap (oldest first)
+
+Only dirs with `crawl-manifest.json` are deleted. Manual: `/crawl-sessions`, `/crawl-cleanup [dry-run]`.
 
 ## Configuration Layers
 

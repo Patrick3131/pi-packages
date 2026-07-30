@@ -89,7 +89,8 @@ describe('registerCrawlTool', () => {
     registerCrawlTool(mockPi, config);
 
     const tool = mockPi.registeredTools[0];
-    expect(tool.promptSnippet).toContain('auth profile selection');
+    expect(tool.promptSnippet).toContain('auth/deep-crawl');
+    expect(tool.promptSnippet).toContain('index');
     expect(tool.promptGuidelines).toEqual(
       expect.arrayContaining([
         expect.stringContaining('automatic domain-based auth profile selection'),
@@ -255,10 +256,13 @@ describe('crawl tool execute', () => {
       {}
     );
 
+    // Prefer fit_markdown when available (token-budget default)
     expect(result.content[0].text).toContain('# Example');
-    expect(result.content[0].text).toContain('This is example content.');
+    expect(result.content[0].text).toContain('Filtered content.');
+    expect(result.content[0].text).not.toContain('This is example content.');
     expect(result.content[0].text).not.toContain('[object Object]');
     expect(result.details.format).toBe('markdown');
+    expect(result.details.results[0].usedFitMarkdown).toBe(true);
   });
 
   it('should return HTML content when format is html', async () => {
@@ -783,7 +787,7 @@ describe('crawl tool deep crawl', () => {
     expect(body.crawler_config.deep_crawl_strategy).toBeDefined();
     expect(body.crawler_config.deep_crawl_strategy.type).toBe('BFSDeepCrawlStrategy');
     expect(body.crawler_config.deep_crawl_strategy.params.max_depth).toBe(2);
-    expect(body.crawler_config.deep_crawl_strategy.params.max_pages).toBe(100);
+    expect(body.crawler_config.deep_crawl_strategy.params.max_pages).toBe(10);
     expect(body.crawler_config.deep_crawl_strategy.params.include_external).toBe(false);
   });
 
@@ -979,13 +983,20 @@ describe('crawl tool deep crawl', () => {
       {}
     );
 
+    // Multi-page deep crawl uses files/index mode by default (token budget)
     expect(result.content[0].text).toContain('Deep Crawl Results (3 pages');
-    expect(result.content[0].text).toContain('Depth 0 (1 page');
-    expect(result.content[0].text).toContain('Depth 1 (1 page');
-    expect(result.content[0].text).toContain('Depth 2 (1 page');
+    expect(result.content[0].text).toContain('Return mode: files');
+    expect(result.content[0].text).toContain('Depth 0 (1 pages)');
+    expect(result.content[0].text).toContain('Depth 1 (1 pages)');
+    expect(result.content[0].text).toContain('Depth 2 (1 pages)');
     expect(result.content[0].text).toContain('https://example.com');
     expect(result.content[0].text).toContain('https://example.com/docs');
     expect(result.content[0].text).toContain('https://example.com/docs/api');
+    // Full bodies should not be inlined as page sections — only short excerpts
+    expect(result.content[0].text).not.toContain('## https://example.com\n\nHome page content');
+    expect(result.content[0].text).toContain('excerpt: Home page content');
+    expect(result.details.returnMode).toBe('files');
+    expect(result.details.savedPath).toBeDefined();
   });
 
   it('should include deep crawl metadata in result details', async () => {
@@ -1049,8 +1060,9 @@ describe('crawl tool deep crawl', () => {
       {}
     );
 
-    expect(result.content[0].text).toContain('❌ https://example.com/broken');
-    expect(result.content[0].text).not.toContain('❌ https://example.com\n');
+    expect(result.content[0].text).toContain('[error] https://example.com/broken');
+    expect(result.content[0].text).toContain('[ok] https://example.com');
+    expect(result.details.returnMode).toBe('files');
   });
 
   it('should use regular format for single-page deep crawl result', async () => {
@@ -1079,10 +1091,16 @@ describe('crawl tool deep crawl', () => {
       {}
     );
 
-    // Single result should use regular format, not deep crawl grouping
+    // Single result stays inline (not multi-page files mode)
     expect(result.content[0].text).not.toContain('Deep Crawl Results');
     expect(result.content[0].text).toContain('## https://example.com');
-    expect(result.details.deepCrawl).toBeUndefined();
+    expect(result.content[0].text).toContain('Home page content');
+    expect(result.details.returnMode).toBe('inline');
+    expect(result.details.deepCrawl).toEqual({
+      totalPages: 1,
+      maxDepth: 2,
+      maxPages: 10,
+    });
   });
 
   it('should work without deepCrawl parameter (backward compatibility)', async () => {

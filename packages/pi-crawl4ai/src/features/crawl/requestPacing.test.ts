@@ -19,6 +19,21 @@ function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
       timeout: 60000,
       enabledByDefault: false,
       minRequestIntervalMs,
+      tokenBudget: {
+        maxCharsPerPage: 12_000,
+        maxCharsPerCall: 40_000,
+        returnMode: "auto",
+        preferFitMarkdown: true,
+        deepCrawlDefaultMaxPages: 10,
+        excerptChars: 200,
+      },
+      retention: {
+        enabled: true,
+        maxSessions: 20,
+        maxAgeDays: 7,
+        maxTotalMb: 512,
+      },
+      outputDir: "./output-crawl4ai",
     },
   };
 }

@@ -8,6 +8,14 @@
 export type CrawlFormat = "markdown" | "html" | "links";
 
 /**
+ * How crawl bodies are returned to the model.
+ * - auto: inline when small; files/index when large or multi-page deep crawl
+ * - inline: always return page bodies (still subject to char budgets)
+ * - files: save (unless save=false) and return a compact page index only
+ */
+export type ReturnMode = "auto" | "inline" | "files";
+
+/**
  * Deep crawl strategy type.
  */
 export type DeepCrawlStrategyType = "bfs" | "dfs" | "best-first";
@@ -70,11 +78,22 @@ export interface CrawlToolParams {
   deepCrawl?: DeepCrawlConfig;
   /**
    * Save results to disk.
-   * - undefined/false: don't save (default)
+   * - undefined/false: don't save (default; auto mode may still save when over budget)
    * - true: save to default directory (./output-crawl4ai or CRAWL4AI_OUTPUT_DIR)
    * - string: save to custom directory path
    */
   save?: boolean | string;
+  /**
+   * Control how page bodies are returned to the model.
+   * Default: auto (inline small results; files/index for large or deep crawls).
+   */
+  returnMode?: ReturnMode;
+  /** Override max characters of body content per page in the tool result. */
+  maxCharsPerPage?: number;
+  /** Override max total body characters returned for this crawl call. */
+  maxCharsPerCall?: number;
+  /** Prefer crawl4ai fit_markdown (main content) over raw_markdown. Default true. */
+  preferFitMarkdown?: boolean;
 }
 
 /**

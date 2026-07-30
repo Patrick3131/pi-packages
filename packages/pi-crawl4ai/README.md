@@ -83,8 +83,60 @@ Create a config file in one of these locations (searched in order):
   "url": "http://localhost:11235",
   "timeoutMs": 60000,
   "enabledByDefault": false,
-  "minRequestIntervalMs": 5000
+  "minRequestIntervalMs": 5000,
+  "outputDir": "./output-crawl4ai",
+  "tokenBudget": {
+    "maxCharsPerPage": 12000,
+    "maxCharsPerCall": 40000,
+    "returnMode": "auto",
+    "preferFitMarkdown": true,
+    "deepCrawlDefaultMaxPages": 10,
+    "excerptChars": 200
+  },
+  "retention": {
+    "enabled": true,
+    "maxSessions": 20,
+    "maxAgeDays": 7,
+    "maxTotalMb": 512
+  }
 }
+```
+
+#### Token budget (model context)
+
+Large crawls can burn a lot of model tokens if full page bodies are always inlined. Defaults keep results compact:
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `returnMode` | `auto` | Inline small results; for deep/multi-page or over-budget crawls return a **page index** and save full bodies to disk |
+| `maxCharsPerPage` | `12000` | Cap per-page body size when inlining |
+| `maxCharsPerCall` | `40000` | Cap total body size for one tool result |
+| `preferFitMarkdown` | `true` | Prefer crawl4ai `fit_markdown` (main content) over raw markdown |
+| `deepCrawlDefaultMaxPages` | `10` | Safer deep-crawl default (was effectively 100) |
+
+Per-call overrides on the tool: `returnMode`, `maxCharsPerPage`, `maxCharsPerCall`, `preferFitMarkdown`.
+
+When auto mode chooses files/index, results are auto-saved (unless `save: false`) so you can `read` specific files instead of re-inlining everything.
+
+#### Retention (disk cleanup)
+
+Saved crawl sessions live under `outputDir` (default `./output-crawl4ai`). To avoid unbounded disk growth, retention runs **after each save** when enabled:
+
+| Setting | Default | Effect |
+|---------|---------|--------|
+| `retention.enabled` | `true` | Auto-prune after saves |
+| `retention.maxSessions` | `20` | Keep only the newest N sessions |
+| `retention.maxAgeDays` | `7` | Delete sessions older than N days (`0` = disable age rule) |
+| `retention.maxTotalMb` | `512` | Soft size cap; oldest sessions deleted first (`0` = disable) |
+
+Safety: only directories that contain `crawl-manifest.json` are removed. Non-session files/folders in the output root are left alone.
+
+Manual commands:
+
+```text
+/crawl-sessions          # list saved sessions + sizes
+/crawl-cleanup           # apply retention now
+/crawl-cleanup dry-run   # show what would be deleted
 ```
 
 #### Enable Crawl Tool at Startup
@@ -289,6 +341,16 @@ If Pi is started with an explicit tool selection such as `--tools crawl`, that e
 
 This adds the crawl tool to the active tools list and includes it in the system prompt.
 
+### Session cleanup
+
+```text
+/crawl-sessions
+/crawl-cleanup
+/crawl-cleanup dry-run
+```
+
+Use these when saved crawls pile up, or rely on automatic retention after each save.
+
 ### Disabling the Tool
 
 When you're done crawling, disable it to save tokens:
@@ -327,7 +389,11 @@ The tool also accepts a few compatibility aliases when the model guesses differe
 | `jsCode` | `string` | JavaScript to execute before extraction |
 | `bypassCache` | `boolean` | Force fresh crawl, bypass cache |
 | `deepCrawl` | `object` | Deep crawl configuration (see below) |
-| `save` | `boolean` \| `string` | Save results to disk. `true` = default directory, or provide a custom path |
+| `save` | `boolean` \| `string` | Save results to disk. `true` = default directory, or provide a custom path. Auto mode may save when over budget even if omitted |
+| `returnMode` | `"auto"` \| `"inline"` \| `"files"` | How bodies are returned (default: `auto`) |
+| `maxCharsPerPage` | `number` | Cap per-page body chars when inlining (default: `12000`) |
+| `maxCharsPerCall` | `number` | Cap total body chars for one result (default: `40000`) |
+| `preferFitMarkdown` | `boolean` | Prefer main-content fit markdown over raw (default: `true`) |
 
 ### Deep Crawl Parameters
 
@@ -337,7 +403,7 @@ Enable multi-page crawling by following links from a starting URL:
 |-----------|------|-------------|
 | `strategy` | `"bfs"` \| `"dfs"` \| `"best-first"` | Crawl strategy (default: `bfs`) |
 | `maxDepth` | `number` | Maximum depth (required). 1 = start page only, 2 = start + linked pages |
-| `maxPages` | `number` | Maximum total pages to crawl (default: 100) |
+| `maxPages` | `number` | Maximum total pages to crawl (default: `10`) |
 | `includeExternal` | `boolean` | Follow links to external domains (default: false) |
 | `includePatterns` | `string[]` | URL glob patterns to include (e.g., `/docs/*`, `*.html`) |
 | `excludePatterns` | `string[]` | URL glob patterns to exclude (e.g., `/admin/*`, `*.pdf`) |

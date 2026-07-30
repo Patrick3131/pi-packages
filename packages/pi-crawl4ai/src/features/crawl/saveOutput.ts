@@ -2,9 +2,14 @@
  * Save crawl results to disk.
  */
 
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
 import type { CrawlResult, CrawlFormat, MarkdownGenerationResult } from "./types";
+import {
+  cleanupCrawlSessions,
+  type CleanupResult,
+  type RetentionPolicy,
+} from "./cleanup";
 
 /**
  * Default output directory for saved crawls.
@@ -18,8 +23,10 @@ export const OUTPUT_DIR_ENV_VAR = "CRAWL4AI_OUTPUT_DIR";
 
 /**
  * Get the default output directory, checking env var first.
+ * Optional configDefault lets runtime config override env.
  */
-export function getDefaultOutputDir(): string {
+export function getDefaultOutputDir(configDefault?: string): string {
+  if (configDefault && configDefault.trim()) return configDefault;
   return process.env[OUTPUT_DIR_ENV_VAR] || DEFAULT_OUTPUT_DIR;
 }
 
@@ -29,12 +36,15 @@ export function getDefaultOutputDir(): string {
  * - true → use default directory
  * - string → use as custom path
  */
-export function resolveOutputDir(save: boolean | string | undefined): string | null {
+export function resolveOutputDir(
+  save: boolean | string | undefined,
+  configDefault?: string
+): string | null {
   if (save === undefined || save === false) {
     return null;
   }
   if (save === true) {
-    return getDefaultOutputDir();
+    return getDefaultOutputDir(configDefault);
   }
   return save;
 }
@@ -90,7 +100,8 @@ export function urlToFilePath(url: string, format: CrawlFormat): string {
  */
 export function formatContentForSave(
   result: CrawlResult,
-  format: CrawlFormat
+  format: CrawlFormat,
+  options?: { preferFitMarkdown?: boolean }
 ): string {
   if (!result.success) {
     return `# Error: ${result.url}\n\n${result.error_message || "Unknown error"}`;
@@ -115,9 +126,12 @@ export function formatContentForSave(
     }
     case "markdown":
     default:
-      // Handle both string and MarkdownGenerationResult object
+      // Prefer fit_markdown (main content) when available and requested
       if (typeof result.markdown === "object" && result.markdown !== null) {
         const md = result.markdown as MarkdownGenerationResult;
+        if (options?.preferFitMarkdown !== false && md.fit_markdown?.trim()) {
+          return md.fit_markdown;
+        }
         return md.raw_markdown || "*No markdown content*";
       }
       return result.markdown || "*No markdown content*";
@@ -179,14 +193,50 @@ export function createSessionDirName(startUrl: string, timestamp: Date): string 
  * 
  * @returns Path to the session directory, or null if save is disabled
  */
+export interface SaveCrawlOptions {
+  preferFitMarkdown?: boolean;
+  /** When set and enabled, prune old sessions under outputDir after save. */
+  retention?: RetentionPolicy;
+}
+
+export interface SaveCrawlResult {
+  sessionDir: string;
+  cleanup?: CleanupResult;
+}
+
 export function saveCrawlResults(
   outputDir: string,
   urls: string[],
   results: CrawlResult[],
   format: CrawlFormat,
   proxyUsed: boolean,
-  deepCrawl?: { maxDepth: number; maxPages?: number }
+  deepCrawl?: { maxDepth: number; maxPages?: number },
+  options?: SaveCrawlOptions
 ): string {
+  return saveCrawlResultsDetailed(
+    outputDir,
+    urls,
+    results,
+    format,
+    proxyUsed,
+    deepCrawl,
+    options
+  ).sessionDir;
+}
+
+/**
+ * Save crawl results and optionally run retention cleanup.
+ * Returns session path plus cleanup stats when retention ran.
+ */
+export function saveCrawlResultsDetailed(
+  outputDir: string,
+  urls: string[],
+  results: CrawlResult[],
+  format: CrawlFormat,
+  proxyUsed: boolean,
+  deepCrawl?: { maxDepth: number; maxPages?: number },
+  options?: SaveCrawlOptions
+): SaveCrawlResult {
   const timestamp = new Date();
   const sessionDirName = createSessionDirName(urls[0], timestamp);
   const sessionDir = join(outputDir, sessionDirName);
@@ -205,8 +255,10 @@ export function saveCrawlResults(
     const parentDir = dirname(fullPath);
     mkdirSync(parentDir, { recursive: true });
     
-    // Write content
-    const content = formatContentForSave(result, format);
+    // Write content (prefer fit markdown when available)
+    const content = formatContentForSave(result, format, {
+      preferFitMarkdown: options?.preferFitMarkdown !== false,
+    });
     writeFileSync(fullPath, content, "utf-8");
     
     savedFiles.push(relativePath);
@@ -231,6 +283,13 @@ export function saveCrawlResults(
   
   const manifestPath = join(sessionDir, "crawl-manifest.json");
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+  let cleanup: CleanupResult | undefined;
+  // Only run when caller passes retention (crawl tool always does from config).
+  // Tests that only save fixtures can omit it to avoid policy side effects.
+  if (options?.retention?.enabled) {
+    cleanup = cleanupCrawlSessions(outputDir, options.retention);
+  }
   
-  return sessionDir;
+  return { sessionDir, cleanup };
 }
