@@ -122,12 +122,12 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  /**
+   * True only when the user/CLI explicitly asked for crawl tools via --tools.
+   * Do NOT treat "already in getActiveTools()" as explicit: pi.registerTool()
+   * can auto-activate newly registered tools, which would defeat enabledByDefault:false.
+   */
   function wasToolExplicitlyRequested(): boolean {
-    const activeTools = pi.getActiveTools();
-    if (CRAWL_TOOL_NAMES.some((name) => activeTools.includes(name))) {
-      return true;
-    }
-
     for (let index = 0; index < process.argv.length; index += 1) {
       const arg = process.argv[index];
       if (arg === "--tools") {

@@ -58,12 +58,12 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  /**
+   * True only when CLI explicitly asked for brave_search via --tools.
+   * Do not treat "already active" as explicit: registerTool can auto-activate
+   * new tools and would defeat enabledByDefault:false.
+   */
   function wasToolExplicitlyRequested(): boolean {
-    const activeTools = pi.getActiveTools();
-    if (activeTools.includes("brave_search")) {
-      return true;
-    }
-
     for (let index = 0; index < process.argv.length; index += 1) {
       const arg = process.argv[index];
       if (arg === "--tools") {
