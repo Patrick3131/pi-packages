@@ -10,6 +10,7 @@ import {
   type CleanupResult,
   type RetentionPolicy,
 } from "./cleanup";
+import { buildOutlineMarkdown, buildPageMeta } from "./outline";
 
 /**
  * Default output directory for saved crawls.
@@ -141,6 +142,17 @@ export function formatContentForSave(
 /**
  * Metadata saved alongside crawl results.
  */
+export interface CrawlManifestPage {
+  url: string;
+  file: string;
+  outlineFile?: string;
+  metaFile?: string;
+  title?: string;
+  charCount?: number;
+  headingCount?: number;
+  success: boolean;
+}
+
 export interface CrawlManifest {
   /** ISO timestamp when crawl was performed */
   timestamp: string;
@@ -157,8 +169,10 @@ export interface CrawlManifest {
   };
   /** Whether proxy was used */
   proxyUsed: boolean;
-  /** List of saved files (relative paths) */
+  /** List of saved content files (relative paths) */
   files: string[];
+  /** Per-page metadata for progressive reads */
+  pages?: CrawlManifestPage[];
 }
 
 /**
@@ -245,8 +259,10 @@ export function saveCrawlResultsDetailed(
   mkdirSync(sessionDir, { recursive: true });
   
   const savedFiles: string[] = [];
+  const pages: CrawlManifestPage[] = [];
+  const savedAt = timestamp.toISOString();
   
-  // Save each result
+  // Save each result (+ outline/meta sidecars for markdown)
   for (const result of results) {
     const relativePath = urlToFilePath(result.url, format);
     const fullPath = join(sessionDir, relativePath);
@@ -260,18 +276,56 @@ export function saveCrawlResultsDetailed(
       preferFitMarkdown: options?.preferFitMarkdown !== false,
     });
     writeFileSync(fullPath, content, "utf-8");
-    
     savedFiles.push(relativePath);
+
+    const pageEntry: CrawlManifestPage = {
+      url: result.url,
+      file: relativePath,
+      success: result.success,
+      title: result.metadata?.title,
+      charCount: content.length,
+    };
+
+    // Sidecars only for markdown-like saved content
+    if (format === "markdown" || format === "links" || relativePath.endsWith(".md")) {
+      const outlineRelative = relativePath.replace(/\.md$/i, ".outline.md");
+      const metaRelative = relativePath.replace(/\.md$/i, ".meta.json");
+      const outlinePath = join(sessionDir, outlineRelative);
+      const metaPath = join(sessionDir, metaRelative);
+      mkdirSync(dirname(outlinePath), { recursive: true });
+
+      const meta = buildPageMeta({
+        url: result.url,
+        title: result.metadata?.title,
+        content,
+        savedAt,
+      });
+      const outline = buildOutlineMarkdown({
+        url: result.url,
+        title: meta.title,
+        content,
+      });
+      writeFileSync(outlinePath, outline, "utf-8");
+      writeFileSync(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+
+      pageEntry.outlineFile = outlineRelative;
+      pageEntry.metaFile = metaRelative;
+      pageEntry.title = meta.title;
+      pageEntry.headingCount = meta.headings.length;
+    }
+
+    pages.push(pageEntry);
   }
   
   // Create manifest
   const manifest: CrawlManifest = {
-    timestamp: timestamp.toISOString(),
+    timestamp: savedAt,
     totalPages: results.length,
     format,
     urls,
     proxyUsed,
     files: savedFiles,
+    pages,
   };
   
   if (deepCrawl) {

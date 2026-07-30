@@ -129,6 +129,15 @@ Saved sessions under `outputDir` are pruned after saves when `retention.enabled`
 
 Only dirs with `crawl-manifest.json` are deleted. Manual: `/crawl-sessions`, `/crawl-cleanup [dry-run]`.
 
+### 5. Progressive read (`crawl_read`)
+
+On save, each markdown page also writes:
+- `*.outline.md` — headings + short previews
+- `*.meta.json` — title, charCount, headings[]
+- manifest `pages[]` with file/outline/meta paths
+
+`crawl_read` opens those artifacts with modes `outline | chunks | window | full` and a hard `maxChars` budget. `/crawl-on` enables both `crawl` and `crawl_read`.
+
 ## Configuration Layers
 
 ```

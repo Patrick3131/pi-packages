@@ -363,13 +363,39 @@ The tool state persists across session reloads and branch navigation. If you ena
 
 ### Using the Tool
 
-Once enabled, ask Pi to crawl:
+Once enabled, `/crawl-on` activates both `crawl` and `crawl_read`.
 
 ```
 You: Crawl https://example.com and summarize the content
 
 Pi: [uses crawl tool to fetch and process the page]
 ```
+
+For large/multi-page crawls, results are often saved to disk with a compact index. Then open pages progressively:
+
+```text
+# After a crawl saves files under output-crawl4ai/...
+crawl_read path=output-crawl4ai/.../docs.example.com/install.md
+# default mode=outline
+
+crawl_read path=... mode=chunks query="docker env vars"
+crawl_read path=... mode=window offset=1 limit=40
+crawl_read path=... mode=full maxChars=8000
+```
+
+Prefer `crawl_read` over raw `read` for crawl outputs so full pages are not re-dumped into context.
+
+#### `crawl_read` parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | `string` | Saved page path (`.md`) relative to cwd or `outputDir` |
+| `mode` | `outline` \| `chunks` \| `window` \| `full` | Default `outline`, or `chunks` when `query` is set |
+| `query` | `string` | Keyword ranking for `chunks` mode |
+| `maxChars` | `number` | Return budget (default `6000`) |
+| `offset` / `limit` | `number` | Line window for `window` mode |
+
+Each saved markdown page also gets sidecars: `*.outline.md`, `*.meta.json`, plus richer `pages[]` entries in `crawl-manifest.json`.
 
 With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X". If `minRequestIntervalMs` is configured, crawls are rate-limited between calls. Per-profile `minRequestIntervalMs` overrides the global value.
 

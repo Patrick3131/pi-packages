@@ -368,6 +368,11 @@ describe("saveCrawlResults", () => {
     expect(manifest.proxyUsed).toBe(true);
     expect(manifest.files).toHaveLength(1);
     expect(manifest.timestamp).toBeDefined();
+    expect(manifest.pages).toHaveLength(1);
+    expect(manifest.pages[0].outlineFile).toBe("example.com/index.outline.md");
+    expect(manifest.pages[0].metaFile).toBe("example.com/index.meta.json");
+    expect(dirExists(join(sessionPath, "example.com/index.outline.md"))).toBe(true);
+    expect(dirExists(join(sessionPath, "example.com/index.meta.json"))).toBe(true);
   });
 
   it("should include deep crawl info in manifest", () => {

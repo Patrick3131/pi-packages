@@ -37,6 +37,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { loadConfig } from "./config";
 import { registerCrawlTool } from "./features/crawl/crawlTool";
+import { registerCrawlReadTool } from "./features/crawl/crawlReadTool";
 import {
   cleanupCrawlSessions,
   formatCleanupSummary,
@@ -49,7 +50,9 @@ export { loadConfig as loadConfigFromFile, type Crawl4AIJsonConfig, type Resolve
 export { createProxyService, type ProxyAdapter, type ProxyConfig, type ProxyService } from "./proxy";
 export { genericAdapter, oxylabsAdapter, createCustomAdapter } from "./proxy/adapters";
 export { registerCrawlTool } from "./features/crawl/crawlTool";
+export { registerCrawlReadTool, executeCrawlRead } from "./features/crawl/crawlReadTool";
 export * from "./features/crawl/types";
+export * from "./features/crawl/outline";
 
 // State persisted to session
 interface CrawlState {
@@ -78,8 +81,11 @@ export default function (pi: ExtensionAPI) {
     console.log(`[pi-crawl4ai] Proxy disabled (no adapter configured)`);
   }
 
-  // Register the crawl tool (exists but may not be active)
+  // Register tools (exist but may not be active until /crawl-on)
   registerCrawlTool(pi, config);
+  registerCrawlReadTool(pi, config);
+
+  const CRAWL_TOOL_NAMES = ["crawl", "crawl_read"] as const;
 
   // Track enabled state (starts based on config setting)
   let crawlEnabled = config.raw.enabledByDefault;
@@ -97,25 +103,28 @@ export default function (pi: ExtensionAPI) {
   // is otherwise off and no branch state has been persisted yet.
   function applyCrawlState(options?: { preserveExplicitSelection?: boolean }) {
     const activeNames = pi.getActiveTools();
-    const crawlAlreadyActive = activeNames.includes("crawl");
+    const anyCrawlActive = CRAWL_TOOL_NAMES.some((name) => activeNames.includes(name));
 
-    if (crawlEnabled && !crawlAlreadyActive) {
-      pi.setActiveTools([...activeNames, "crawl"]);
+    if (crawlEnabled) {
+      const missing = CRAWL_TOOL_NAMES.filter((name) => !activeNames.includes(name));
+      if (missing.length > 0) {
+        pi.setActiveTools([...activeNames, ...missing]);
+      }
       return;
     }
 
-    if (!crawlEnabled && crawlAlreadyActive) {
+    if (!crawlEnabled && anyCrawlActive) {
       if (options?.preserveExplicitSelection) {
         return;
       }
 
-      pi.setActiveTools(activeNames.filter((n) => n !== "crawl"));
+      pi.setActiveTools(activeNames.filter((n) => !CRAWL_TOOL_NAMES.includes(n as (typeof CRAWL_TOOL_NAMES)[number])));
     }
   }
 
   function wasToolExplicitlyRequested(): boolean {
     const activeTools = pi.getActiveTools();
-    if (activeTools.includes("crawl")) {
+    if (CRAWL_TOOL_NAMES.some((name) => activeTools.includes(name))) {
       return true;
     }
 
@@ -123,14 +132,16 @@ export default function (pi: ExtensionAPI) {
       const arg = process.argv[index];
       if (arg === "--tools") {
         const value = process.argv[index + 1] ?? "";
-        if (value.split(",").map((entry) => entry.trim()).includes("crawl")) {
+        const requested = value.split(",").map((entry) => entry.trim());
+        if (CRAWL_TOOL_NAMES.some((name) => requested.includes(name))) {
           return true;
         }
       }
 
       if (arg.startsWith("--tools=")) {
         const value = arg.slice("--tools=".length);
-        if (value.split(",").map((entry) => entry.trim()).includes("crawl")) {
+        const requested = value.split(",").map((entry) => entry.trim());
+        if (CRAWL_TOOL_NAMES.some((name) => requested.includes(name))) {
           return true;
         }
       }
