@@ -45,6 +45,12 @@ export function resetEnv(): void {
   delete process.env.CRAWL4AI_BASE_URL;
   delete process.env.CRAWL4AI_TIMEOUT;
   delete process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS;
+  delete process.env.CRAWL4AI_API_TOKEN;
+  delete process.env.CRAWL4AI_OUTPUT_DIR;
+  delete process.env.CRAWL4AI_RETENTION_ENABLED;
+  delete process.env.CRAWL4AI_RETENTION_MAX_SESSIONS;
+  delete process.env.CRAWL4AI_RETENTION_MAX_AGE_DAYS;
+  delete process.env.CRAWL4AI_RETENTION_MAX_TOTAL_MB;
 
   // Generic proxy
   delete process.env.CRAWL4AI_PROXY_URL;

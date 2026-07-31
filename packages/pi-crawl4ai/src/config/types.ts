@@ -79,6 +79,12 @@ export interface Crawl4AIJsonConfig {
   timeoutMs?: number;
   enabledByDefault?: boolean;
   minRequestIntervalMs?: number | string;
+  /**
+   * crawl4ai Docker/API bearer token (CRAWL4AI_API_TOKEN).
+   * Sent as Authorization: Bearer <token> on /crawl requests.
+   * Supports ${ENV_VAR} substitution.
+   */
+  apiToken?: string;
   proxy?: ProxySettingsConfig;
   authProfiles?: Record<string, AuthProfileConfig>;
   /** Token-budget defaults for tool results returned to the model. */
@@ -110,6 +116,8 @@ export interface ResolvedConfig {
   timeout: number;
   enabledByDefault: boolean;
   minRequestIntervalMs?: number;
+  /** Resolved crawl4ai API bearer token (never log the value). */
+  apiToken?: string;
   proxyUrl?: string;
   proxyProvider?: string;
   proxyHost?: string;
@@ -127,6 +135,8 @@ export interface ResolvedConfig {
 export interface Crawl4AIConfig {
   baseUrl: string;
   timeout: number;
+  /** Optional bearer token for the crawl4ai HTTP API. */
+  apiToken?: string;
   proxyService: ProxyService;
   proxyEnabled: boolean;
   raw: ResolvedConfig;

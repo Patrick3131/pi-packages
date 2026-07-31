@@ -185,6 +185,42 @@ describe('crawl tool execute', () => {
     expect(body.urls).toEqual(['https://example.com']);
   });
 
+  it('should send Authorization Bearer when apiToken is configured', async () => {
+    const fetchMock = mockFetch({
+      ok: true,
+      data: {
+        success: true,
+        results: [{ url: 'https://example.com', success: true, markdown: 'ok' }],
+      },
+    });
+
+    const localMockPi = createMockPi();
+    const config = loadConfig();
+    config.apiToken = 'test-api-token';
+    config.raw.apiToken = 'test-api-token';
+    registerCrawlTool(localMockPi, config);
+    const execute = localMockPi.registeredTools[0].execute;
+
+    await execute(
+      'tool-call-id',
+      { urls: ['https://example.com'] },
+      undefined,
+      undefined,
+      {}
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:11235/crawl',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test-api-token',
+        },
+      })
+    );
+  });
+
   it('should return markdown content on success', async () => {
     mockFetch({
       ok: true,

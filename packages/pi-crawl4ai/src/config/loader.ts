@@ -117,6 +117,16 @@ function resolveOutputDir(jsonConfig: Crawl4AIJsonConfig | null): string {
   return process.env.CRAWL4AI_OUTPUT_DIR || DEFAULT_OUTPUT_DIR;
 }
 
+/** Resolve crawl4ai API bearer token from JSON (with ${ENV}) or CRAWL4AI_API_TOKEN. */
+function resolveApiToken(jsonConfig: Crawl4AIJsonConfig | null): string | undefined {
+  if (jsonConfig?.apiToken !== undefined && jsonConfig.apiToken !== null) {
+    const resolved = resolveEnvVars(String(jsonConfig.apiToken)).trim();
+    return resolved.length > 0 ? resolved : undefined;
+  }
+  const fromEnv = process.env.CRAWL4AI_API_TOKEN?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : undefined;
+}
+
 export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): ResolvedConfig {
   const config: ResolvedConfig = {
     baseUrl: jsonConfig?.url ? resolveEnvVars(jsonConfig.url) : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
@@ -126,6 +136,7 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
       jsonConfig?.minRequestIntervalMs !== undefined
         ? resolveNumber(jsonConfig.minRequestIntervalMs)
         : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
+    apiToken: resolveApiToken(jsonConfig),
     authProfiles: resolveAuthProfiles(jsonConfig?.authProfiles),
     tokenBudget: resolveTokenBudget(jsonConfig),
     retention: resolveRetention(jsonConfig),

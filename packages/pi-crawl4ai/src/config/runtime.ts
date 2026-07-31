@@ -67,5 +67,15 @@ export function loadRuntimeConfig(options?: { cwd?: string; log?: (level: "info"
   if (proxyService.isEnabled()) {
     log("info", "Using proxy from config");
   }
-  return { baseUrl: raw.baseUrl, timeout: raw.timeout, proxyService, proxyEnabled: proxyService.isEnabled(), raw };
+  if (raw.apiToken) {
+    log("info", "crawl4ai API bearer token configured");
+  }
+  return {
+    baseUrl: raw.baseUrl,
+    timeout: raw.timeout,
+    apiToken: raw.apiToken,
+    proxyService,
+    proxyEnabled: proxyService.isEnabled(),
+    raw,
+  };
 }

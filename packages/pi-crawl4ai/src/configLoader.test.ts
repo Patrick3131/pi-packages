@@ -131,6 +131,29 @@ describe("mergeConfigWithEnv", () => {
     expect(config.timeout).toBe(60000);
     expect(config.minRequestIntervalMs).toBeUndefined();
     expect(config.proxyUrl).toBeUndefined();
+    expect(config.apiToken).toBeUndefined();
+  });
+
+  it("should resolve apiToken from CRAWL4AI_API_TOKEN env", () => {
+    process.env.CRAWL4AI_API_TOKEN = "secret-from-env";
+    const config = mergeConfigWithEnv(null);
+    expect(config.apiToken).toBe("secret-from-env");
+  });
+
+  it("should resolve apiToken from JSON with env substitution", () => {
+    process.env.CRAWL4AI_API_TOKEN = "secret-from-env";
+    const config = mergeConfigWithEnv({
+      apiToken: "${CRAWL4AI_API_TOKEN}",
+    });
+    expect(config.apiToken).toBe("secret-from-env");
+  });
+
+  it("should prefer JSON apiToken literal over env when not a substitution placeholder result empty", () => {
+    process.env.CRAWL4AI_API_TOKEN = "env-token";
+    const config = mergeConfigWithEnv({
+      apiToken: "json-literal-token",
+    });
+    expect(config.apiToken).toBe("json-literal-token");
   });
 
   it("should use env vars when no JSON config", () => {

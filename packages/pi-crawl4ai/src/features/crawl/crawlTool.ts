@@ -417,11 +417,17 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       try {
         const requestPacing = await applyRequestPacing(config, authSelection, signal);
 
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        const apiToken = config.apiToken ?? config.raw.apiToken;
+        if (apiToken) {
+          headers.Authorization = `Bearer ${apiToken}`;
+        }
+
         const response = await fetch(`${config.baseUrl}/crawl`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify(payload),
           signal,
         });

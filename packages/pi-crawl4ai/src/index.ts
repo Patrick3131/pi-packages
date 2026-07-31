@@ -12,6 +12,7 @@
  * Configuration (environment variables):
  * - CRAWL4AI_BASE_URL: crawl4ai Docker API URL (default: http://localhost:11235)
  * - CRAWL4AI_TIMEOUT: Request timeout in ms (default: 60000)
+ * - CRAWL4AI_API_TOKEN: bearer token for crawl4ai Docker/API auth (Authorization: Bearer …)
  *
  * Proxy configuration (environment variables):
  * - CRAWL4AI_PROXY_URL: Full proxy URL (e.g., http://user:pass@host:port)

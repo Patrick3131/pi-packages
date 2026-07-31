@@ -85,6 +85,7 @@ Create a config file in one of these locations (searched in order):
   "enabledByDefault": false,
   "minRequestIntervalMs": 5000,
   "outputDir": "./output-crawl4ai",
+  "apiToken": "${CRAWL4AI_API_TOKEN}",
   "tokenBudget": {
     "maxCharsPerPage": 12000,
     "maxCharsPerCall": 40000,
@@ -275,6 +276,10 @@ Create a `.env` file or set environment variables:
 ```bash
 # Required: crawl4ai Docker API URL
 CRAWL4AI_BASE_URL=http://localhost:11235
+
+# Optional: crawl4ai Docker/API bearer token (required when server auth is enabled)
+# Also set in JSON as "apiToken": "${CRAWL4AI_API_TOKEN}"
+CRAWL4AI_API_TOKEN=your-crawl4ai-api-token
 
 # Optional: Request timeout
 CRAWL4AI_TIMEOUT=60000
