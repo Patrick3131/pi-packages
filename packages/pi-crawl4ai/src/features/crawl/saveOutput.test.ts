@@ -302,8 +302,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      false
+      "markdown"
     );
 
     expect(dirExists(sessionPath)).toBe(true);
@@ -334,8 +333,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      false
+      "markdown"
     );
 
     expect(dirExists(join(sessionPath, "example.com/index.md"))).toBe(true);
@@ -356,8 +354,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      true
+      "markdown"
     );
 
     const manifest = readJsonFile(join(sessionPath, "crawl-manifest.json")) as any;
@@ -365,7 +362,6 @@ describe("saveCrawlResults", () => {
     expect(manifest.totalPages).toBe(1);
     expect(manifest.format).toBe("markdown");
     expect(manifest.urls).toEqual(["https://example.com"]);
-    expect(manifest.proxyUsed).toBe(true);
     expect(manifest.files).toHaveLength(1);
     expect(manifest.timestamp).toBeDefined();
     expect(manifest.pages).toHaveLength(1);
@@ -390,7 +386,6 @@ describe("saveCrawlResults", () => {
       ["https://example.com"],
       results,
       "markdown",
-      false,
       { maxDepth: 3, maxPages: 50 }
     );
 
@@ -414,8 +409,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "html",
-      false
+      "html"
     );
 
     expect(dirExists(join(sessionPath, "example.com/index.html"))).toBe(true);
@@ -434,8 +428,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      false
+      "markdown"
     );
 
     const content = readFileSync(join(sessionPath, "example.com/index.md"), "utf-8");
@@ -455,8 +448,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      false
+      "markdown"
     );
 
     const content = readFileSync(join(sessionPath, "example.com/broken.md"), "utf-8");
@@ -477,8 +469,7 @@ describe("saveCrawlResults", () => {
       TEST_OUTPUT_DIR,
       ["https://example.com"],
       results,
-      "markdown",
-      false
+      "markdown"
     );
 
     expect(dirExists(join(sessionPath, "example.com/a/b/c/d.md"))).toBe(true);

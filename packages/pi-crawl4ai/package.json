@@ -1,7 +1,7 @@
 {
   "name": "pi-crawl4ai",
   "version": "0.1.0",
-  "description": "Pi extension for web crawling with crawl4ai and proxy support",
+  "description": "Pi extension for web crawling with crawl4ai",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -25,8 +25,7 @@
     "pi-extension",
     "crawl4ai",
     "web-crawling",
-    "scraper",
-    "proxy"
+    "scraper"
   ],
   "author": "Patrick Fischer <patrick-fischer@live.de>",
   "license": "MIT",

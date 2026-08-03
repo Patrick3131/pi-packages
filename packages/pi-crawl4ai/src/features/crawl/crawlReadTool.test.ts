@@ -53,8 +53,7 @@ describe("executeCrawlRead", () => {
           metadata: { title: "Example Docs" },
         },
       ],
-      "markdown",
-      false
+      "markdown"
     );
     const pagePath = join(sessionDir, "docs.example.com/install.md");
     expect(existsSync(pagePath)).toBe(true);

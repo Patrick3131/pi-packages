@@ -1,4 +1,3 @@
-import { createProxyServiceFromResolvedSettings } from "./runtime";
 import type { AuthCookie, Crawl4AIConfig, ResolvedAuthSelection } from "./types";
 
 function ensureAbsoluteUrl(value: string): string {
@@ -20,19 +19,23 @@ function normalizeCookieForUrl(cookie: AuthCookie, targetUrl: string): AuthCooki
   };
 }
 
+/**
+ * Build crawl4ai browser_config for auth context only.
+ *
+ * Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
+ * This client never sends proxy credentials or proxy_config in the request body.
+ */
 export function buildBrowserConfig(
-  config: Crawl4AIConfig,
+  _config: Crawl4AIConfig,
   authSelection?: ResolvedAuthSelection,
   urls?: string[]
 ): Record<string, unknown> {
-  const proxyService = authSelection?.profile.proxy
-    ? createProxyServiceFromResolvedSettings(authSelection.profile.proxy)
-    : config.proxyService;
-  const browserConfig = { ...proxyService.getBrowserConfig() } as Record<string, unknown>;
-  if (!authSelection) return browserConfig;
+  if (!authSelection) return {};
 
+  const browserConfig: Record<string, unknown> = {};
   const { profile } = authSelection;
-  const headers = { ...((browserConfig.headers as Record<string, string> | undefined) || {}) };
+  const headers: Record<string, string> = {};
+
   if (profile.headers && Object.keys(profile.headers).length > 0) {
     Object.assign(headers, profile.headers);
   }

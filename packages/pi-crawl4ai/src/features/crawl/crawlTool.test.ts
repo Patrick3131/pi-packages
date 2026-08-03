@@ -89,13 +89,15 @@ describe('registerCrawlTool', () => {
     registerCrawlTool(mockPi, config);
 
     const tool = mockPi.registeredTools[0];
-    expect(tool.promptSnippet).toContain('auth/deep-crawl');
+    expect(tool.promptSnippet).toContain('optional auth');
     expect(tool.promptSnippet).toContain('index');
+    expect(tool.promptSnippet).toContain('crawl_read');
     expect(tool.promptGuidelines).toEqual(
       expect.arrayContaining([
         expect.stringContaining('automatic domain-based auth profile selection'),
         expect.stringContaining('site parameter'),
         expect.stringContaining('authProfile'),
+        expect.stringContaining('crawl_read'),
       ])
     );
   });
@@ -246,7 +248,7 @@ describe('crawl tool execute', () => {
 
     expect(result.content[0].text).toContain('*Execution:*');
     expect(result.content[0].text).toContain('auth=none');
-    expect(result.content[0].text).toContain('proxy=none');
+    expect(result.content[0].text).toContain('egress=server-managed');
     expect(result.content[0].text).toContain('# Example');
     expect(result.content[0].text).toContain('This is example content.');
     expect(result.details.format).toBe('markdown');
@@ -255,8 +257,6 @@ describe('crawl tool execute', () => {
       siteHint: undefined,
       authProfile: undefined,
       authProfileReason: 'none',
-      proxyUsed: false,
-      proxySource: 'none',
       hasCookies: false,
       hasHeaders: false,
       hasUserAgent: false,
@@ -518,34 +518,6 @@ describe('crawl tool execute', () => {
     expect(body.crawler_config.cache_mode).toBe('BYPASS');
   });
 
-  it('should include proxy in browser config when enabled', async () => {
-    process.env.OXYLABS_USER = 'testuser';
-    process.env.OXYLABS_PASS = 'testpass';
-    process.env.OXYLABS_PORT = '7777'; // Single port for predictable test
-
-    // Re-register tool with proxy config
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    await execute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.proxy_config).toBeDefined();
-    expect(body.browser_config.proxy_config.server).toBe('http://isp.oxylabs.io:7777');
-  });
 
   it('should auto-select auth profile by domain', async () => {
     const localMockPi = createMockPi();
@@ -581,7 +553,7 @@ describe('crawl tool execute', () => {
     expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret', url: 'https://x.com/some/status/1' }]);
     expect(result.content[0].text).toContain('auth=x-main');
     expect(result.content[0].text).toContain('authReason=domain');
-    expect(result.content[0].text).toContain('proxy=none');
+    expect(result.content[0].text).toContain('egress=server-managed');
     expect(result.content[0].text).toContain('cookies=yes');
     expect(result.details.authProfile).toBe('x-main');
     expect(result.details.authProfileReason).toBe('domain');
@@ -589,8 +561,6 @@ describe('crawl tool execute', () => {
       siteHint: undefined,
       authProfile: 'x-main',
       authProfileReason: 'domain',
-      proxyUsed: false,
-      proxySource: 'none',
       hasCookies: true,
       hasHeaders: true,
       hasUserAgent: false,
@@ -656,52 +626,6 @@ describe('crawl tool execute', () => {
     ).rejects.toThrow('Auth profile "x-main" is not allowed');
   });
 
-  it('should use per-auth-profile proxy override in crawl payload', async () => {
-    process.env.OXYLABS_USER = 'testuser';
-    process.env.OXYLABS_PASS = 'testpass';
-    process.env.OXYLABS_PORT = '7777';
-
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    config.raw.authProfiles = {
-      'reddit-main': {
-        matchDomains: ['reddit.com'],
-        cookies: [{ name: 'reddit_session', value: 'secret' }],
-        proxy: {
-          provider: 'oxylabs',
-          host: 'isp.oxylabs.io',
-          ports: [8008],
-          username: 'testuser',
-          password: 'testpass',
-        },
-      },
-    };
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    const result = await execute(
-      'tool-call-id',
-      { urls: ['https://reddit.com/r/test/comments/1'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.proxy_config).toEqual({
-      server: 'http://isp.oxylabs.io:8008',
-      username: 'user-testuser',
-      password: 'testpass',
-    });
-    expect(result.content[0].text).toContain('proxy=auth-profile');
-    expect(result.details.proxyUsed).toBe(true);
-    expect(result.details.proxySource).toBe('auth-profile');
-  });
 
   it('should apply global request pacing between calls', async () => {
     jest.useFakeTimers();

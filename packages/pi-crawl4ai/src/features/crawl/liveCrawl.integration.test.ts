@@ -193,8 +193,7 @@ describe("live crawl + crawl_read integration", () => {
         LIVE_OUTPUT,
         TARGETS,
         results,
-        "markdown",
-        false
+        "markdown"
       );
     }
 

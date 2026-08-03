@@ -35,7 +35,6 @@ function writeSession(
       totalPages: 1,
       format: "markdown",
       urls: ["https://example.com"],
-      proxyUsed: false,
       files: ["example.com/index.md"],
     }),
     "utf-8"

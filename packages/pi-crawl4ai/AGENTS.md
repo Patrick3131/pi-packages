@@ -1,9 +1,9 @@
 ---
 owner: repo-maintainers
-last_verified: 2025-03-25
+last_verified: 2026-04-15
 applies_to: /**
 inherits_from: none
-canonical_for: Repo-wide working agreements and navigation
+canonical_for: Package-specific working agreements
 ---
 
 # AGENTS.md
@@ -14,7 +14,8 @@ This document defines working agreements, conventions, and navigation for the pi
 
 ## Scope
 
-A Pi extension for web crawling using crawl4ai with optional proxy support.
+A Pi extension for web crawling using crawl4ai. Browser auth profiles (cookies/headers/UA)
+are client-side. Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
 
 ## Commands
 
@@ -32,11 +33,14 @@ npm run test:coverage  # Run tests with coverage
 ```
 src/
 ├── index.ts              # Extension entry point
-├── config.ts             # Configuration loading from env
+├── config.ts             # Configuration loading from env/JSON
 └── features/
     └── crawl/
-        ├── crawlTool.ts  # Crawl tool implementation
-        └── types.ts      # TypeScript types
+        ├── crawlTool.ts      # Crawl tool implementation
+        ├── crawlReadTool.ts  # Progressive reader for saved pages
+        ├── tokenBudget.ts    # Result size budgeting
+        ├── saveOutput.ts     # Disk persistence + sidecars
+        └── types.ts          # TypeScript types
 ```
 
 ## Conventions
@@ -50,17 +54,17 @@ src/
 
 ### Environment Variables
 
-All configuration via environment variables (no hardcoded credentials):
+All configuration via environment variables or JSON (no hardcoded credentials):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CRAWL4AI_BASE_URL` | crawl4ai Docker API URL | `http://localhost:11235` |
-| `CRAWL4AI_PROXY_URL` | Full proxy URL with auth | - |
-| `OXYLABS_USER` | Oxylabs username | - |
-| `OXYLABS_PASS` | Oxylabs password | - |
-| `OXYLABS_HOST` | Oxylabs proxy host | `pr.oxylabs.io` |
-| `OXYLABS_PORT` | Oxylabs proxy port | `7777` |
+| `CRAWL4AI_API_TOKEN` | Bearer token for crawl4ai API | - |
 | `CRAWL4AI_TIMEOUT` | Request timeout (ms) | `60000` |
+| `CRAWL4AI_MIN_REQUEST_INTERVAL_MS` | Client request pacing | - |
+| `CRAWL4AI_OUTPUT_DIR` | Saved crawl root | `./output-crawl4ai` |
+
+Do **not** configure client-side proxy credentials. Proxy/egress belongs on the crawl4ai host.
 
 ### Adding New Features
 
@@ -79,11 +83,5 @@ All configuration via environment variables (no hardcoded credentials):
 
 ## Change Policy
 
-- Update `AGENTS.md` when adding new features or changing conventions
-- Update `CONTEXT.md` when architecture changes
-- Update `README.md` for user-facing changes
-
-## References
-
-- Pi extension docs: https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
-- crawl4ai docs: https://github.com/unclecode/crawl4ai
+- Update this file when package conventions change
+- Keep CONTEXT.md architecture in sync with major structural changes

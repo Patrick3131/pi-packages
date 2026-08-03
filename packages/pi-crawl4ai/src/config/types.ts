@@ -1,5 +1,3 @@
-import type { ProxyService } from "../proxy";
-
 export interface AuthCookie {
   name: string;
   value: string;
@@ -12,26 +10,6 @@ export interface AuthCookie {
   expires?: number;
 }
 
-export interface ProxySettingsConfig {
-  url?: string;
-  provider?: "oxylabs" | "custom";
-  host?: string;
-  port?: string | number;
-  ports?: string | number[];
-  username?: string;
-  password?: string;
-}
-
-export interface ResolvedProxySettings {
-  url?: string;
-  provider?: string;
-  host?: string;
-  port?: string;
-  ports?: number[];
-  username?: string;
-  password?: string;
-}
-
 export interface AuthProfileConfig {
   matchSites?: string[];
   matchDomains?: string[];
@@ -39,7 +17,6 @@ export interface AuthProfileConfig {
   headers?: Record<string, string>;
   userAgent?: string;
   minRequestIntervalMs?: number | string;
-  proxy?: ProxySettingsConfig;
 }
 
 export interface ResolvedAuthProfile {
@@ -49,7 +26,6 @@ export interface ResolvedAuthProfile {
   headers?: Record<string, string>;
   userAgent?: string;
   minRequestIntervalMs?: number;
-  proxy?: ResolvedProxySettings;
 }
 
 export type ReturnModeConfig = "auto" | "inline" | "files";
@@ -85,7 +61,6 @@ export interface Crawl4AIJsonConfig {
    * Supports ${ENV_VAR} substitution.
    */
   apiToken?: string;
-  proxy?: ProxySettingsConfig;
   authProfiles?: Record<string, AuthProfileConfig>;
   /** Token-budget defaults for tool results returned to the model. */
   tokenBudget?: TokenBudgetSettings;
@@ -118,13 +93,6 @@ export interface ResolvedConfig {
   minRequestIntervalMs?: number;
   /** Resolved crawl4ai API bearer token (never log the value). */
   apiToken?: string;
-  proxyUrl?: string;
-  proxyProvider?: string;
-  proxyHost?: string;
-  proxyPort?: string;
-  proxyPorts?: number[];
-  proxyUsername?: string;
-  proxyPassword?: string;
   authProfiles?: Record<string, ResolvedAuthProfile>;
   tokenBudget: ResolvedTokenBudget;
   retention: ResolvedRetention;
@@ -137,8 +105,6 @@ export interface Crawl4AIConfig {
   timeout: number;
   /** Optional bearer token for the crawl4ai HTTP API. */
   apiToken?: string;
-  proxyService: ProxyService;
-  proxyEnabled: boolean;
   raw: ResolvedConfig;
 }
 

@@ -52,16 +52,6 @@ export function resetEnv(): void {
   delete process.env.CRAWL4AI_RETENTION_MAX_AGE_DAYS;
   delete process.env.CRAWL4AI_RETENTION_MAX_TOTAL_MB;
 
-  // Generic proxy
-  delete process.env.CRAWL4AI_PROXY_URL;
-
-  // Oxylabs proxy
-  delete process.env.OXYLABS_USER;
-  delete process.env.OXYLABS_PASS;
-  delete process.env.OXYLABS_HOST;
-  delete process.env.OXYLABS_PORT;
-  delete process.env.OXYLABS_PORTS;
-
   // Auth profile test vars
   delete process.env.X_COOKIES_JSON;
   delete process.env.X_USER_AGENT;

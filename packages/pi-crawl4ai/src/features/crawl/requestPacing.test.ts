@@ -9,11 +9,6 @@ function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
   return {
     baseUrl: "http://localhost:11235",
     timeout: 60000,
-    proxyService: {
-      isEnabled: () => false,
-      getBrowserConfig: () => ({}),
-    } as Crawl4AIConfig["proxyService"],
-    proxyEnabled: false,
     raw: {
       baseUrl: "http://localhost:11235",
       timeout: 60000,

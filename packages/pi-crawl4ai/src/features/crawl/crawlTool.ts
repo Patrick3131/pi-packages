@@ -92,32 +92,22 @@ function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages: number
 }
 
 function buildExecutionDetails(
-  config: Crawl4AIConfig,
   site: string | undefined,
   authSelection: ReturnType<typeof resolveAuthSelection>
 ): {
   siteHint?: string;
   authProfile?: string;
   authProfileReason: string;
-  proxyUsed: boolean;
-  proxySource: "auth-profile" | "default" | "none";
   hasCookies: boolean;
   hasHeaders: boolean;
   hasUserAgent: boolean;
 } {
   const profile = authSelection?.profile;
-  const proxySource = profile?.proxy
-    ? "auth-profile"
-    : config.proxyEnabled
-      ? "default"
-      : "none";
 
   return {
     siteHint: site,
     authProfile: authSelection?.profileName,
     authProfileReason: authSelection?.reason ?? "none",
-    proxyUsed: proxySource !== "none",
-    proxySource,
     hasCookies: Boolean(profile?.cookies?.length),
     hasHeaders: Boolean(profile?.headers && Object.keys(profile.headers).length > 0),
     hasUserAgent: Boolean(profile?.userAgent),
@@ -130,7 +120,7 @@ function formatExecutionSummary(details: ReturnType<typeof buildExecutionDetails
     `siteHint=${details.siteHint ?? "none"}`,
     `auth=${details.authProfile ?? "none"}`,
     `authReason=${details.authProfileReason}`,
-    `proxy=${details.proxySource}`,
+    `egress=server-managed`,
     `cookies=${details.hasCookies ? "yes" : "no"}`,
     `headers=${details.hasHeaders ? "yes" : "no"}`,
     `userAgent=${details.hasUserAgent ? "yes" : "no"}`,
@@ -190,17 +180,20 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
     name: "crawl",
     label: "Crawl Website",
     description:
-      "Crawl one or more URLs with crawl4ai (browser render, optional proxy/auth). " +
-      "Defaults keep large bodies off the model: prefer fit markdown, char budgets, and files/index mode for deep or large crawls. " +
-      "Use returnMode/maxChars* to override; pair with brave_search for discovery.",
+      "Extract content from known URL(s) via crawl4ai browser rendering (JS/SPA). " +
+      "Not for search/discovery. Optional auth profiles (cookies/headers/UA). " +
+      "Egress/proxy is managed by the crawl4ai server, not this tool. " +
+      "Small pages return markdown inline; large/deep crawls auto-save and return a page index + paths—then use crawl_read. " +
+      "Use returnMode/maxChars* to override.",
     promptSnippet:
-      "Crawl pages with auth/deep-crawl support; large results auto-save and return an index to save tokens.",
+      "Crawl known URLs with optional auth; large results auto-save and return an index—then use crawl_read.",
     promptGuidelines: [
-      "Prefer discovering URLs with search first; crawl only the pages you need.",
+      "Prefer discovering URLs with a search tool first when available; crawl only the pages you need.",
       "If the user provides URLs directly, rely on automatic domain-based auth profile selection by default. Do not pass authProfile unless the user explicitly asks for a specific account, login context, or named auth setup.",
       "Use the site parameter only when the user refers to a platform or site by name instead of giving a domain, for example 'from X', 'from Reddit', or similar site-name phrasing.",
       "Do not invent authProfile values. Only pass authProfile when the user explicitly requests a known profile or prior context established one.",
-      "For multi-page or deep crawls, expect a page index + disk paths; use read on specific saved files instead of re-inlining everything.",
+      "For multi-page or deep crawls, expect a page index + disk paths; use crawl_read (not raw read) to open specific pages progressively.",
+      "Use deepCrawl only when multi-page exploration is needed; start with low maxDepth/maxPages.",
       "Use returnMode=inline only when you truly need full bodies in-context for a small page set.",
     ],
     prepareArguments: prepareCrawlArguments,
@@ -366,7 +359,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       });
 
       const authSelection = resolveAuthSelection(config, { urls, site, authProfile });
-      const executionDetails = buildExecutionDetails(config, site, authSelection);
+      const executionDetails = buildExecutionDetails(site, authSelection);
       const executionSummary = formatExecutionSummary(executionDetails);
 
       // Build the request payload
@@ -471,7 +464,6 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             urls,
             data.results,
             format,
-            config.proxyEnabled,
             deepCrawl
               ? {
                   maxDepth: deepCrawl.maxDepth,
@@ -512,8 +504,6 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
           content: [{ type: "text", text }],
           details: {
             results: slimResults,
-            proxyUsed: executionDetails.proxyUsed,
-            proxySource: executionDetails.proxySource,
             hasCookies: executionDetails.hasCookies,
             hasHeaders: executionDetails.hasHeaders,
             hasUserAgent: executionDetails.hasUserAgent,
@@ -521,6 +511,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             format,
             authProfile: executionDetails.authProfile,
             authProfileReason: executionDetails.authProfileReason,
+            egress: "server-managed",
             execution: executionDetails,
             minRequestIntervalMs: requestPacing?.minRequestIntervalMs,
             rateLimitWaitedMs: requestPacing?.waitedMs,

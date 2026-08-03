@@ -167,8 +167,6 @@ export interface CrawlManifest {
     maxDepth: number;
     maxPages?: number;
   };
-  /** Whether proxy was used */
-  proxyUsed: boolean;
   /** List of saved content files (relative paths) */
   files: string[];
   /** Per-page metadata for progressive reads */
@@ -223,7 +221,6 @@ export function saveCrawlResults(
   urls: string[],
   results: CrawlResult[],
   format: CrawlFormat,
-  proxyUsed: boolean,
   deepCrawl?: { maxDepth: number; maxPages?: number },
   options?: SaveCrawlOptions
 ): string {
@@ -232,7 +229,6 @@ export function saveCrawlResults(
     urls,
     results,
     format,
-    proxyUsed,
     deepCrawl,
     options
   ).sessionDir;
@@ -247,7 +243,6 @@ export function saveCrawlResultsDetailed(
   urls: string[],
   results: CrawlResult[],
   format: CrawlFormat,
-  proxyUsed: boolean,
   deepCrawl?: { maxDepth: number; maxPages?: number },
   options?: SaveCrawlOptions
 ): SaveCrawlResult {
@@ -323,7 +318,6 @@ export function saveCrawlResultsDetailed(
     totalPages: results.length,
     format,
     urls,
-    proxyUsed,
     files: savedFiles,
     pages,
   };

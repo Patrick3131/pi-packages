@@ -1,6 +1,6 @@
 # pi-crawl4ai
 
-A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [crawl4ai](https://github.com/unclecode/crawl4ai) with optional proxy support.
+A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [crawl4ai](https://github.com/unclecode/crawl4ai). Auth profiles are client-side; egress/proxy is server-managed.
 
 ## Features
 
@@ -8,11 +8,8 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 🌳 **Deep crawling** - Follow links and crawl entire sites with configurable depth
 - 📝 **Multiple output formats** - Markdown, HTML, or extracted links
 - 💾 **Save to disk** - Optionally persist crawl results organized by domain and timestamp
-- 🌐 **Proxy support** - Generic proxy, Oxylabs ISP rotation, or custom providers
-- 🔄 **IP rotation** - Round-robin across multiple proxy endpoints
-- 🔐 **Auth profiles** - Named cookie/header profiles for authenticated crawling across multiple sites
+- 🔐 **Auth profiles** - Named cookie/header/UA profiles for authenticated crawling across multiple sites
 - ⏱️ **Configurable request pacing** - Global crawl pacing with per-auth-profile overrides
-- 🔒 **Session management** - Sticky sessions with automatic rotation
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 - 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
 - 🤖 **Subagent-friendly** - Explicit tool selection like `--tools crawl` is honored even when lazy activation is enabled
@@ -67,6 +64,10 @@ Add to your Pi `settings.json`:
 
 ## Configuration
 
+> **Egress / proxy:** Configure proxy credentials on the **crawl4ai server** (operator pinning proxy).
+> This package does not accept client-side proxy settings and does not send `proxy_config` in crawl requests.
+
+
 ### Option 1: JSON Config (Recommended)
 
 Create a config file in one of these locations (searched in order):
@@ -76,7 +77,7 @@ Create a config file in one of these locations (searched in order):
 
 > **💡 Environment Variable Substitution:** You can use `${ENV_VAR}` syntax in any JSON string value. This is useful for keeping sensitive credentials out of version control. The extension will substitute values from your environment at runtime.
 
-#### Basic Config (No Proxy)
+#### Basic Config
 
 ```json
 {
@@ -151,49 +152,6 @@ By default, the crawl tool is disabled to avoid polluting the system prompt. Set
 }
 ```
 
-#### With Generic Proxy
-
-```json
-{
-  "url": "http://localhost:11235",
-  "timeoutMs": 60000,
-  "proxy": {
-    "url": "http://user:pass@proxy.example.com:8080"
-  }
-}
-```
-
-#### With Oxylabs ISP (Single Port)
-
-```json
-{
-  "url": "http://localhost:11235",
-  "proxy": {
-    "provider": "oxylabs",
-    "username": "your_username",
-    "password": "your_password",
-    "host": "isp.oxylabs.io",
-    "port": 8001
-  }
-}
-```
-
-#### With Oxylabs ISP (Rotation - Multiple Ports)
-
-```json
-{
-  "url": "http://localhost:11235",
-  "timeoutMs": 60000,
-  "proxy": {
-    "provider": "oxylabs",
-    "username": "your_username",
-    "password": "your_password",
-    "host": "isp.oxylabs.io",
-    "ports": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]
-  }
-}
-```
-
 #### Auth Profiles (Named Cookies / Headers)
 
 Use `authProfiles` to define reusable authenticated browser contexts. This keeps cookies and headers out of prompts and lets the extension auto-select the right profile by site/domain.
@@ -212,345 +170,6 @@ Use `authProfiles` to define reusable authenticated browser contexts. This keeps
       "matchSites": ["reddit"],
       "matchDomains": ["reddit.com"],
       "cookies": "${REDDIT_COOKIES_JSON}",
-      "proxy": {
-        "provider": "oxylabs",
-        "host": "isp.oxylabs.io",
-        "ports": [8008],
-        "username": "${OXYLABS_USER}",
-        "password": "${OXYLABS_PASS}"
-      }
-    }
-  }
-}
-```
-
-If an auth profile defines `proxy`, it overrides the top-level `proxy` config for crawls using that profile.
-
-`cookies` may be either:
-- a JSON string containing an array of cookie objects
-- an inline array of cookie objects
-- a standard `Cookie` header string like `session=abc; csrf=def`
-
-#### Using Environment Variables (Safe for Version Control)
-
-Use `${ENV_VAR}` substitution to keep credentials out of your config file:
-
-```json
-{
-  "url": "http://10.8.0.1:11235",
-  "proxy": {
-    "provider": "oxylabs",
-    "host": "isp.oxylabs.io",
-    "ports": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010],
-    "username": "${OXYLABS_USER}",
-    "password": "${OXYLABS_PASS}"
-  }
-}
-```
-
-Then set the environment variables in your `.env` file:
-
-```bash
-OXYLABS_USER=your_username
-OXYLABS_PASS=your_password
-```
-```
-
-Or use comma-separated string:
-
-```json
-{
-  "proxy": {
-    "provider": "oxylabs",
-    "username": "your_username",
-    "password": "your_password",
-    "ports": "8001,8002,8003,8004,8005"
-  }
-}
-```
-
-### Option 2: Environment Variables
-
-Create a `.env` file or set environment variables:
-
-```bash
-# Required: crawl4ai Docker API URL
-CRAWL4AI_BASE_URL=http://localhost:11235
-
-# Optional: crawl4ai Docker/API bearer token (required when server auth is enabled)
-# Also set in JSON as "apiToken": "${CRAWL4AI_API_TOKEN}"
-CRAWL4AI_API_TOKEN=your-crawl4ai-api-token
-
-# Optional: Request timeout
-CRAWL4AI_TIMEOUT=60000
-
-# Optional: Default output directory for saved crawls
-CRAWL4AI_OUTPUT_DIR=./output-crawl4ai
-
-# Optional: Minimum interval between crawl requests in ms
-CRAWL4AI_MIN_REQUEST_INTERVAL_MS=1000
-
-# Proxy Option 1: Generic proxy URL
-CRAWL4AI_PROXY_URL=http://user:pass@proxy.example.com:8080
-
-# Proxy Option 2: Oxylabs ISP (single port)
-OXYLABS_USER=your_username
-OXYLABS_PASS=your_password
-OXYLABS_HOST=isp.oxylabs.io
-OXYLABS_PORT=8001
-
-# Proxy Option 3: Oxylabs ISP (rotation - multiple ports)
-OXYLABS_USER=your_username
-OXYLABS_PASS=your_password
-OXYLABS_HOST=isp.oxylabs.io
-OXYLABS_PORTS=8001,8002,8003,8004,8005,8006,8007,8008,8009,8010
-```
-
-### No Proxy
-
-If you don't configure a proxy, the extension will work without one. Just don't set any proxy-related environment variables or JSON config.
-
-### Configuration Priority
-
-1. **JSON config file** - Highest priority
-2. **Environment variables** - Fallback
-3. **Defaults** - `http://localhost:11235`, no proxy
-
-### crawl4ai Setup
-
-1. Clone and run crawl4ai Docker:
-
-```bash
-git clone https://github.com/unclecode/crawl4ai
-cd crawl4ai
-docker-compose up -d
-```
-
-2. Verify it's running:
-
-```bash
-curl http://localhost:11235/health
-```
-
-## Usage
-
-The `crawl` tool is **disabled by default** to avoid polluting the system prompt. You must enable it when needed.
-
-If Pi is started with an explicit tool selection such as `--tools crawl`, that explicit selection is honored for the session even when `enabledByDefault` is `false`. This is useful for subagents or specialized agents that request `crawl` directly.
-
-### Enabling the Tool
-
-```
-/crawl-on
-```
-
-This adds the crawl tool to the active tools list and includes it in the system prompt.
-
-### Session cleanup
-
-```text
-/crawl-sessions
-/crawl-cleanup
-/crawl-cleanup dry-run
-```
-
-Use these when saved crawls pile up, or rely on automatic retention after each save.
-
-### Disabling the Tool
-
-When you're done crawling, disable it to save tokens:
-
-```
-/crawl-off
-```
-
-The tool state persists across session reloads and branch navigation. If you enable it in a session, it stays enabled until you disable it.
-
-### Using the Tool
-
-Once enabled, `/crawl-on` activates both `crawl` and `crawl_read`.
-
-```
-You: Crawl https://example.com and summarize the content
-
-Pi: [uses crawl tool to fetch and process the page]
-```
-
-For large/multi-page crawls, results are often saved to disk with a compact index. Then open pages progressively:
-
-```text
-# After a crawl saves files under output-crawl4ai/...
-crawl_read path=output-crawl4ai/.../docs.example.com/install.md
-# default mode=outline
-
-crawl_read path=... mode=chunks query="docker env vars"
-crawl_read path=... mode=window offset=1 limit=40
-crawl_read path=... mode=full maxChars=8000
-```
-
-Prefer `crawl_read` over raw `read` for crawl outputs so full pages are not re-dumped into context.
-
-#### `crawl_read` parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | `string` | Saved page path (`.md`) relative to cwd or `outputDir` |
-| `mode` | `outline` \| `chunks` \| `window` \| `full` | Default `outline`, or `chunks` when `query` is set |
-| `query` | `string` | Keyword ranking for `chunks` mode |
-| `maxChars` | `number` | Return budget (default `6000`) |
-| `offset` / `limit` | `number` | Line window for `window` mode |
-
-Each saved markdown page also gets sidecars: `*.outline.md`, `*.meta.json`, plus richer `pages[]` entries in `crawl-manifest.json`.
-
-With auth profiles configured, the extension can automatically pick the right profile from the URL domain, or Pi can pass a `site` hint when you say things like "scrape this from X". If `minRequestIntervalMs` is configured, crawls are rate-limited between calls. Per-profile `minRequestIntervalMs` overrides the global value.
-
-Each crawl result includes an execution summary showing the effective config used for that request, including site hint, auth profile, proxy source, and whether cookies, headers, and user agent were applied.
-
-The tool also accepts a few compatibility aliases when the model guesses different argument names: `platform`, `siteName`, or `sourceSite` map to `site`, and `profile`, `auth_profile`, or `auth` map to `authProfile`.
-
-### Tool Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `urls` | `string[]` | URLs to crawl (required). For deep crawling, provide a single start URL. |
-| `site` | `string` | Optional site hint for auth profile selection (e.g. `x`, `twitter`, `reddit`) |
-| `authProfile` | `string` | Explicit auth profile name from config. Overrides automatic matching |
-| `format` | `"markdown"` \| `"html"` \| `"links"` | Output format (default: `markdown`) |
-| `waitFor` | `number` | Milliseconds to wait before extraction |
-| `jsCode` | `string` | JavaScript to execute before extraction |
-| `bypassCache` | `boolean` | Force fresh crawl, bypass cache |
-| `deepCrawl` | `object` | Deep crawl configuration (see below) |
-| `save` | `boolean` \| `string` | Save results to disk. `true` = default directory, or provide a custom path. Auto mode may save when over budget even if omitted |
-| `returnMode` | `"auto"` \| `"inline"` \| `"files"` | How bodies are returned (default: `auto`) |
-| `maxCharsPerPage` | `number` | Cap per-page body chars when inlining (default: `12000`) |
-| `maxCharsPerCall` | `number` | Cap total body chars for one result (default: `40000`) |
-| `preferFitMarkdown` | `boolean` | Prefer main-content fit markdown over raw (default: `true`) |
-
-### Deep Crawl Parameters
-
-Enable multi-page crawling by following links from a starting URL:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `strategy` | `"bfs"` \| `"dfs"` \| `"best-first"` | Crawl strategy (default: `bfs`) |
-| `maxDepth` | `number` | Maximum depth (required). 1 = start page only, 2 = start + linked pages |
-| `maxPages` | `number` | Maximum total pages to crawl (default: `10`) |
-| `includeExternal` | `boolean` | Follow links to external domains (default: false) |
-| `includePatterns` | `string[]` | URL glob patterns to include (e.g., `/docs/*`, `*.html`) |
-| `excludePatterns` | `string[]` | URL glob patterns to exclude (e.g., `/admin/*`, `*.pdf`) |
-| `allowedDomains` | `string[]` | Only follow links to these domains |
-| `scoreThreshold` | `number` | Minimum relevance score for best-first strategy (0.0-1.0) |
-
-#### Crawl Strategies
-
-- **`bfs`** (Breadth-First Search) - Crawls level by level. Good for comprehensive site coverage.
-- **`dfs`** (Depth-First Search) - Dives deep into each path before backtracking. Good for deep hierarchies.
-- **`best-first`** - Prioritizes pages by relevance score. Use with `scoreThreshold` to filter low-relevance pages.
-
-### Examples
-
-```
-# Basic crawl
-Crawl https://example.com
-
-# Multiple URLs
-Crawl these URLs: https://site1.com, https://site2.com
-
-# Wait for dynamic content
-Crawl https://spa-example.com, wait 2 seconds for content to load
-
-# Extract links only
-Crawl https://example.com and list all the links
-
-# Custom JS execution
-Crawl https://example.com, click the "Load More" button first
-```
-
-### Deep Crawl Examples
-
-```
-# Crawl a documentation site, 2 levels deep
-Crawl https://docs.example.com with depth 2
-
-# Crawl with URL filtering
-Deep crawl https://example.com, only following /docs/* and /api/* pages, exclude /admin
-
-# Crawl with page limit
-Crawl https://blog.example.com with max depth 3 and limit to 50 pages
-
-# Cross-domain crawl
-Crawl https://blog.example.com following external links to docs.example.com
-
-# Best-first strategy with scoring
-Crawl https://news.example.com using best-first strategy with score threshold 0.5
-```
-
-#### Deep Crawl Output
-
-Deep crawl results are grouped by depth level for easy navigation:
-
-```markdown
-# Deep Crawl Results (15 pages, max depth: 2)
-
-## Depth 0 (1 page)
-### https://example.com
-Home page content...
-
-## Depth 1 (5 pages)
-### https://example.com/docs
-Documentation overview...
-
-## Depth 2 (9 pages)
-### https://example.com/docs/api
-API reference...
-```
-
-### Saving Results to Disk
-
-Use the `save` parameter to persist crawl results to disk. This is useful for:
-- Large crawls that exceed response size limits
-- Keeping a record of crawled content for later analysis
-- Building local documentation archives
-
-#### Save Options
-
-| Value | Behavior |
-|-------|----------|
-| `undefined` / `false` | Don't save (default) |
-| `true` | Save to `./output-crawl4ai` |
-| `"./custom/path"` | Save to specified directory |
-
-#### Directory Structure
-
-Saved results are organized by domain and timestamp:
-
-```
-output-crawl4ai/
-├── example.com-2025-03-25T14-30-00/
-│   ├── crawl-manifest.json
-│   └── example.com/
-│       ├── index.md
-│       ├── docs/
-│       │   ├── api.md
-│       │   └── guide.md
-│       └── about.md
-└── docs.python.org-2025-03-25T15-00-00/
-    └── ...
-```
-
-Each session includes a `crawl-manifest.json` with metadata:
-
-```json
-{
-  "timestamp": "2025-03-25T14:30:00.000Z",
-  "totalPages": 15,
-  "format": "markdown",
-  "urls": ["https://example.com"],
-  "proxyUsed": false,
-  "deepCrawl": {
-    "maxDepth": 2,
-    "maxPages": 100
-  },
   "files": [
     "example.com/index.md",
     "example.com/docs/api.md"
@@ -578,20 +197,6 @@ Set `CRAWL4AI_OUTPUT_DIR` to change the default save location:
 ```bash
 CRAWL4AI_OUTPUT_DIR=./crawled-content
 ```
-
-## IP Rotation
-
-When multiple proxy endpoints are configured (via `ports` array or `OXYLABS_PORTS`), the extension automatically:
-
-- **Rotates IPs** - Round-robin across available endpoints
-- **Manages sessions** - Sticky sessions with configurable TTL
-- **Quarantines bad endpoints** - Temporarily skips failing endpoints
-
-### Rotation Behavior
-
-- Each request uses the next available endpoint
-- Sessions keep the same endpoint for multiple requests (up to 15 by default)
-- Failed endpoints are quarantined for 5 minutes
 
 ## Development
 
@@ -624,15 +229,6 @@ pi-crawl4ai/
 │   ├── config.ts             # Configuration loading
 │   ├── configLoader.ts       # JSON/env config parsing
 │   ├── test-utils.ts         # Testing utilities
-│   ├── proxy/
-│   │   ├── index.ts
-│   │   ├── types.ts          # Proxy types
-│   │   ├── proxyService.ts   # Service management
-│   │   ├── rotationService.ts # IP rotation logic
-│   │   └── adapters/
-│   │       ├── genericAdapter.ts
-│   │       ├── oxylabsAdapter.ts
-│   │       └── customAdapter.ts
 │   └── features/
 │       └── crawl/
 │           ├── crawlTool.ts  # Crawl tool implementation
@@ -644,10 +240,6 @@ pi-crawl4ai/
 ├── CONTEXT.md                # Architecture docs
 └── README.md                 # This file
 ```
-
-### Adding a Custom Proxy Provider
-
-See `src/proxy/README.md` for details on implementing custom proxy adapters.
 
 ## License
 

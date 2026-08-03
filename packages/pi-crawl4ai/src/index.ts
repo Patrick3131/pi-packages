@@ -2,7 +2,10 @@
  * pi-crawl4ai - Pi extension for web crawling with crawl4ai
  *
  * This extension provides a `crawl` tool that uses crawl4ai for
- * browser-rendered web scraping with optional proxy support.
+ * browser-rendered web scraping with optional auth profiles.
+ *
+ * Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
+ * This client never sends proxy credentials in the request body.
  *
  * The crawl tool is disabled by default to avoid polluting the system prompt.
  * Use `/crawl-on` to enable it and `/crawl-off` to disable it.
@@ -14,10 +17,6 @@
  * - CRAWL4AI_TIMEOUT: Request timeout in ms (default: 60000)
  * - CRAWL4AI_API_TOKEN: bearer token for crawl4ai Docker/API auth (Authorization: Bearer …)
  *
- * Proxy configuration (environment variables):
- * - CRAWL4AI_PROXY_URL: Full proxy URL (e.g., http://user:pass@host:port)
- * - OXYLABS_USER + OXYLABS_PASS: Oxylabs ISP proxy credentials
- *
  * Or use JSON config file (takes priority over env vars):
  * - .pi/crawl4ai.json in project directory
  * - ~/.pi/agent/extensions/crawl4ai.json for global config
@@ -28,9 +27,7 @@
  *   "url": "http://localhost:11235",
  *   "timeoutMs": 60000,
  *   "enabledByDefault": false,
- *   "proxy": {
- *     "url": "http://user:pass@proxy.example.com:8080"
- *   }
+ *   "apiToken": "${CRAWL4AI_API_TOKEN}"
  * }
  * ```
  */
@@ -48,8 +45,6 @@ import { getDefaultOutputDir } from "./features/crawl/saveOutput";
 
 export { loadConfig } from "./config";
 export { loadConfig as loadConfigFromFile, type Crawl4AIJsonConfig, type ResolvedConfig } from "./configLoader";
-export { createProxyService, type ProxyAdapter, type ProxyConfig, type ProxyService } from "./proxy";
-export { genericAdapter, oxylabsAdapter, createCustomAdapter } from "./proxy/adapters";
 export { registerCrawlTool } from "./features/crawl/crawlTool";
 export { registerCrawlReadTool, executeCrawlRead } from "./features/crawl/crawlReadTool";
 export * from "./features/crawl/types";
@@ -73,14 +68,7 @@ export default function (pi: ExtensionAPI) {
 
   // Log startup info
   console.log(`[pi-crawl4ai] Initialized with baseUrl: ${config.baseUrl}`);
-
-  if (config.proxyEnabled) {
-    const adapterName = config.proxyService.getActiveAdapterName();
-    const proxyConfig = config.proxyService.getProxyConfig();
-    console.log(`[pi-crawl4ai] Proxy enabled via ${adapterName} adapter: ${proxyConfig?.server}`);
-  } else {
-    console.log(`[pi-crawl4ai] Proxy disabled (no adapter configured)`);
-  }
+  console.log(`[pi-crawl4ai] Egress is server-managed (client does not send proxy config)`);
 
   // Register tools (exist but may not be active until /crawl-on)
   registerCrawlTool(pi, config);

@@ -28,7 +28,7 @@ describe("loadConfig", () => {
 
     expect(config.baseUrl).toBe("http://localhost:11235");
     expect(config.timeout).toBe(60000);
-    expect(config.proxyEnabled).toBe(false);
+    expect(config.apiToken).toBeUndefined();
   });
 
   it("should use CRAWL4AI_BASE_URL when set", () => {
@@ -47,27 +47,30 @@ describe("loadConfig", () => {
     expect(config.timeout).toBe(30000);
   });
 
-  it("should enable proxy from OXYLABS env vars", () => {
-    process.env.OXYLABS_USER = "testuser";
-    process.env.OXYLABS_PASS = "testpass";
+  it("should load api token from env", () => {
+    process.env.CRAWL4AI_API_TOKEN = "secret-token";
 
     const config = loadConfig({ cwd: tempDir });
 
-    expect(config.proxyEnabled).toBe(true);
-  });
-
-  it("should enable proxy from CRAWL4AI_PROXY_URL", () => {
-    process.env.CRAWL4AI_PROXY_URL = "http://user:pass@proxy.example.com:8080";
-
-    const config = loadConfig({ cwd: tempDir });
-
-    expect(config.proxyEnabled).toBe(true);
+    expect(config.apiToken).toBe("secret-token");
   });
 
   it("should expose enabledByDefault from raw config (default false)", () => {
     const config = loadConfig({ cwd: tempDir });
 
     expect(config.raw.enabledByDefault).toBe(false);
+  });
+
+  it("should ignore legacy client proxy env vars", () => {
+    process.env.OXYLABS_USER = "testuser";
+    process.env.OXYLABS_PASS = "testpass";
+    process.env.CRAWL4AI_PROXY_URL = "http://user:pass@proxy.example.com:8080";
+
+    const config = loadConfig({ cwd: tempDir });
+    const browserConfig = buildBrowserConfig(config);
+
+    expect(browserConfig).toEqual({});
+    expect(browserConfig).not.toHaveProperty("proxy_config");
   });
 });
 
@@ -144,41 +147,11 @@ describe("resolveAuthSelection", () => {
 });
 
 describe("buildBrowserConfig", () => {
-  it("should return empty object when proxy is disabled", () => {
+  it("should return empty object without auth selection", () => {
     const config = loadConfig({ cwd: tempDir });
     const browserConfig = buildBrowserConfig(config);
 
     expect(browserConfig).toEqual({});
-  });
-
-  it("should include proxy config when proxy is enabled via Oxylabs", () => {
-    process.env.OXYLABS_USER = "testuser";
-    process.env.OXYLABS_PASS = "testpass";
-    process.env.OXYLABS_PORT = "7777"; // Use single port for predictable test
-
-    const config = loadConfig({ cwd: tempDir });
-    const browserConfig = buildBrowserConfig(config);
-
-    expect(browserConfig).toHaveProperty("proxy_config");
-    expect(browserConfig.proxy_config).toEqual({
-      server: "http://isp.oxylabs.io:7777",
-      username: "user-testuser",
-      password: "testpass",
-    });
-  });
-
-  it("should include proxy config when proxy is enabled via URL", () => {
-    process.env.CRAWL4AI_PROXY_URL = "http://myuser:mypass@proxy.example.com:9999";
-
-    const config = loadConfig({ cwd: tempDir });
-    const browserConfig = buildBrowserConfig(config);
-
-    expect(browserConfig).toHaveProperty("proxy_config");
-    expect(browserConfig.proxy_config).toEqual({
-      server: "http://proxy.example.com:9999",
-      username: "myuser",
-      password: "mypass",
-    });
   });
 
   it("should merge auth profile headers, user agent, and cookies", () => {
@@ -212,6 +185,7 @@ describe("buildBrowserConfig", () => {
       { name: "auth_token", value: "secret", url: "https://x.com/some/thread" },
       { name: "ct0", value: "csrf", url: "https://x.com/some/thread" },
     ]);
+    expect(browserConfig).not.toHaveProperty("proxy_config");
   });
 
   it("should preserve cookies that already include domain and path", () => {
@@ -256,37 +230,5 @@ describe("buildBrowserConfig", () => {
     expect(browserConfig.cookies).toEqual([
       { name: "auth_token", value: "secret", url: "https://x.com/some/thread" },
     ]);
-  });
-
-  it("should use per-auth-profile proxy override instead of top-level proxy", () => {
-    process.env.OXYLABS_USER = "testuser";
-    process.env.OXYLABS_PASS = "testpass";
-    process.env.OXYLABS_PORT = "7777";
-
-    const config = loadConfig({ cwd: tempDir });
-    config.raw.authProfiles = {
-      "reddit-main": {
-        matchDomains: ["reddit.com"],
-        proxy: {
-          provider: "oxylabs",
-          host: "isp.oxylabs.io",
-          ports: [8008],
-          username: "testuser",
-          password: "testpass",
-        },
-      },
-    };
-
-    const selection = resolveAuthSelection(config, {
-      urls: ["https://reddit.com/r/test/comments/1"],
-      authProfile: "reddit-main",
-    });
-    const browserConfig = buildBrowserConfig(config, selection, ["https://reddit.com/r/test/comments/1"]);
-
-    expect(browserConfig.proxy_config).toEqual({
-      server: "http://isp.oxylabs.io:8008",
-      username: "user-testuser",
-      password: "testpass",
-    });
   });
 });
