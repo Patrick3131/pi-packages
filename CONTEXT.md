@@ -60,7 +60,7 @@ pi-packages/
         │             │             │
         ▼             ▼             ▼
 ┌───────────────┐ ┌────────────────┐ ┌───────────┐
-│ pi-crawl4ai   │ │ pi-brave-search│ │  future   │
+│ pi-crawl4ai   │ │ pi-brave-search│ │ pi-work   │
 │               │ │                │ │  package  │
 └───────────────┘ └────────────────┘ └───────────┘
 ```

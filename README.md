@@ -9,6 +9,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | [![npm](https://img.shields.io/npm/v/pi-crawl4ai.svg)](https://www.npmjs.com/package/pi-crawl4ai) |
 | [pi-brave-search](./packages/pi-brave-search) | Brave Web Search for discovery workflows that pair with crawl4ai | unpublished |
 | [pi-context-inspector](./packages/pi-context-inspector) | Effective system prompt and context burden inspector with HTML + JSON reports | unpublished |
+| [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | unpublished |
 
 ## Installation
 
@@ -20,13 +21,15 @@ npm install pi-crawl4ai
 npm install pi-brave-search
 # or
 npm install pi-context-inspector
+# or
+npm install pi-work
 ```
 
 Add to your Pi `settings.json`:
 
 ```json
 {
-  "packages": ["pi-crawl4ai", "pi-brave-search", "pi-context-inspector"]
+  "packages": ["pi-crawl4ai", "pi-brave-search", "pi-context-inspector", "pi-work"]
 }
 ```
 
