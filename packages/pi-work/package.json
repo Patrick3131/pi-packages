@@ -1,0 +1,53 @@
+{
+  "name": "pi-work",
+  "version": "0.1.0",
+  "description": "Pi package for docs-as-work: work-item skills, docs/work scaffold, and a /work browse-and-act wizard",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "clean": "rm -rf coverage"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "skills",
+    "work-items",
+    "docs-as-work",
+    "tdd"
+  ],
+  "author": "Patrick Fischer <patrick-fischer@live.de>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Patrick3131/pi-packages",
+    "directory": "packages/pi-work"
+  },
+  "bugs": {
+    "url": "https://github.com/Patrick3131/pi-packages/issues"
+  },
+  "homepage": "https://github.com/Patrick3131/pi-packages#readme",
+  "files": [
+    "src",
+    "skills",
+    "scaffold",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
+  }
+}
