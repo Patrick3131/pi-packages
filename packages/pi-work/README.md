@@ -29,10 +29,10 @@ pi install -l /absolute/path/to/pi-packages/packages/pi-work
 pi install npm:pi-work
 ```
 
-Pi loads:
+Pi loads this package via `package.json`:
 
 - extension: `./src/index.ts`
-- skills: `./skills/**/SKILL.md`
+- skills: `./skills`
 
 ## Quick start
 
@@ -45,6 +45,8 @@ Pi loads:
 /work plan-implement "add export csv" # plan, checkpoint, and implement
 ```
 
+Browsing open work offers to scaffold if the configured work root is missing.
+
 ### `/work` actions
 
 After selecting a package:
@@ -53,6 +55,8 @@ After selecting a package:
 2. **Read full package** — primary + to-do + test
 3. **Inject paths** — put package paths into chat as active context
 4. **Implement** — hand off to `implement-tdd-review-runner`
+
+Implement is gated on readiness, but a not-ready or incomplete package can still be handed off after a confirm. Moving a completed package to `finished/` is done by the implementation skill, not by the wizard.
 
 ### Subcommands
 
@@ -65,8 +69,10 @@ After selecting a package:
 | `/work init` | Scaffold structure (never overwrites existing files) |
 | `/work new [topic]` | Create package via planning skill |
 | `/work plan [topic]` | Alias of `new` |
-| `/work plan-implement [topic]` | Plan, commit docs, implement |
+| `/work plan-implement [topic]` | Plan, optionally commit docs, then implement |
 | `/work help` | Help text |
+
+`/work` browsing needs an interactive UI. Without one, it lists packages instead of opening the select wizard.
 
 ## Work package convention
 
@@ -78,7 +84,7 @@ docs/work/work/YYYY-MM-DD-<type>-<slug>-to-do-list.md
 docs/work/work/YYYY-MM-DD-<type>-<slug>-test.md
 ```
 
-On completion, move all three to `docs/work/finished/`.
+On `COMPLETE`, the implementation skill marks all three `done` and moves them together to the finished directory (`docs/work/finished/` by default). The `/work` wizard does not move files.
 
 ## Philosophy
 
@@ -136,15 +142,38 @@ References are relative to ….
   - not `idea` intake
   - `triage` only when classified enough to execute
   - no blocking Open Questions
+- Not-ready or incomplete packages still show Implement, labeled with the gate, and require a confirm before handoff.
 - User-facing skill outcomes: **COMPLETE** or **BLOCKED** (continuation is internal).
 
 ## Configuration
 
+No config file is required. Paths resolve in this order:
+
+1. explicit options (tests / future settings)
+2. `PI_WORK_*` environment variables
+3. built-in defaults
+
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PI_WORK_ROOT` | `docs/work` | Work root relative to project cwd |
-| `PI_WORK_OPEN_DIR` | `work` | Open items directory under root |
-| `PI_WORK_FINISHED_DIR` | `finished` | Finished items directory under root |
+| `PI_WORK_ROOT` | `docs/work` | Work root, relative to project cwd unless absolute |
+| `PI_WORK_OPEN_DIR` | `work` | Open items directory under the root |
+| `PI_WORK_FINISHED_DIR` | `finished` | Finished items directory under the root |
+
+Default layout when unset:
+
+```text
+docs/work/work/        # open packages
+docs/work/finished/    # completed packages
+docs/work/AGENTS.md
+docs/work/CONTEXT.md
+docs/work/README.md
+```
+
+Override only the pieces you need. For example, leaving the last two unset still uses `work` and `finished` under the root:
+
+```bash
+export PI_WORK_ROOT=docs/work
+```
 
 ## Skills (operator-only)
 
