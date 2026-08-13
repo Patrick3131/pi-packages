@@ -15,8 +15,6 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions published as 
 ## Scope
 
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
-- `packages/pi-brave-search` - Brave Web Search extension for discovery workflows
-- `packages/pi-context-inspector` - Effective system prompt / context burden inspector
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
 - Future extensions added to `packages/`
 

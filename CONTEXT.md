@@ -27,14 +27,9 @@ pi-packages/
 │   │   │           └── types.ts
 │   │   └── package.json
 │   │
-│   ├── pi-brave-search/      # Brave Web Search extension
+│   ├── pi-work/              # Docs-as-work skills and /work wizard
 │   │   ├── src/
-│   │   │   ├── index.ts      # Exports extension
-│   │   │   ├── config.ts     # Config loading
-│   │   │   └── features/
-│   │   │       └── search/
-│   │   │           ├── searchTool.ts
-│   │   │           └── types.ts
+│   │   ├── skills/
 │   │   └── package.json
 │   │
 │   └── [future packages]/    # Additional extensions
@@ -56,13 +51,13 @@ pi-packages/
 │  - Local paths                                              │
 └─────────────────────┬───────────────────────────────────────┘
                       │
-        ┌─────────────┼─────────────┐
-        │             │             │
-        ▼             ▼             ▼
-┌───────────────┐ ┌────────────────┐ ┌───────────┐
-│ pi-crawl4ai   │ │ pi-brave-search│ │ pi-work   │
-│               │ │                │ │  package  │
-└───────────────┘ └────────────────┘ └───────────┘
+        ┌─────────────┴─────────────┐
+        │                           │
+        ▼                           ▼
+┌───────────────┐           ┌───────────┐
+│ pi-crawl4ai   │           │ pi-work   │
+│               │           │  package  │
+└───────────────┘           └───────────┘
 ```
 
 ## Shared Patterns
@@ -132,5 +127,5 @@ Packages are **independent**:
 ## Canonical Deep Context
 
 - pi-crawl4ai: `packages/pi-crawl4ai/CONTEXT.md`
-- pi-brave-search: `packages/pi-brave-search/CONTEXT.md`
+- pi-work: `packages/pi-work/CONTEXT.md`
 - Future packages: `packages/<name>/CONTEXT.md`
