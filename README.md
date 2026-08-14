@@ -8,6 +8,8 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 |---------|-------------|---------|
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | [![npm](https://img.shields.io/npm/v/pi-crawl4ai.svg)](https://www.npmjs.com/package/pi-crawl4ai) |
 | [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | unpublished |
+| [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | unpublished |
+| [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | unpublished |
 
 ## Installation
 
@@ -17,13 +19,15 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 npm install pi-crawl4ai
 # or
 npm install pi-work
+# or
+npm install pi-presets
 ```
 
 Add to your Pi `settings.json`:
 
 ```json
 {
-  "packages": ["pi-crawl4ai", "pi-work"]
+  "packages": ["pi-crawl4ai", "pi-work", "pi-presets"]
 }
 ```
 
@@ -70,6 +74,14 @@ npm run build --workspace=packages/pi-crawl4ai
 npm run typecheck
 ```
 
+## Restore a machine
+
+```bash
+./configs/global/restore.sh
+```
+
+That copies sanitized global settings, personal job presets, and `/tools`. It does not copy `auth.json` or sessions.
+
 ## Adding a New Package
 
 1. Create directory: `packages/pi-<name>/`
@@ -94,11 +106,16 @@ pi-packages/
 │   │   ├── src/
 │   │   ├── package.json
 │   │   └── README.md
-│   └── pi-work/
+│   ├── pi-work/
+│   │   ├── src/
+│   │   ├── skills/
+│   │   ├── package.json
+│   │   └── README.md
+│   └── pi-presets/
 │       ├── src/
-│       ├── skills/
 │       ├── package.json
 │       └── README.md
+├── configs/global/       # Restore snapshot for ~/.pi/agent
 ├── package.json          # Workspace root
 ├── AGENTS.md             # Working agreements
 ├── CONTEXT.md            # Architecture

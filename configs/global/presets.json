@@ -1,0 +1,11 @@
+{
+  "plan": {
+    "thinkingLevel": "high",
+    "tools": ["read", "grep", "find", "ls"],
+    "instructions": "Planning only. Do not edit, write, or run mutating shell."
+  },
+  "implement": {
+    "thinkingLevel": "medium",
+    "tools": ["read", "bash", "edit", "write", "grep", "find", "ls", "subagent", "subagent_wait"]
+  }
+}

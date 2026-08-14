@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2025-03-25
+last_verified: 2026-08-13
 applies_to: /**
 inherits_from: none
 canonical_for: System architecture and package relationships
@@ -32,8 +32,17 @@ pi-packages/
 │   │   ├── skills/
 │   │   └── package.json
 │   │
+│   ├── pi-presets/           # /preset engine
+│   │   ├── src/
+│   │   └── package.json
+│   │
+│   ├── pi-searxng/           # SearXNG web_search_searxng
+│   │   ├── src/
+│   │   └── package.json
+│   │
 │   └── [future packages]/    # Additional extensions
 │
+├── configs/global/           # Restore snapshot for ~/.pi/agent
 ├── package.json              # Workspace root
 ├── AGENTS.md                 # Working agreements
 └── CONTEXT.md                # This file

@@ -1,0 +1,22 @@
+{
+  "defaultProvider": "xai-auth",
+  "defaultModel": "grok-4.6",
+  "defaultThinkingLevel": "medium",
+  "packages": [
+    "npm:pi-subagents",
+    "npm:pi-xai-oauth",
+    "npm:@narumitw/pi-goal"
+  ],
+  "extensions": [],
+  "theme": "dark",
+  "treeFilterMode": "no-tools",
+  "hideThinkingBlock": true,
+  "quietStartup": true,
+  "collapseChangelog": true,
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time",
+  "doubleEscapeAction": "none",
+  "compaction": {
+    "enabled": true
+  }
+}

@@ -35,3 +35,7 @@ packages/pi-crawl4ai/output-crawl4ai/
 .tmp/
 .pi
 output-crawl4ai/
+
+# Investigation clones (not published packages)
+pi-agent-browser-native/
+thirdparty/

@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2025-03-25
+last_verified: 2026-08-13
 applies_to: /**
 inherits_from: none
 canonical_for: Repo-wide working agreements and navigation
@@ -16,6 +16,9 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions published as 
 
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
+- `packages/pi-presets` - Global `/preset` engine; job lists stay in JSON files
+- `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
+- `configs/global` - Sanitized machine restore snapshot (not a published package)
 - Future extensions added to `packages/`
 
 ## Commands

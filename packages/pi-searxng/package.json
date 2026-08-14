@@ -1,0 +1,53 @@
+{
+  "name": "pi-searxng",
+  "version": "0.1.0",
+  "description": "Pi extension that searches a self-hosted SearXNG instance as web_search_searxng",
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"process.exit(0)\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "node -e \"process.exit(0)\"",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "clean": "rm -rf coverage"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "searxng",
+    "web-search"
+  ],
+  "author": "Patrick Fischer <patrick-fischer@live.de>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Patrick3131/pi-packages",
+    "directory": "packages/pi-searxng"
+  },
+  "bugs": {
+    "url": "https://github.com/Patrick3131/pi-packages/issues"
+  },
+  "homepage": "https://github.com/Patrick3131/pi-packages#readme",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "dependencies": {
+    "typebox": "^1.1.38"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
+  }
+}

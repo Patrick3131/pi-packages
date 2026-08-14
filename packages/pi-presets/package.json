@@ -1,0 +1,49 @@
+{
+  "name": "pi-presets",
+  "version": "0.1.0",
+  "description": "Pi package that loads named job presets from global and project presets.json files",
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"process.exit(0)\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "node -e \"process.exit(0)\"",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "clean": "rm -rf coverage"
+  },
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-extension",
+    "presets"
+  ],
+  "author": "Patrick Fischer <patrick-fischer@live.de>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Patrick3131/pi-packages",
+    "directory": "packages/pi-presets"
+  },
+  "bugs": {
+    "url": "https://github.com/Patrick3131/pi-packages/issues"
+  },
+  "homepage": "https://github.com/Patrick3131/pi-packages#readme",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/preset.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
+  }
+}
