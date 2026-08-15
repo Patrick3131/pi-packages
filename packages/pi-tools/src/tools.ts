@@ -1,45 +1,33 @@
 /**
- * Tools Extension
+ * Official Pi /tools example, packaged so it can be installed like pi-presets.
  *
- * Provides a /tools command to enable/disable tools interactively.
- * Tool selection persists across session reloads and respects branch navigation.
- *
- * Usage:
- * 1. Copy this file to ~/.pi/agent/extensions/ or your project's .pi/extensions/
- * 2. Use /tools to open the tool selector
+ * Source: @earendil-works/pi-coding-agent examples/extensions/tools.ts
  */
 
 import type { ExtensionAPI, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
-// State persisted to session
 interface ToolsState {
 	enabledTools: string[];
 }
 
 export default function toolsExtension(pi: ExtensionAPI) {
-	// Track enabled tools
 	let enabledTools: Set<string> = new Set();
 	let allTools: ToolInfo[] = [];
 
-	// Persist current state
 	function persistState() {
 		pi.appendEntry<ToolsState>("tools-config", {
 			enabledTools: Array.from(enabledTools),
 		});
 	}
 
-	// Apply current tool selection
 	function applyTools() {
 		pi.setActiveTools(Array.from(enabledTools));
 	}
 
-	// Find the last tools-config entry in the current branch
 	function restoreFromBranch(ctx: ExtensionContext) {
 		allTools = pi.getAllTools();
-
-		// Get entries in current branch only
 		const branchEntries = ctx.sessionManager.getBranch();
 		let savedTools: string[] | undefined;
 
@@ -53,17 +41,14 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		}
 
 		if (savedTools) {
-			// Restore saved tool selection (filter to only tools that still exist)
-			const allToolNames = allTools.map((t) => t.name);
-			enabledTools = new Set(savedTools.filter((t: string) => allToolNames.includes(t)));
+			const allToolNames = allTools.map((tool) => tool.name);
+			enabledTools = new Set(savedTools.filter((name) => allToolNames.includes(name)));
 			applyTools();
 		} else {
-			// No saved state - sync with currently active tools
 			enabledTools = new Set(pi.getActiveTools());
 		}
 	}
 
-	// Register /tools command
 	pi.registerCommand("tools", {
 		description: "Enable/disable tools",
 		handler: async (_args, ctx) => {
@@ -72,11 +57,9 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				return;
 			}
 
-			// Refresh tool list
 			allTools = pi.getAllTools();
 
 			await ctx.ui.custom((tui, theme, _kb, done) => {
-				// Build settings items for each tool
 				const items: SettingItem[] = allTools.map((tool) => ({
 					id: tool.name,
 					label: tool.name,
@@ -99,7 +82,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 					Math.min(items.length + 2, 15),
 					getSettingsListTheme(),
 					(id, newValue) => {
-						// Update enabled state and apply immediately
 						if (newValue === "enabled") {
 							enabledTools.add(id);
 						} else {
@@ -109,14 +91,13 @@ export default function toolsExtension(pi: ExtensionAPI) {
 						persistState();
 					},
 					() => {
-						// Close dialog
 						done(undefined);
 					},
 				);
 
 				container.addChild(settingsList);
 
-				const component = {
+				return {
 					render(width: number) {
 						return container.render(width);
 					},
@@ -128,18 +109,14 @@ export default function toolsExtension(pi: ExtensionAPI) {
 						tui.requestRender();
 					},
 				};
-
-				return component;
 			});
 		},
 	});
 
-	// Restore state on session start
 	pi.on("session_start", async (_event, ctx) => {
 		restoreFromBranch(ctx);
 	});
 
-	// Restore state when navigating the session tree
 	pi.on("session_tree", async (_event, ctx) => {
 		restoreFromBranch(ctx);
 	});

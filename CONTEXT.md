@@ -36,6 +36,10 @@ pi-packages/
 │   │   ├── src/
 │   │   └── package.json
 │   │
+│   ├── pi-tools/             # /tools command
+│   │   ├── src/
+│   │   └── package.json
+│   │
 │   ├── pi-searxng/           # SearXNG web_search_searxng
 │   │   ├── src/
 │   │   └── package.json

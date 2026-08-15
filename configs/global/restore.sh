@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 PACKAGES_ROOT="$(cd "$ROOT/../.." && pwd)"
 PRESETS_PACKAGE="$PACKAGES_ROOT/packages/pi-presets"
+TOOLS_PACKAGE="$PACKAGES_ROOT/packages/pi-tools"
 SEARXNG_PACKAGE="$PACKAGES_ROOT/packages/pi-searxng"
 FORCE=0
 
@@ -58,7 +59,12 @@ mkdir -p "$AGENT_DIR/extensions"
 
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
-copy_file "$ROOT/extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
+
+if [[ -f "$AGENT_DIR/extensions/tools.ts" ]]; then
+	backup_if_exists "$AGENT_DIR/extensions/tools.ts"
+	rm -f "$AGENT_DIR/extensions/tools.ts"
+	echo "Removed loose $AGENT_DIR/extensions/tools.ts so /tools comes from pi-tools"
+fi
 
 python3 - "$AGENT_DIR/settings.json" <<'PY'
 import json
@@ -102,6 +108,7 @@ pi install npm:pi-subagents
 pi install npm:pi-xai-oauth
 pi install npm:@narumitw/pi-goal
 pi install "$PRESETS_PACKAGE"
+pi install "$TOOLS_PACKAGE"
 pi install "$SEARXNG_PACKAGE"
 
 echo

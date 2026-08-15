@@ -9,6 +9,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | [![npm](https://img.shields.io/npm/v/pi-crawl4ai.svg)](https://www.npmjs.com/package/pi-crawl4ai) |
 | [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | unpublished |
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | unpublished |
+| [pi-tools](./packages/pi-tools) | Official `/tools` command | unpublished |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | unpublished |
 
 ## Installation
