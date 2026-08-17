@@ -10,5 +10,5 @@
     "esModuleInterop": true,
     "types": ["node"]
   },
-  "include": ["test/**/*.ts"]
+  "include": ["src/args.ts", "src/format.ts", "src/state.ts", "test/**/*.ts"]
 }

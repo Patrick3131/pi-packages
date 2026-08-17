@@ -10,13 +10,14 @@ canonical_for: pi-tools package conventions
 
 ## Purpose
 
-Packaged official `/tools` command. Do not also drop `tools.ts` into
-`~/.pi/agent/extensions/`.
+Packaged official `/tools` command with a details toggle and `/tools print`.
+Do not also drop `tools.ts` into `~/.pi/agent/extensions/`.
 
 ## Rules
 
-- Keep the command behavior aligned with the Pi example.
+- Keep enable/disable persistence aligned with the Pi example.
 - Do not call `getActiveTools` / `setActiveTools` during module load.
+- Print dumps go through `appendEntry("tools-print")`, never `sendMessage`.
 - Job tool lists stay in `presets.json`, not in this package.
 
 ## Commands
