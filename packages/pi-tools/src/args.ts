@@ -5,9 +5,11 @@ import { firstLine, type ToolLike } from "./format.js";
 export type ToolsCommand =
 	| { action: "picker" }
 	| { action: "print"; query: string }
+	| { action: "save" }
 	| { action: "unknown"; raw: string };
 
 const PRINT_COMMAND = "print";
+const SAVE_COMMAND = "save";
 
 export function parseToolsArgs(args: string): ToolsCommand {
 	const trimmed = args.trim();
@@ -18,6 +20,9 @@ export function parseToolsArgs(args: string): ToolsCommand {
 	const [first, ...rest] = trimmed.split(/\s+/);
 	if (first?.toLowerCase() === PRINT_COMMAND) {
 		return { action: "print", query: rest.join(" ").trim() };
+	}
+	if (first?.toLowerCase() === SAVE_COMMAND && rest.length === 0) {
+		return { action: "save" };
 	}
 
 	return { action: "unknown", raw: trimmed };
@@ -69,14 +74,20 @@ export function getToolsArgumentCompletions(
 	const first = tokens[0] ?? "";
 	const hasTrailingSpace = text.length > 0 && /\s$/.test(text);
 
-	if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingSpace && PRINT_COMMAND.startsWith(first.toLowerCase()))) {
-		return [
+	if (tokens.length === 0 || (tokens.length === 1 && !hasTrailingSpace)) {
+		const commands = [
 			{
 				value: PRINT_COMMAND,
 				label: PRINT_COMMAND,
 				description: "Dump tool details into the session (not sent to the model)",
 			},
-		];
+			{
+				value: SAVE_COMMAND,
+				label: SAVE_COMMAND,
+				description: "Write the current session tools to .pi/tools.json",
+			},
+		].filter((item) => item.value.startsWith(first.toLowerCase()));
+		return commands.length > 0 ? commands : null;
 	}
 
 	if (first.toLowerCase() !== PRINT_COMMAND) {

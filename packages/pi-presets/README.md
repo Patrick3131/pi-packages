@@ -26,7 +26,10 @@ Commands:
 
 This package does not install tools. A preset can only enable tools already loaded in the current Pi process.
 
-Do not put vendor-specific Grok adapters (`xai_*`) in presets. Leave those to `pi-xai-oauth` when switching models.
+Grok local adapters register as `xai_grok_*`. If a preset lists `read`, `bash`,
+`edit`/`write`, `ls`, `grep`, or the public names (`read_file`, …), those
+matching adapters stay on. Paid extras (`web_search`, image gen, multi-agent)
+stay opt-in via `/xai-tools` and should not be listed here.
 
 ## Install
 

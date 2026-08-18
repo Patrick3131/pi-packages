@@ -55,12 +55,6 @@ describe("loadConfig", () => {
     expect(config.apiToken).toBe("secret-token");
   });
 
-  it("should expose enabledByDefault from raw config (default false)", () => {
-    const config = loadConfig({ cwd: tempDir });
-
-    expect(config.raw.enabledByDefault).toBe(false);
-  });
-
   it("should ignore legacy client proxy env vars", () => {
     process.env.OXYLABS_USER = "testuser";
     process.env.OXYLABS_PASS = "testpass";

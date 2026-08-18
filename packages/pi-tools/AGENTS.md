@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-08-13
+last_verified: 2026-08-17
 applies_to: packages/pi-tools/**
 inherits_from: ../../AGENTS.md
 canonical_for: pi-tools package conventions
@@ -10,15 +10,16 @@ canonical_for: pi-tools package conventions
 
 ## Purpose
 
-Packaged official `/tools` command with a details toggle and `/tools print`.
-Do not also drop `tools.ts` into `~/.pi/agent/extensions/`.
+`/tools` picker plus project `.pi/tools.json` defaults.
 
 ## Rules
 
-- Keep enable/disable persistence aligned with the Pi example.
+- Session toggles must not write `.pi/tools.json`.
+- Only `s` / `/tools save` overwrite project defaults.
+- New tools are appended as `false`.
 - Do not call `getActiveTools` / `setActiveTools` during module load.
-- Print dumps go through `appendEntry("tools-print")`, never `sendMessage`.
-- Job tool lists stay in `presets.json`, not in this package.
+- Print dumps go through `appendEntry("tools-print")`.
+- Job lists stay in `presets.json`.
 
 ## Commands
 

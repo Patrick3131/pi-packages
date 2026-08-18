@@ -12,7 +12,6 @@ function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
     raw: {
       baseUrl: "http://localhost:11235",
       timeout: 60000,
-      enabledByDefault: false,
       minRequestIntervalMs,
       tokenBudget: {
         maxCharsPerPage: 12_000,

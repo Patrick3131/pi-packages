@@ -256,33 +256,13 @@ describe("mergeConfigWithEnv", () => {
       ]);
     });
 
-    it("should use enabledByDefault from JSON config when true", () => {
-      const jsonConfig: Crawl4AIJsonConfig = {
-        enabledByDefault: true,
-      };
-
-      const config = mergeConfigWithEnv(jsonConfig);
-      expect(config.enabledByDefault).toBe(true);
-    });
-
-    it("should use enabledByDefault from JSON config when false", () => {
-      const jsonConfig: Crawl4AIJsonConfig = {
-        enabledByDefault: false,
-      };
-
-      const config = mergeConfigWithEnv(jsonConfig);
-      expect(config.enabledByDefault).toBe(false);
-    });
-
-    it("should preserve enabledByDefault with other config options", () => {
+    it("should keep url and timeout when other options are set", () => {
       const jsonConfig: Crawl4AIJsonConfig = {
         url: "http://test:1234",
         timeoutMs: 30000,
-        enabledByDefault: true,
       };
 
       const config = mergeConfigWithEnv(jsonConfig);
-      expect(config.enabledByDefault).toBe(true);
       expect(config.baseUrl).toBe("http://test:1234");
       expect(config.timeout).toBe(30000);
     });

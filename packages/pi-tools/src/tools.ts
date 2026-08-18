@@ -1,21 +1,26 @@
 /**
  * Official Pi /tools command, packaged so it can be installed like pi-presets.
  *
- * Source: @earendil-works/pi-coding-agent examples/extensions/tools.ts
+ * Project defaults live in <cwd>/.pi/tools.json.
+ * /tools toggles are session-only unless the user presses s or runs /tools save.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
-import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Container, type SettingItem, SettingsList, Text } from "@earendil-works/pi-tui";
 
 import { getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import { formatToolDetails, formatToolSummary, formatToolsDump } from "./format.js";
-import { resolveEnabledTools, sameToolSet } from "./state.js";
-
-interface ToolsState {
-	enabledTools: string[];
-	knownTools?: string[];
-}
+import {
+	enabledProjectToolNames,
+	getProjectToolsPath,
+	loadProjectToolsConfig,
+	reconcileProjectTools,
+	snapshotProjectTools,
+	writeProjectToolsConfig,
+} from "./project-config.js";
+import { sameToolSet } from "./state.js";
+import { enableXaiNetworkTools } from "./xai-bridge.js";
 
 export interface ToolsPrintData {
 	text: string;
@@ -24,63 +29,72 @@ export interface ToolsPrintData {
 }
 
 const PRINT_ENTRY_TYPE = "tools-print";
+const HINT = "  i more details · s save project defaults · Enter/Space to change · Esc to cancel";
 
 export default function toolsExtension(pi: ExtensionAPI) {
 	let enabledTools: Set<string> = new Set();
 	let allTools: ToolInfo[] = [];
-	let lastSnapshot: ToolsState | undefined;
-
-	function persistState() {
-		lastSnapshot = {
-			enabledTools: Array.from(enabledTools),
-			knownTools: allTools.map((tool) => tool.name),
-		};
-		pi.appendEntry<ToolsState>("tools-config", lastSnapshot);
-	}
+	let appliedDefaults = false;
 
 	function applyTools() {
 		pi.setActiveTools(Array.from(enabledTools));
 	}
 
-	function syncEnabledTools() {
+	function refreshCatalog() {
 		allTools = pi.getAllTools();
-		const next = resolveEnabledTools({
-			allToolNames: allTools.map((tool) => tool.name),
-			activeTools: pi.getActiveTools(),
-			savedTools: lastSnapshot?.enabledTools,
-			knownTools: lastSnapshot?.knownTools,
-		});
-		const changed = !sameToolSet(enabledTools, next) || !sameToolSet(pi.getActiveTools(), next);
-		enabledTools = new Set(next);
-		return changed;
 	}
 
-	function restoreFromBranch(ctx: ExtensionContext) {
-		const branchEntries = ctx.sessionManager.getBranch();
-		lastSnapshot = undefined;
+	function projectPath(cwd: string): string {
+		return getProjectToolsPath(cwd, CONFIG_DIR_NAME);
+	}
 
-		for (const entry of branchEntries) {
-			if (entry.type === "custom" && entry.customType === "tools-config") {
-				const data = entry.data as ToolsState | undefined;
-				if (data?.enabledTools) {
-					lastSnapshot = data;
-				}
-			}
+	function reconcileFile(cwd: string) {
+		refreshCatalog();
+		const path = projectPath(cwd);
+		const existing = loadProjectToolsConfig(path);
+		const reconciled = reconcileProjectTools({
+			existing,
+			allToolNames: allTools.map((tool) => tool.name),
+			activeTools: pi.getActiveTools(),
+		});
+		if (reconciled.created || reconciled.added.length > 0) {
+			writeProjectToolsConfig(path, reconciled.tools);
 		}
+		return { path, tools: reconciled.tools, created: reconciled.created, added: reconciled.added };
+	}
 
-		if (syncEnabledTools()) {
-			applyTools();
-			persistState();
-		} else if (lastSnapshot) {
+	async function applyProjectDefaults(ctx: ExtensionContext, tools: Record<string, boolean>) {
+		const next = enabledProjectToolNames(
+			tools,
+			allTools.map((tool) => tool.name),
+		);
+		const changed = !sameToolSet(enabledTools, next) || !sameToolSet(pi.getActiveTools(), next);
+		enabledTools = new Set(next);
+		if (changed) {
 			applyTools();
 		}
+		if (ctx.ui && typeof ctx.ui.notify === "function") {
+			await enableXaiNetworkTools(pi, ctx as ExtensionCommandContext, next);
+		}
+		appliedDefaults = true;
+	}
+
+	function saveProjectDefaults(ctx: ExtensionCommandContext) {
+		refreshCatalog();
+		enabledTools = new Set(pi.getActiveTools());
+		const path = projectPath(ctx.cwd);
+		const existing = loadProjectToolsConfig(path) ?? {};
+		const snapshot = snapshotProjectTools(
+			allTools.map((tool) => tool.name),
+			enabledTools,
+		);
+		writeProjectToolsConfig(path, { ...existing, ...snapshot });
+		ctx.ui.notify(`Saved project tool defaults to ${path}`, "info");
 	}
 
 	function printTools(query: string, ctx: ExtensionCommandContext) {
-		if (syncEnabledTools()) {
-			applyTools();
-			persistState();
-		}
+		refreshCatalog();
+		enabledTools = new Set(pi.getActiveTools());
 		const matched = matchTools(allTools, query);
 		if (matched.length === 0) {
 			ctx.ui.notify(`No tools match "${query}"`, "warning");
@@ -105,10 +119,9 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			return;
 		}
 
-		if (syncEnabledTools()) {
-			applyTools();
-			persistState();
-		}
+		refreshCatalog();
+		enabledTools = new Set(pi.getActiveTools());
+		reconcileFile(ctx.cwd);
 		let detailsMode = false;
 
 		function itemDescription(tool: ToolInfo): string {
@@ -153,7 +166,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 						item.description = itemDescription(tool);
 					}
 					applyTools();
-					persistState();
 				},
 				() => {
 					done(undefined);
@@ -165,9 +177,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			return {
 				render(width: number) {
 					return container.render(width).map((line) =>
-						line.includes("Enter/Space to change")
-							? listTheme.hint("  i more details · Enter/Space to change · Esc to cancel")
-							: line,
+						line.includes("Enter/Space to change") ? listTheme.hint(HINT) : line,
 					);
 				},
 				invalidate() {
@@ -182,6 +192,11 @@ export default function toolsExtension(pi: ExtensionAPI) {
 								item.description = itemDescription(tool);
 							}
 						}
+						tui.requestRender();
+						return;
+					}
+					if (data === "s" || data === "S") {
+						saveProjectDefaults(ctx);
 						tui.requestRender();
 						return;
 					}
@@ -207,7 +222,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("tools", {
-		description: "Enable/disable tools, or print their details",
+		description: "Enable/disable session tools, print details, or save project defaults",
 		getArgumentCompletions: (prefix) => getToolsArgumentCompletions(prefix, pi.getAllTools()),
 		handler: async (args, ctx) => {
 			const command = parseToolsArgs(args);
@@ -215,8 +230,15 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				printTools(command.query, ctx);
 				return;
 			}
+			if (command.action === "save") {
+				saveProjectDefaults(ctx);
+				return;
+			}
 			if (command.action === "unknown") {
-				ctx.ui.notify(`Unknown /tools argument "${command.raw}". Try /tools or /tools print [name]`, "error");
+				ctx.ui.notify(
+					`Unknown /tools argument "${command.raw}". Try /tools, /tools print [name], or /tools save`,
+					"error",
+				);
 				return;
 			}
 			await showPicker(ctx);
@@ -224,10 +246,19 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		restoreFromBranch(ctx);
+		appliedDefaults = false;
+		const existing = loadProjectToolsConfig(projectPath(ctx.cwd));
+		if (!existing) {
+			return;
+		}
+		const { tools } = reconcileFile(ctx.cwd);
+		await applyProjectDefaults(ctx, tools);
 	});
 
-	pi.on("session_tree", async (_event, ctx) => {
-		restoreFromBranch(ctx);
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const { tools, created } = reconcileFile(ctx.cwd);
+		if (!appliedDefaults || created) {
+			await applyProjectDefaults(ctx, tools);
+		}
 	});
 }

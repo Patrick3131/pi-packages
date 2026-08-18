@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "tools": {
+    "web_search": true,
+    "xai_generate_text": true,
+    "xai_x_search": true,
+    "xai_multi_agent": true,
+    "xai_deep_research": true,
+    "xai_code_execution": true,
+    "xai_generate_image": true,
+    "xai_edit_image": true,
+    "xai_image_to_video": false,
+    "xai_analyze_image": true,
+    "xai_critique": true
+  }
+}

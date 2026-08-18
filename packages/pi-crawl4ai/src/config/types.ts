@@ -53,7 +53,6 @@ export interface RetentionSettings {
 export interface Crawl4AIJsonConfig {
   url?: string;
   timeoutMs?: number;
-  enabledByDefault?: boolean;
   minRequestIntervalMs?: number | string;
   /**
    * crawl4ai Docker/API bearer token (CRAWL4AI_API_TOKEN).
@@ -89,7 +88,6 @@ export interface ResolvedRetention {
 export interface ResolvedConfig {
   baseUrl: string;
   timeout: number;
-  enabledByDefault: boolean;
   minRequestIntervalMs?: number;
   /** Resolved crawl4ai API bearer token (never log the value). */
   apiToken?: string;

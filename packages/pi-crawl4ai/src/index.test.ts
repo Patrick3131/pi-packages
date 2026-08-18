@@ -2,35 +2,32 @@
  * Tests for extension entry point activation behavior
  */
 
-import extension from './index';
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-import { resetEnv } from './test-utils';
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-type SessionHandler = (event: unknown, ctx: { sessionManager: { getBranch: () => unknown[] } }) => Promise<void> | void;
+import extension from "./index";
+import { resetEnv } from "./test-utils";
 
-describe('pi-crawl4ai extension activation', () => {
-  const originalArgv = process.argv;
+type CommandHandler = (
+  args: string,
+  ctx: { ui: { notify: (message: string, level?: string) => void } },
+) => Promise<void> | void;
 
+describe("pi-crawl4ai extension activation", () => {
   beforeEach(() => {
     resetEnv();
     jest.restoreAllMocks();
-    process.argv = [...originalArgv];
-  });
-
-  afterEach(() => {
-    process.argv = originalArgv;
   });
 
   function createMockPi(initialActiveTools: string[] = []) {
     const activeTools = [...initialActiveTools];
-    const sessionHandlers: Record<string, SessionHandler> = {};
+    const commands: Record<string, CommandHandler> = {};
 
     const pi = {
       registerTool: jest.fn(),
-      registerCommand: jest.fn(),
-      on: jest.fn((event: string, handler: SessionHandler) => {
-        sessionHandlers[event] = handler;
+      registerCommand: jest.fn((name: string, spec: { handler: CommandHandler }) => {
+        commands[name] = spec.handler;
       }),
+      on: jest.fn(),
       getActiveTools: jest.fn(() => [...activeTools]),
       setActiveTools: jest.fn((names: string[]) => {
         activeTools.splice(0, activeTools.length, ...names);
@@ -38,75 +35,42 @@ describe('pi-crawl4ai extension activation', () => {
       appendEntry: jest.fn(),
     } as unknown as ExtensionAPI;
 
-    const triggerSessionStart = async (branchEntries: unknown[] = []) => {
-      await sessionHandlers.session_start?.({}, {
-        sessionManager: {
-          getBranch: () => branchEntries,
-        },
-      });
-    };
-
     return {
       pi,
       activeTools,
-      triggerSessionStart,
+      runCommand: async (name: string) => {
+        await commands[name]?.("", { ui: { notify: jest.fn() } });
+      },
     };
   }
 
-  it('deactivates auto-registered crawl tools when enabledByDefault is false', async () => {
-    // Simulate pi.registerTool auto-activating newly registered tools.
-    const { pi, activeTools, triggerSessionStart } = createMockPi([
-      'read',
-      'crawl',
-      'crawl_read',
-    ]);
+  it("does not change the active set at startup", () => {
+    const { pi, activeTools } = createMockPi(["read", "crawl", "crawl_read"]);
 
     extension(pi);
-    await triggerSessionStart();
 
-    expect(pi.setActiveTools).toHaveBeenCalledWith(['read']);
-    expect(activeTools).toEqual(['read']);
+    expect(pi.setActiveTools).not.toHaveBeenCalled();
+    expect(pi.on).not.toHaveBeenCalled();
+    expect(activeTools).toEqual(["read", "crawl", "crawl_read"]);
   });
 
-  it('preserves crawl when CLI --tools crawl is set', async () => {
-    process.argv = ['node', 'pi', '--tools', 'read,crawl'];
-    const { pi, activeTools, triggerSessionStart } = createMockPi(['read', 'crawl']);
+  it("enables crawl tools for this session only", async () => {
+    const { pi, activeTools, runCommand } = createMockPi(["read"]);
 
     extension(pi);
-    await triggerSessionStart();
+    await runCommand("crawl-on");
 
-    // Explicit CLI selection must not strip crawl even if default is off
-    expect(activeTools).toEqual(['read', 'crawl']);
+    expect(activeTools).toEqual(["read", "crawl", "crawl_read"]);
+    expect(pi.appendEntry).not.toHaveBeenCalled();
   });
 
-  it('enables crawl tools when persisted branch state enabled them', async () => {
-    const { pi, activeTools, triggerSessionStart } = createMockPi(['read']);
+  it("disables crawl tools for this session only", async () => {
+    const { pi, activeTools, runCommand } = createMockPi(["read", "crawl", "crawl_read"]);
 
     extension(pi);
-    await triggerSessionStart([
-      {
-        type: 'custom',
-        customType: 'crawl-config',
-        data: { enabled: true },
-      },
-    ]);
+    await runCommand("crawl-off");
 
-    expect(activeTools).toEqual(expect.arrayContaining(['read', 'crawl', 'crawl_read']));
-  });
-
-  it('still removes crawl when persisted branch state disabled it', async () => {
-    const { pi, activeTools, triggerSessionStart } = createMockPi(['read', 'crawl', 'crawl_read']);
-
-    extension(pi);
-    await triggerSessionStart([
-      {
-        type: 'custom',
-        customType: 'crawl-config',
-        data: { enabled: false },
-      },
-    ]);
-
-    expect(pi.setActiveTools).toHaveBeenCalledWith(['read']);
-    expect(activeTools).toEqual(['read']);
+    expect(activeTools).toEqual(["read"]);
+    expect(pi.appendEntry).not.toHaveBeenCalled();
   });
 });

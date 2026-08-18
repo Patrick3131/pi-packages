@@ -22,8 +22,14 @@ test("parseToolsArgs accepts print with an optional query", () => {
 	assert.deepEqual(parseToolsArgs("print crawl_read"), { action: "print", query: "crawl_read" });
 });
 
+test("parseToolsArgs accepts save", () => {
+	assert.deepEqual(parseToolsArgs("save"), { action: "save" });
+	assert.deepEqual(parseToolsArgs("SAVE"), { action: "save" });
+});
+
 test("parseToolsArgs rejects unknown verbs", () => {
 	assert.deepEqual(parseToolsArgs("dump"), { action: "unknown", raw: "dump" });
+	assert.deepEqual(parseToolsArgs("save extra"), { action: "unknown", raw: "save extra" });
 });
 
 test("matchTools prefers exact names, then prefixes, then loose matches", () => {
@@ -55,6 +61,10 @@ test("completions offer print, then matching tool names", () => {
 	assert.deepEqual(
 		printOnly?.map((item) => item.value),
 		["print"],
+	);
+	assert.deepEqual(
+		getToolsArgumentCompletions("s", tools)?.map((item) => item.value),
+		["save"],
 	);
 
 	const afterPrint = getToolsArgumentCompletions("print ", tools);

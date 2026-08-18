@@ -1,24 +1,42 @@
 # pi-tools
 
-Pi package that registers the official `/tools` command.
+Pi package that registers `/tools` and project tool defaults.
 
-This is the Pi example extension (`examples/extensions/tools.ts`), packaged so
-it can be installed the same way as `pi-presets` instead of copying a loose
-file into `~/.pi/agent/extensions/`.
+## Project defaults
 
-## What it does
+`<cwd>/.pi/tools.json` is the restart default for this repo. Example:
 
-- `/tools` lists every registered tool in this session
-- the selected row shows a one-line description; press `i` for source, parameters, and guidelines
-- enable/disable updates `pi.setActiveTools`
-- the selection is stored on the current session branch as `tools-config`
-- tools that appear after that snapshot (for example Grok adapter tools) stay enabled if they are already active
-- `/tools print` dumps every tool into the session transcript
-- `/tools print crawl` dumps matching tools (prefix or loose name match)
-- print output uses `appendEntry` (`tools-print`), so it is **not** sent to the model
-- `/tools print` arguments autocomplete: `print`, then tool names
+```json
+{
+  "read": true,
+  "bash": true,
+  "web_search_searxng": false,
+  "xai_generate_image": true,
+  "xai_image_to_video": false
+}
+```
 
-It does not add tools. Packages such as `pi-searxng` still have to be installed.
+- Names are the `/tools` registry names (`xai_grok_read_file`, not `read_file`).
+- Values must be `true` or `false`.
+- A missing file is created on first `/tools` open, `/tools save`, or the first agent turn. Live-active tools seed as `true`; everything else is `false`.
+- Tools that appear later are appended as `false`. Existing keys are never rewritten automatically.
+
+## Session vs defaults
+
+| Action | Effect |
+| --- | --- |
+| Enter/Space in `/tools` | This session only |
+| `s` in `/tools` | Write current session set to `.pi/tools.json` |
+| `/tools save` | Same as `s` |
+| New session / `/preset` → `(none)` | Reload `.pi/tools.json` |
+
+Other sessions are unchanged until you save.
+
+## Commands
+
+- `/tools` — picker. `i` expands details. `s` saves project defaults.
+- `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
+- `/tools save` — write `.pi/tools.json`
 
 ## Install
 
@@ -26,10 +44,4 @@ It does not add tools. Packages such as `pi-searxng` still have to be installed.
 pi install /absolute/path/to/pi-packages/packages/pi-tools
 ```
 
-Do **not** also keep `~/.pi/agent/extensions/tools.ts`. Two copies will both
-try to register `/tools`.
-
-## Restore
-
-`configs/global/restore.sh` installs this package. It no longer copies a
-standalone `tools.ts`.
+Do **not** also keep `~/.pi/agent/extensions/tools.ts`.

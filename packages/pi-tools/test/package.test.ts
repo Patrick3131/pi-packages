@@ -19,6 +19,8 @@ test("the extension registers /tools without calling Pi APIs at import time", as
 	assert.match(source, /getArgumentCompletions/);
 	assert.match(source, /registerEntryRenderer/);
 	assert.match(source, /tools-print/);
+	assert.match(source, /tools\.json/);
+	assert.match(source, /saveProjectDefaults/);
 	assert.match(source, /export default function toolsExtension/);
 	assert.match(source, /pi\.on\("session_start"/);
 	const { default: register } = await import("../src/index.js");

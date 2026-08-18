@@ -9,6 +9,7 @@ PACKAGES_ROOT="$(cd "$ROOT/../.." && pwd)"
 PRESETS_PACKAGE="$PACKAGES_ROOT/packages/pi-presets"
 TOOLS_PACKAGE="$PACKAGES_ROOT/packages/pi-tools"
 SEARXNG_PACKAGE="$PACKAGES_ROOT/packages/pi-searxng"
+XAI_DEFAULTS_PACKAGE="$PACKAGES_ROOT/packages/pi-xai-defaults"
 FORCE=0
 
 if [[ "${1:-}" == "--force" ]]; then
@@ -59,6 +60,7 @@ mkdir -p "$AGENT_DIR/extensions"
 
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
+copy_file "$ROOT/xai-defaults.json" "$AGENT_DIR/xai-defaults.json"
 
 if [[ -f "$AGENT_DIR/extensions/tools.ts" ]]; then
 	backup_if_exists "$AGENT_DIR/extensions/tools.ts"
@@ -110,6 +112,7 @@ pi install npm:@narumitw/pi-goal
 pi install "$PRESETS_PACKAGE"
 pi install "$TOOLS_PACKAGE"
 pi install "$SEARXNG_PACKAGE"
+pi install "$XAI_DEFAULTS_PACKAGE"
 
 echo
 echo "Restore finished."

@@ -83,7 +83,6 @@ Create a config file in one of these locations (searched in order):
 {
   "url": "http://localhost:11235",
   "timeoutMs": 60000,
-  "enabledByDefault": false,
   "minRequestIntervalMs": 5000,
   "outputDir": "./output-crawl4ai",
   "apiToken": "${CRAWL4AI_API_TOKEN}",
@@ -143,14 +142,9 @@ Manual commands:
 
 #### Enable Crawl Tool at Startup
 
-By default, the crawl tool is disabled to avoid polluting the system prompt. Set `enabledByDefault: true` to enable it automatically at startup:
-
-```json
-{
-  "url": "http://localhost:11235",
-  "enabledByDefault": true
-}
-```
+Startup on/off is owned by `.pi/tools.json` (`/tools`). This package does not
+have `enabledByDefault`. Set `"crawl"` / `"crawl_read"` there, or use
+`/crawl-on` / `/crawl-off` for the current session only.
 
 #### Auth Profiles (Named Cookies / Headers)
 

@@ -17,13 +17,35 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { CONFIG_DIR_NAME, DynamicBorder, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Container, Key, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { getPresetConfigPaths, loadPresetsFromPaths } from "./config.js";
+import { resolvePresetToolNames } from "./resolve-tools.js";
 import type { Preset, PresetsConfig } from "./types.js";
 
 interface OriginalState {
 	model: Model<Api> | undefined;
 	thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 	tools: string[];
+}
+
+function loadEnabledProjectTools(cwd: string): string[] | undefined {
+	try {
+		const path = join(cwd, CONFIG_DIR_NAME, "tools.json");
+		if (!existsSync(path)) {
+			return undefined;
+		}
+		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+		if (typeof parsed !== "object" || parsed === null) {
+			return undefined;
+		}
+		return Object.entries(parsed)
+			.filter(([, enabled]) => enabled === true)
+			.map(([name]) => name);
+	} catch {
+		return undefined;
+	}
 }
 
 export default function presetExtension(pi: ExtensionAPI) {
@@ -63,16 +85,17 @@ export default function presetExtension(pi: ExtensionAPI) {
 		}
 
 		if (preset.tools && preset.tools.length > 0) {
-			const allToolNames = pi.getAllTools().map((tool) => tool.name);
-			const validTools = preset.tools.filter((tool) => allToolNames.includes(tool));
-			const invalidTools = preset.tools.filter((tool) => !allToolNames.includes(tool));
+			const { valid, unknown } = resolvePresetToolNames({
+				requested: preset.tools,
+				allToolNames: pi.getAllTools().map((tool) => tool.name),
+			});
 
-			if (invalidTools.length > 0) {
-				ctx.ui.notify(`Preset "${name}": Unknown tools: ${invalidTools.join(", ")}`, "warning");
+			if (unknown.length > 0) {
+				ctx.ui.notify(`Preset "${name}": Unknown tools: ${unknown.join(", ")}`, "warning");
 			}
 
-			if (validTools.length > 0) {
-				pi.setActiveTools(validTools);
+			if (valid.length > 0) {
+				pi.setActiveTools(valid);
 			}
 		}
 
@@ -100,6 +123,11 @@ export default function presetExtension(pi: ExtensionAPI) {
 		if (originalState) {
 			if (originalState.model) await pi.setModel(originalState.model);
 			pi.setThinkingLevel(originalState.thinkingLevel);
+		}
+		const projectTools = loadEnabledProjectTools(ctx.cwd);
+		if (projectTools) {
+			pi.setActiveTools(projectTools);
+		} else if (originalState) {
 			pi.setActiveTools(originalState.tools);
 		} else {
 			pi.setActiveTools(["read", "bash", "edit", "write"]);

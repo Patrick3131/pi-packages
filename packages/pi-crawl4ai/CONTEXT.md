@@ -76,8 +76,9 @@ JSON config (.pi/crawl4ai.json or ~/.pi/agent/extensions/crawl4ai.json)
   → defaults
 ```
 
-Relevant keys: `url`, `apiToken`, `timeoutMs`, `enabledByDefault`,
-`minRequestIntervalMs`, `authProfiles`, `tokenBudget`, `retention`, `outputDir`.
+Relevant keys: `url`, `apiToken`, `timeoutMs`, `minRequestIntervalMs`,
+`authProfiles`, `tokenBudget`, `retention`, `outputDir`. Startup on/off for
+`crawl` / `crawl_read` lives in `.pi/tools.json`.
 
 ## Extension Points
 

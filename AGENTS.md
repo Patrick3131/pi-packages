@@ -19,6 +19,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions published as 
 - `packages/pi-presets` - Global `/preset` engine; job lists stay in JSON files
 - `packages/pi-tools` - Official `/tools` command, installed as a package
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
+- `packages/pi-xai-defaults` - Default-on billed xAI extras for Grok models
 - `configs/global` - Sanitized machine restore snapshot (not a published package)
 - Future extensions added to `packages/`
 

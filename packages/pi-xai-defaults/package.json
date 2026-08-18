@@ -1,0 +1,49 @@
+{
+	"name": "pi-xai-defaults",
+	"version": "0.1.0",
+	"description": "Re-enable pi-xai-oauth network extras by default on Grok/xAI models",
+	"type": "module",
+	"scripts": {
+		"build": "node -e \"process.exit(0)\"",
+		"typecheck": "tsc --noEmit",
+		"lint": "node -e \"process.exit(0)\"",
+		"test": "node --import tsx --test --test-force-exit test/**/*.test.ts",
+		"clean": "rm -rf coverage"
+	},
+	"keywords": [
+		"pi",
+		"pi-package",
+		"pi-extension",
+		"xai",
+		"grok"
+	],
+	"author": "Patrick Fischer <patrick-fischer@live.de>",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Patrick3131/pi-packages",
+		"directory": "packages/pi-xai-defaults"
+	},
+	"bugs": {
+		"url": "https://github.com/Patrick3131/pi-packages/issues"
+	},
+	"homepage": "https://github.com/Patrick3131/pi-packages#readme",
+	"files": [
+		"src",
+		"README.md",
+		"xai-defaults.example.json"
+	],
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.5.2",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.2"
+	}
+}

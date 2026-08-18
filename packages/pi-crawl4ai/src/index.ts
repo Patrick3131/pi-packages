@@ -7,10 +7,8 @@
  * Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
  * This client never sends proxy credentials in the request body.
  *
- * The crawl tool is disabled by default to avoid polluting the system prompt.
- * Use `/crawl-on` to enable it and `/crawl-off` to disable it.
- * Set `enabledByDefault: true` in config to enable at startup.
- * Explicit tool selection (for example `--tools crawl`) is also honored.
+ * Startup on/off is owned by `.pi/tools.json` (`/tools`). This package only
+ * registers the tools. Use `/crawl-on` / `/crawl-off` for the current session.
  *
  * Configuration (environment variables):
  * - CRAWL4AI_BASE_URL: crawl4ai Docker API URL (default: http://localhost:11235)
@@ -26,7 +24,6 @@
  * {
  *   "url": "http://localhost:11235",
  *   "timeoutMs": 60000,
- *   "enabledByDefault": false,
  *   "apiToken": "${CRAWL4AI_API_TOKEN}"
  * }
  * ```
@@ -50,169 +47,59 @@ export { registerCrawlReadTool, executeCrawlRead } from "./features/crawl/crawlR
 export * from "./features/crawl/types";
 export * from "./features/crawl/outline";
 
-// State persisted to session
-interface CrawlState {
-  enabled: boolean;
-}
-
 /**
  * Extension entry point.
  */
 export default function (pi: ExtensionAPI) {
-  // Load configuration from JSON file and/or environment
   const config = loadConfig({
     log: (level, message) => {
       console.log(`[pi-crawl4ai:${level}] ${message}`);
     },
   });
 
-  // Log startup info
   console.log(`[pi-crawl4ai] Initialized with baseUrl: ${config.baseUrl}`);
   console.log(`[pi-crawl4ai] Egress is server-managed (client does not send proxy config)`);
 
-  // Register tools (exist but may not be active until /crawl-on)
   registerCrawlTool(pi, config);
   registerCrawlReadTool(pi, config);
 
   const CRAWL_TOOL_NAMES = ["crawl", "crawl_read"] as const;
 
-  // Track enabled state (starts based on config setting)
-  let crawlEnabled = config.raw.enabledByDefault;
-
-  // Persist current state
-  function persistState() {
-    pi.appendEntry<CrawlState>("crawl-config", {
-      enabled: crawlEnabled,
-    });
-  }
-
-  // Apply current tool selection.
-  // When `preserveExplicitSelection` is true, an already-active `crawl` tool
-  // (for example from `--tools crawl`) is left enabled even if lazy activation
-  // is otherwise off and no branch state has been persisted yet.
-  function applyCrawlState(options?: { preserveExplicitSelection?: boolean }) {
+  function setCrawlToolsActive(enabled: boolean) {
     const activeNames = pi.getActiveTools();
-    const anyCrawlActive = CRAWL_TOOL_NAMES.some((name) => activeNames.includes(name));
-
-    if (crawlEnabled) {
+    if (enabled) {
       const missing = CRAWL_TOOL_NAMES.filter((name) => !activeNames.includes(name));
       if (missing.length > 0) {
         pi.setActiveTools([...activeNames, ...missing]);
       }
       return;
     }
-
-    if (!crawlEnabled && anyCrawlActive) {
-      if (options?.preserveExplicitSelection) {
-        return;
-      }
-
-      pi.setActiveTools(activeNames.filter((n) => !CRAWL_TOOL_NAMES.includes(n as (typeof CRAWL_TOOL_NAMES)[number])));
+    const next = activeNames.filter(
+      (name) => !CRAWL_TOOL_NAMES.includes(name as (typeof CRAWL_TOOL_NAMES)[number]),
+    );
+    if (next.length !== activeNames.length) {
+      pi.setActiveTools(next);
     }
   }
 
-  /**
-   * True only when the user/CLI explicitly asked for crawl tools via --tools.
-   * Do NOT treat "already in getActiveTools()" as explicit: pi.registerTool()
-   * can auto-activate newly registered tools, which would defeat enabledByDefault:false.
-   */
-  function wasToolExplicitlyRequested(): boolean {
-    for (let index = 0; index < process.argv.length; index += 1) {
-      const arg = process.argv[index];
-      if (arg === "--tools") {
-        const value = process.argv[index + 1] ?? "";
-        const requested = value.split(",").map((entry) => entry.trim());
-        if (CRAWL_TOOL_NAMES.some((name) => requested.includes(name))) {
-          return true;
-        }
-      }
-
-      if (arg.startsWith("--tools=")) {
-        const value = arg.slice("--tools=".length);
-        const requested = value.split(",").map((entry) => entry.trim());
-        if (CRAWL_TOOL_NAMES.some((name) => requested.includes(name))) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  // Restore state from session branch (if persisted), then apply current state.
-  // On first load, no state is persisted so defaults are used.
-  function restoreFromBranch(ctx: { sessionManager: { getBranch: () => unknown[] } }) {
-    const branchEntries = ctx.sessionManager.getBranch() as Array<{
-      type: string;
-      customType?: string;
-      data?: { enabled?: boolean };
-    }>;
-    let hasPersistedState = false;
-
-    for (const entry of branchEntries) {
-      if (entry.type === "custom" && entry.customType === "crawl-config") {
-        if (entry.data?.enabled !== undefined) {
-          crawlEnabled = entry.data.enabled;
-          hasPersistedState = true;
-        }
-      }
-    }
-
-    const explicitToolSelectionRequested = !hasPersistedState && wasToolExplicitlyRequested();
-
-    // Explicit CLI selection (e.g. --tools crawl) is honored even when lazy
-    // activation is otherwise off and no branch state has been persisted yet.
-    applyCrawlState({ preserveExplicitSelection: explicitToolSelectionRequested });
-
-    // Log current state
-    if (crawlEnabled || explicitToolSelectionRequested) {
-      console.log(`[pi-crawl4ai] Crawl tool enabled.`);
-    } else {
-      console.log(`[pi-crawl4ai] Crawl tool disabled. Use /crawl-on to enable.`);
-    }
-  }
-
-  // Restore and apply state on session_start. This fires after extensions load
-  // (runtime is ready), so getActiveTools/setActiveTools work properly.
-  pi.on("session_start", async (_event, ctx) => {
-    restoreFromBranch(ctx);
-  });
-
-  // Restore state when navigating session tree
-  pi.on("session_tree", async (_event, ctx) => {
-    restoreFromBranch(ctx);
-  });
-
-  // Restore state after forking
-  pi.on("session_fork", async (_event, ctx) => {
-    restoreFromBranch(ctx);
-  });
-
-  // Command to enable crawl
   pi.registerCommand("crawl-on", {
-    description: "Enable the crawl tool (adds to system prompt)",
+    description: "Enable the crawl tools for this session (does not write .pi/tools.json)",
     handler: async (_args, ctx) => {
-      crawlEnabled = true;
-      applyCrawlState();
-      persistState();
-      ctx.ui.notify("Crawl tool enabled", "info");
+      setCrawlToolsActive(true);
+      ctx.ui.notify("Crawl tools enabled for this session", "info");
     },
   });
 
-  // Command to disable crawl
   pi.registerCommand("crawl-off", {
-    description: "Disable the crawl tool (removes from system prompt)",
+    description: "Disable the crawl tools for this session (does not write .pi/tools.json)",
     handler: async (_args, ctx) => {
-      crawlEnabled = false;
-      applyCrawlState();
-      persistState();
-      ctx.ui.notify("Crawl tool disabled", "info");
+      setCrawlToolsActive(false);
+      ctx.ui.notify("Crawl tools disabled for this session", "info");
     },
   });
 
   const outputRoot = () => getDefaultOutputDir(config.raw.outputDir);
 
-  // List saved crawl sessions
   pi.registerCommand("crawl-sessions", {
     description: "List saved crawl sessions under the output directory",
     handler: async (_args, ctx) => {
@@ -231,7 +118,6 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // Manual retention cleanup
   pi.registerCommand("crawl-cleanup", {
     description:
       "Prune old crawl sessions (usage: /crawl-cleanup [dry-run]). Uses retention maxSessions/maxAgeDays/maxTotalMb.",

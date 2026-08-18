@@ -29,6 +29,12 @@ export function resolveEnabledTools(options: {
 			enabled.add(name);
 		}
 	}
+	// Live-active tools stay enabled. Grok adapters are registered as
+	// xai_grok_* and auto-enabled by pi-xai-oauth; a tools-config snapshot
+	// must not strip them just because it was written before that sync.
+	for (const name of active) {
+		enabled.add(name);
+	}
 	return unique([...enabled]);
 }
 

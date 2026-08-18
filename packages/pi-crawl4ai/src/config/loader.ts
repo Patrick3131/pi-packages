@@ -130,7 +130,6 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
       ? resolveEnvVars(jsonConfig.url)
       : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
     timeout: jsonConfig?.timeoutMs || parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10),
-    enabledByDefault: jsonConfig?.enabledByDefault ?? false,
     minRequestIntervalMs:
       jsonConfig?.minRequestIntervalMs !== undefined
         ? resolveNumber(jsonConfig.minRequestIntervalMs)

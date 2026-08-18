@@ -11,6 +11,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | unpublished |
 | [pi-tools](./packages/pi-tools) | Official `/tools` command | unpublished |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | unpublished |
+| [pi-xai-defaults](./packages/pi-xai-defaults) | Default-on xAI extras for Grok models | unpublished |
 
 ## Installation
 

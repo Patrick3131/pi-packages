@@ -36,15 +36,27 @@ test("a legacy snapshot keeps tools it never knew about enabled", () => {
 	);
 });
 
-test("a snapshot with knownTools preserves an explicit disable", () => {
+test("a snapshot keeps an explicit disable only when the tool is not live", () => {
 	assert.deepEqual(
 		resolveEnabledTools({
 			allToolNames: all,
-			activeTools: ["read", "bash", "read_file"],
+			activeTools: ["read", "bash"],
 			savedTools: ["read", "bash"],
 			knownTools: all,
 		}),
 		["read", "bash"],
+	);
+});
+
+test("a live-active Grok adapter stays enabled even if the snapshot omitted it", () => {
+	assert.deepEqual(
+		resolveEnabledTools({
+			allToolNames: all,
+			activeTools: ["read", "bash", "read_file", "search_replace"],
+			savedTools: ["read", "bash"],
+			knownTools: all,
+		}),
+		["read", "bash", "read_file", "search_replace"],
 	);
 });
 

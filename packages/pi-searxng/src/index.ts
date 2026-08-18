@@ -1,4 +1,8 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
@@ -20,9 +24,26 @@ function getHostName(url: string): string {
 	}
 }
 
-function disableUnlessRequested(pi: ExtensionAPI): void {
+function projectToolsWantSearxng(cwd: string | undefined): boolean {
+	if (!cwd) {
+		return false;
+	}
+	try {
+		const path = join(cwd, CONFIG_DIR_NAME, "tools.json");
+		if (!existsSync(path)) {
+			return false;
+		}
+		const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+		return typeof parsed === "object" && parsed !== null && (parsed as Record<string, unknown>)[TOOL_NAME] === true;
+	} catch {
+		return false;
+	}
+}
+
+function disableUnlessRequested(pi: ExtensionAPI, ctx?: Pick<ExtensionContext, "cwd">): void {
 	if (isSearxngEnabledByEnv()) return;
 	if (typeof pi.getFlag("preset") === "string" && pi.getFlag("preset")) return;
+	if (projectToolsWantSearxng(ctx?.cwd)) return;
 	const active = pi.getActiveTools();
 	if (!active.includes(TOOL_NAME)) return;
 	pi.setActiveTools(active.filter((name) => name !== TOOL_NAME));
@@ -110,8 +131,8 @@ export default function piSearxngExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.on("session_start", async () => {
-		disableUnlessRequested(pi);
+	pi.on("session_start", async (_event, ctx) => {
+		disableUnlessRequested(pi, ctx);
 	});
 }
 
