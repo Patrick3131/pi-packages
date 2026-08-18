@@ -5,7 +5,8 @@
   "packages": [
     "npm:pi-subagents",
     "npm:pi-xai-oauth",
-    "npm:@narumitw/pi-goal"
+    "npm:@narumitw/pi-goal",
+    "git:github.com/Patrick3131/pi-packages"
   ],
   "extensions": [],
   "theme": "dark",

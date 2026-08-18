@@ -14,6 +14,19 @@
     "test:coverage": "jest --coverage",
     "clean": "npm run clean --workspaces && rm -rf node_modules coverage"
   },
+  "pi": {
+    "extensions": [
+      "packages/pi-crawl4ai/src/index.ts",
+      "packages/pi-presets/src/preset.ts",
+      "packages/pi-searxng/src/index.ts",
+      "packages/pi-tools/src/tools.ts",
+      "packages/pi-work/src/index.ts",
+      "packages/pi-xai-defaults/src/index.ts"
+    ],
+    "skills": [
+      "packages/pi-work/skills"
+    ]
+  },
   "devDependencies": {
     "jest": "^29.7.0"
   },

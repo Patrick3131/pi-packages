@@ -5,11 +5,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
-PACKAGES_ROOT="$(cd "$ROOT/../.." && pwd)"
-PRESETS_PACKAGE="$PACKAGES_ROOT/packages/pi-presets"
-TOOLS_PACKAGE="$PACKAGES_ROOT/packages/pi-tools"
-SEARXNG_PACKAGE="$PACKAGES_ROOT/packages/pi-searxng"
-XAI_DEFAULTS_PACKAGE="$PACKAGES_ROOT/packages/pi-xai-defaults"
 FORCE=0
 
 if [[ "${1:-}" == "--force" ]]; then
@@ -90,9 +85,28 @@ wanted = [
     "npm:pi-subagents",
     "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
+    "git:github.com/Patrick3131/pi-packages",
 ]
+
+# Older restores installed Melon packages from machine-specific local paths.
+# The repository is now one Pi-managed git package, so `pi update
+# --extensions` updates every Melon extension atomically.
+legacy_package_names = {
+    "pi-presets",
+    "pi-searxng",
+    "pi-tools",
+    "pi-work",
+    "pi-xai-defaults",
+}
+
+def is_legacy_local_package(entry):
+    source = source_of(entry).replace("\\", "/").rstrip("/")
+    return any(source.endswith(f"/pi-packages/packages/{name}") for name in legacy_package_names)
+
+filtered_packages = [entry for entry in packages if not is_legacy_local_package(entry)]
+changed = filtered_packages != packages
+packages = filtered_packages
 existing = {source_of(entry) for entry in packages}
-changed = False
 for item in wanted:
     if item not in existing:
         packages.append(item)
@@ -105,14 +119,11 @@ else:
     print(f"Package list already contains npm restore targets in {settings_path}")
 PY
 
-echo "Installing npm packages (safe if already present)..."
+echo "Installing Pi packages (safe if already present)..."
 pi install npm:pi-subagents
 pi install npm:pi-xai-oauth
 pi install npm:@narumitw/pi-goal
-pi install "$PRESETS_PACKAGE"
-pi install "$TOOLS_PACKAGE"
-pi install "$SEARXNG_PACKAGE"
-pi install "$XAI_DEFAULTS_PACKAGE"
+pi install git:github.com/Patrick3131/pi-packages
 
 echo
 echo "Restore finished."

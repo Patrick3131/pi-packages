@@ -15,6 +15,26 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as 
 
 ## Installation
 
+### Install the complete Melon package repository
+
+Pi can manage this monorepo as one unpinned Git package. This installs every
+Melon extension and the `pi-work` skills declared by the root manifest:
+
+```bash
+pi install git:github.com/Patrick3131/pi-packages
+```
+
+Update it together with third-party Pi packages, then hot-reload the active
+session:
+
+```bash
+pi update --extensions
+# In Pi: /reload
+```
+
+This is the deployment and normal workstation setup. Local paths are reserved
+for development of an extension before it is pushed.
+
 ### From npm (recommended)
 
 ```bash
