@@ -36,6 +36,8 @@ Other sessions are unchanged until you save.
 
 - `/tools` — picker. `i` expands details. `s` saves project defaults.
 - `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
+- Bare `/tools` opens the interactive picker in the TUI and automatically
+  prints the catalog in non-TUI clients such as Pi Web.
 - `/tools save` — write `.pi/tools.json`
 
 ## Install

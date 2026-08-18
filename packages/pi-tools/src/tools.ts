@@ -115,7 +115,10 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 	async function showPicker(ctx: ExtensionCommandContext) {
 		if (ctx.mode !== "tui") {
-			ctx.ui.notify("/tools requires TUI mode (use /tools print)", "error");
+			// Pi Web and other RPC clients cannot render Pi's terminal picker. Keep
+			// the bare command useful there by falling back to the same transcript
+			// dump as `/tools print` instead of surfacing an error notification.
+			printTools("", ctx);
 			return;
 		}
 
