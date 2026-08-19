@@ -17,7 +17,8 @@ Every Git workspace also exposes the normal Git-operation controls and a
 single-slot preview card. `Start / Switch
 Preview` delegates to `melon-preview start .`, which replaces any active
 preview with the selected primary checkout or task worktree. The card opens
-the active app through `https://preview.melonlabs.ai/__preview/open`, displays
-runner logs in a terminal, or stops the active preview. Preview lifecycle,
+`https://preview.melonlabs.ai`, which redirects to the active app's
+manifest-configured path, displays runner logs in a terminal, or stops the
+active preview. Preview lifecycle,
 validation, staging configuration, and credentials remain server-side in
 `melon-remote`; the browser plugin receives no secrets.
