@@ -12,7 +12,7 @@ const plugin = {
           {
             id: "workspace.open-workflow",
             title: "Open Melon Workspace Workflow",
-            description: "Create, sync, push, review, merge, or open an agent in a task worktree.",
+            description: "Create, sync, commit, push, review, merge, or open an agent in a task worktree.",
             group: "Workspace",
             enabled: ({ state }) => state.selectedWorkspace !== undefined,
             run: ({ selectWorkspaceTool }) => {
@@ -75,6 +75,13 @@ export function validTaskName(value) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(value);
 }
 
+export function validCommitMessage(value) {
+  return typeof value === "string"
+    && value.trim().length > 0
+    && value.length <= 200
+    && !/[\r\n]/u.test(value);
+}
+
 export function validBranchName(value) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/u.test(value)
     && !value.includes("..")
@@ -123,6 +130,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     const branch = workspaceBranch(context.workspace);
     const owner = branchOwner(branch);
     const taskActions = owner === undefined ? "" : this.renderTaskActions(branch);
+    const releaseActions = branch === "staging" ? this.renderReleaseActions() : "";
     this.root.innerHTML = `
       ${styles()}
       <section class="toolbar">
@@ -141,18 +149,26 @@ class MelonWorkspacesPanel extends HTMLElementBase {
           </div>
         </article>
         ${taskActions}
+        ${releaseActions}
         <p class="hint">Pi Web discovers created worktrees automatically. Use <strong>Start Pi in Current Workspace</strong> from the action palette for a new Pi chat. Native workspace deletion remains in the workspace menu.</p>
       </section>
     `;
 
     this.root.querySelector("[data-open-terminal]")?.addEventListener("click", () => context.terminal.open());
     this.root.querySelector("[data-create]")?.addEventListener("click", () => void this.createWorkspace(context));
+    this.root.querySelector("[data-commit]")?.addEventListener("click", () => void this.commitChanges(context, branch));
     this.root.querySelector("[data-sync]")?.addEventListener("click", () => void this.runAndWait(context, "Update from staging", "melon-worktree sync staging"));
     this.root.querySelector("[data-push]")?.addEventListener("click", () => void this.runAndWait(context, "Push task branch", "melon-worktree push"));
     this.root.querySelector("[data-pr]")?.addEventListener("click", () => void this.runAndWait(context, "Create or open pull request", "melon-worktree pr staging"));
     this.root.querySelector("[data-merge]")?.addEventListener("click", () => {
       if (window.confirm(`Squash-merge ${branch} into staging through its GitHub pull request?`)) {
         void this.runAndWait(context, "Merge pull request into staging", "melon-worktree merge staging", true);
+      }
+    });
+    this.root.querySelector("[data-promote]")?.addEventListener("click", () => void this.runAndWait(context, "Create or open production PR", "melon-worktree promote staging production"));
+    this.root.querySelector("[data-promote-merge]")?.addEventListener("click", () => {
+      if (window.confirm("Merge the staging promotion pull request into production? This may trigger the production deployment.")) {
+        void this.runAndWait(context, "Merge staging into production", "melon-worktree promote-merge staging production", true);
       }
     });
     this.root.querySelector("[data-codex]")?.addEventListener("click", () => void this.openCodex(context));
@@ -166,6 +182,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         <div class="actions">
           ${owner === "codex" ? `<button data-codex ${this.busy ? "disabled" : ""}>Open Codex</button>` : ""}
           <button data-sync ${this.busy ? "disabled" : ""}>Update from staging</button>
+          <button data-commit ${this.busy ? "disabled" : ""}>Commit changes</button>
           <button data-push ${this.busy ? "disabled" : ""}>Push</button>
           <button data-pr ${this.busy ? "disabled" : ""}>Create / Open PR</button>
           <button class="danger" data-merge ${this.busy ? "disabled" : ""}>Merge into staging</button>
@@ -174,9 +191,33 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     `;
   }
 
+  renderReleaseActions() {
+    return `
+      <article class="card">
+        <div class="card-heading"><strong>Release staging</strong><span>Promote the current staging branch to production through a reviewed GitHub pull request.</span></div>
+        <div class="actions">
+          <button data-promote ${this.busy ? "disabled" : ""}>Create / Open Production PR</button>
+          <button class="danger" data-promote-merge ${this.busy ? "disabled" : ""}>Merge into production</button>
+        </div>
+      </article>
+    `;
+  }
+
   renderStatus() {
     if (this.status === undefined) return "";
     return `<div class="status ${escapeAttr(this.status.kind)}">${escapeHtml(this.status.message)}</div>`;
+  }
+
+  async commitChanges(context, branch) {
+    if (this.busy) return;
+    const message = window.prompt("Commit all current changes in this workspace. Enter a commit message:", `Update ${branch ?? "workspace"}`);
+    if (message === null) return;
+    if (!validCommitMessage(message)) {
+      this.status = { kind: "error", message: "Enter a non-empty one-line commit message (maximum 200 characters)." };
+      this.render();
+      return;
+    }
+    await this.runAndWait(context, "Commit changes", `melon-worktree commit ${shellQuote(message.trim())}`);
   }
 
   async createWorkspace(context) {
