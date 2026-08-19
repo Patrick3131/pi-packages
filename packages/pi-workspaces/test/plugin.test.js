@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import plugin, { branchOwner, isGitWorkspace, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
+import plugin, { branchOwner, isGitWorkspace, previewSource, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
 
 test("root package exposes the browser plugin from a narrow browser root", () => {
   const rootPackage = new URL("../../../package.json", import.meta.url);
@@ -41,4 +41,21 @@ test("validates and quotes form values", () => {
   assert.equal(validCommitMessage("   "), false);
   assert.equal(validCommitMessage("two\nlines"), false);
   assert.equal(shellQuote("it's"), "'it'\\''s'");
+});
+
+test("normalizes the active preview source for display", () => {
+  assert.deepEqual(previewSource({
+    status: "running",
+    workspace: "/workspace/melon-labs",
+    branch: "feature/agency-evaluation",
+    apps: ["backend", "portal"],
+    url: "https://preview.melonlabs.ai/app",
+  }), {
+    status: "running",
+    workspace: "/workspace/melon-labs",
+    branch: "feature/agency-evaluation",
+    apps: ["backend", "portal"],
+    url: "https://preview.melonlabs.ai/app",
+  });
+  assert.equal(previewSource({ status: "stopped" }), undefined);
 });

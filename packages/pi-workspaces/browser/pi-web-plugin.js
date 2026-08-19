@@ -71,6 +71,17 @@ export function isGitWorkspace(workspace) {
   return workspace?.provider?.metadata?.isGitRepo === true;
 }
 
+export function previewSource(state) {
+  if (state?.status === "stopped") return undefined;
+  return {
+    status: typeof state?.status === "string" ? state.status : "unknown",
+    workspace: typeof state?.workspace === "string" ? state.workspace : "Unknown workspace",
+    branch: typeof state?.branch === "string" ? state.branch : "Unknown branch",
+    apps: Array.isArray(state?.apps) ? state.apps.filter((app) => typeof app === "string") : [],
+    url: typeof state?.url === "string" ? state.url : "https://preview.melonlabs.ai",
+  };
+}
+
 export function validTaskName(value) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(value);
 }
@@ -102,6 +113,9 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   contextValue;
   busy = false;
   status;
+  previewState;
+  previewStatusError;
+  previewLoading = false;
   root;
 
   constructor() {
@@ -118,6 +132,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
 
   connectedCallback() {
     this.render();
+    void this.refreshPreviewState();
   }
 
   render() {
@@ -193,22 +208,27 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     });
     this.root.querySelector("[data-codex]")?.addEventListener("click", () => void this.openCodex(context));
     this.root.querySelector("[data-preview-start]")?.addEventListener("click", () => {
-      void this.runAndWait(context, "Start workspace preview", "melon-preview start .");
+      void this.runAndWait(context, "Start workspace preview", "melon-preview start .")
+        .then(() => this.refreshPreviewState());
     });
     this.root.querySelector("[data-preview-open]")?.addEventListener("click", () => {
       window.open("https://preview.melonlabs.ai", "_blank", "noopener,noreferrer");
     });
     this.root.querySelector("[data-preview-logs]")?.addEventListener("click", () => {
       void context.terminal.runCommand({
-        title: "Preview logs",
-        command: "melon-preview logs",
+        title: "Live preview logs — Ctrl-C to close",
+        command: "melon-preview logs --follow",
         open: true,
-        metadata: { workflow: "melon-workspaces", preview: true },
+        metadata: { workflow: "melon-workspaces", preview: "logs" },
       });
+    });
+    this.root.querySelector("[data-preview-refresh]")?.addEventListener("click", () => {
+      void this.refreshPreviewState();
     });
     this.root.querySelector("[data-preview-stop]")?.addEventListener("click", () => {
       if (window.confirm("Stop the currently active workspace preview?")) {
-        void this.runAndWait(context, "Stop workspace preview", "melon-preview stop");
+        void this.runAndWait(context, "Stop workspace preview", "melon-preview stop")
+          .then(() => this.refreshPreviewState());
       }
     });
   }
@@ -232,17 +252,49 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   }
 
   renderPreviewActions() {
+    const source = previewSource(this.previewState);
+    const details = source === undefined
+      ? `<div class="preview-empty">${this.previewLoading ? "Loading active preview…" : "No preview is currently running."}</div>`
+      : `<dl class="preview-details">
+          <div><dt>Status</dt><dd class="preview-${escapeAttr(source.status)}">${escapeHtml(source.status)}</dd></div>
+          <div><dt>Branch</dt><dd>${escapeHtml(source.branch)}</dd></div>
+          <div><dt>Workspace</dt><dd title="${escapeAttr(source.workspace)}">${escapeHtml(source.workspace)}</dd></div>
+          <div><dt>Apps</dt><dd>${escapeHtml(source.apps.join(", ") || "None")}</dd></div>
+          <div><dt>URL</dt><dd>${escapeHtml(source.url)}</dd></div>
+        </dl>`;
     return `
       <article class="card">
         <div class="card-heading"><strong>Workspace preview</strong><span>Run this Git workspace at preview.melonlabs.ai with hot reload and the protected staging environment.</span></div>
+        ${details}
+        ${this.previewStatusError === undefined ? "" : `<div class="status error">${escapeHtml(this.previewStatusError)}</div>`}
         <div class="actions">
           <button data-preview-start ${this.busy ? "disabled" : ""}>Start / Switch Preview</button>
           <button data-preview-open ${this.busy ? "disabled" : ""}>Open Preview</button>
-          <button class="secondary" data-preview-logs ${this.busy ? "disabled" : ""}>Logs</button>
+          <button class="secondary" data-preview-refresh ${this.previewLoading ? "disabled" : ""}>Refresh Status</button>
+          <button class="secondary" data-preview-logs ${this.busy ? "disabled" : ""}>Live Logs</button>
           <button class="danger" data-preview-stop ${this.busy ? "disabled" : ""}>Stop Preview</button>
         </div>
       </article>
     `;
+  }
+
+  async refreshPreviewState() {
+    if (this.previewLoading) return;
+    this.previewLoading = true;
+    this.previewStatusError = undefined;
+    this.render();
+    try {
+      const response = await fetch("https://preview.melonlabs.ai/__preview/status", {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`Preview status returned HTTP ${response.status}.`);
+      this.previewState = await response.json();
+    } catch (error) {
+      this.previewStatusError = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.previewLoading = false;
+      this.render();
+    }
   }
 
   renderBranchActions(branch) {
@@ -366,6 +418,13 @@ function styles() {
       .toolbar span, .card-heading span, .hint { color: var(--pi-muted); }
       .viewer { box-sizing: border-box; display: grid; align-content: start; gap: 12px; min-height: 0; overflow: auto; padding: 12px; }
       .card { display: grid; gap: 12px; border: 1px solid var(--pi-border); border-radius: 10px; background: var(--pi-surface); padding: 12px; }
+      .preview-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 0; }
+      .preview-details div { min-width: 0; border: 1px solid var(--pi-border-muted); border-radius: 7px; padding: 8px; }
+      .preview-details dt { color: var(--pi-muted); font-size: 11px; text-transform: uppercase; }
+      .preview-details dd { margin: 3px 0 0; overflow: hidden; color: var(--pi-text-secondary); font-family: var(--pi-control-monospace-font-family); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .preview-details .preview-running { color: var(--pi-success); }
+      .preview-details .preview-error { color: var(--pi-danger); }
+      .preview-empty { color: var(--pi-muted); font-size: 13px; }
       .create-grid { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(160px, 1.4fr) minmax(130px, 1fr) auto; gap: 10px; align-items: end; }
       label { display: grid; gap: 5px; color: var(--pi-text-secondary); font-size: 12px; }
       input, select { box-sizing: border-box; width: 100%; border: 1px solid var(--pi-border); border-radius: 7px; background: var(--pi-bg); color: var(--pi-text); padding: 7px 8px; font: inherit; }
