@@ -7,7 +7,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
-import { Box, Container, type SettingItem, SettingsList, Text } from "@earendil-works/pi-tui";
+import { Box, Container, type SettingItem, SettingsList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 import { getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import { formatToolDetails, formatToolSummary, formatToolsDump } from "./format.js";
@@ -30,6 +30,10 @@ export interface ToolsPrintData {
 
 const PRINT_ENTRY_TYPE = "tools-print";
 const HINT = "  i more details · s save project defaults · Enter/Space to change · Esc to cancel";
+
+export function fitPickerLine(line: string, width: number): string {
+	return truncateToWidth(line, Math.max(0, width));
+}
 
 export default function toolsExtension(pi: ExtensionAPI) {
 	let enabledTools: Set<string> = new Set();
@@ -179,9 +183,10 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 			return {
 				render(width: number) {
-					return container.render(width).map((line) =>
-						line.includes("Enter/Space to change") ? listTheme.hint(HINT) : line,
-					);
+					return container.render(width).map((line) => {
+						const renderedLine = line.includes("Enter/Space to change") ? listTheme.hint(HINT) : line;
+						return fitPickerLine(renderedLine, width);
+					});
 				},
 				invalidate() {
 					container.invalidate();
