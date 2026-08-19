@@ -14,9 +14,10 @@ workspace authority and continues to own discovery, status, diffs, and native
 worktree removal.
 
 Every Git workspace also exposes the normal Git-operation controls and a
-single-slot preview card. `Start / Switch
-Preview` delegates to `melon-preview start .`, which replaces any active
-preview with the selected primary checkout or task worktree. The card opens
+single-slot preview card. `Start / Switch Preview` starts every declared app by
+default and replaces any active preview with the selected primary checkout or
+task worktree. An app selector can explicitly start a smaller set when the
+operator wants a narrower preview. The card opens
 `https://preview.melonlabs.ai`, which redirects to the active app's
 manifest-configured path, displays live runner logs in a terminal, or stops the
 active preview. The card reads the public status endpoint to show the active

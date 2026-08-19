@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import plugin, { branchOwner, isGitWorkspace, previewSource, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
+import plugin, { branchOwner, isGitWorkspace, previewAppNames, previewSource, previewStartCommand, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
 
 test("root package exposes the browser plugin from a narrow browser root", () => {
   const rootPackage = new URL("../../../package.json", import.meta.url);
@@ -58,4 +58,14 @@ test("normalizes the active preview source for display", () => {
     url: "https://preview.melonlabs.ai/app",
   });
   assert.equal(previewSource({ status: "stopped" }), undefined);
+});
+
+test("starts all preview apps by default and supports explicit app selection", () => {
+  assert.deepEqual(previewAppNames, ["marketing", "portal", "engagement", "admin", "backend"]);
+  assert.equal(previewStartCommand(), "melon-preview start .");
+  assert.equal(
+    previewStartCommand(["engagement", "portal"]),
+    "melon-preview start . --apps 'portal,engagement'",
+  );
+  assert.throws(() => previewStartCommand([]), /Select at least one preview app/u);
 });

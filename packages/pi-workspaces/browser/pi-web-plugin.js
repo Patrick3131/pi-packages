@@ -1,5 +1,6 @@
 const panelTagName = "pi-web-melon-workspaces-panel";
 const HTMLElementBase = globalThis.HTMLElement ?? class {};
+export const previewAppNames = ["marketing", "portal", "engagement", "admin", "backend"];
 
 const plugin = {
   apiVersion: 2,
@@ -104,6 +105,13 @@ export function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
+export function previewStartCommand(selectedApps) {
+  if (selectedApps === undefined) return "melon-preview start .";
+  const selected = previewAppNames.filter((name) => selectedApps.includes(name));
+  if (selected.length === 0) throw new Error("Select at least one preview app.");
+  return `melon-preview start . --apps ${shellQuote(selected.join(","))}`;
+}
+
 function definePanelElement() {
   if (typeof customElements === "undefined" || customElements.get(panelTagName)) return;
   customElements.define(panelTagName, MelonWorkspacesPanel);
@@ -116,6 +124,8 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   previewState;
   previewStatusError;
   previewLoading = false;
+  previewScope = "all";
+  selectedPreviewApps = new Set(previewAppNames);
   root;
 
   constructor() {
@@ -207,9 +217,25 @@ class MelonWorkspacesPanel extends HTMLElementBase {
       }
     });
     this.root.querySelector("[data-codex]")?.addEventListener("click", () => void this.openCodex(context));
+    this.root.querySelector("[data-preview-scope]")?.addEventListener("change", (event) => {
+      this.previewScope = event.target.value === "custom" ? "custom" : "all";
+      this.render();
+    });
+    for (const input of this.root.querySelectorAll("[data-preview-app]")) {
+      input.addEventListener("change", (event) => {
+        if (event.target.checked) this.selectedPreviewApps.add(event.target.value);
+        else this.selectedPreviewApps.delete(event.target.value);
+      });
+    }
     this.root.querySelector("[data-preview-start]")?.addEventListener("click", () => {
-      void this.runAndWait(context, "Start workspace preview", "melon-preview start .")
-        .then(() => this.refreshPreviewState());
+      try {
+        const selectedApps = this.previewScope === "all" ? undefined : [...this.selectedPreviewApps];
+        void this.runAndWait(context, "Start workspace preview", previewStartCommand(selectedApps))
+          .then(() => this.refreshPreviewState());
+      } catch (error) {
+        this.status = { kind: "error", message: error instanceof Error ? error.message : String(error) };
+        this.render();
+      }
     });
     this.root.querySelector("[data-preview-open]")?.addEventListener("click", () => {
       window.open("https://preview.melonlabs.ai", "_blank", "noopener,noreferrer");
@@ -253,6 +279,12 @@ class MelonWorkspacesPanel extends HTMLElementBase {
 
   renderPreviewActions() {
     const source = previewSource(this.previewState);
+    const customApps = previewAppNames.map((name) => `
+      <label class="preview-app">
+        <input type="checkbox" data-preview-app value="${escapeAttr(name)}" ${this.selectedPreviewApps.has(name) ? "checked" : ""}>
+        <span>${escapeHtml(name)}</span>
+      </label>
+    `).join("");
     const details = source === undefined
       ? `<div class="preview-empty">${this.previewLoading ? "Loading active preview…" : "No preview is currently running."}</div>`
       : `<dl class="preview-details">
@@ -267,6 +299,18 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         <div class="card-heading"><strong>Workspace preview</strong><span>Run this Git workspace at preview.melonlabs.ai with hot reload and the protected staging environment.</span></div>
         ${details}
         ${this.previewStatusError === undefined ? "" : `<div class="status error">${escapeHtml(this.previewStatusError)}</div>`}
+        <div class="preview-selection">
+          <label>Apps
+            <select data-preview-scope>
+              <option value="all" ${this.previewScope === "all" ? "selected" : ""}>All apps (default)</option>
+              <option value="custom" ${this.previewScope === "custom" ? "selected" : ""}>Select apps</option>
+            </select>
+          </label>
+          <fieldset class="preview-apps" ${this.previewScope === "custom" ? "" : "disabled"}>
+            <legend>Selected apps</legend>
+            ${customApps}
+          </fieldset>
+        </div>
         <div class="actions">
           <button data-preview-start ${this.busy ? "disabled" : ""}>Start / Switch Preview</button>
           <button data-preview-open ${this.busy ? "disabled" : ""}>Open Preview</button>
@@ -425,6 +469,12 @@ function styles() {
       .preview-details .preview-running { color: var(--pi-success); }
       .preview-details .preview-error { color: var(--pi-danger); }
       .preview-empty { color: var(--pi-muted); font-size: 13px; }
+      .preview-selection { display: grid; grid-template-columns: minmax(180px, .6fr) minmax(280px, 1.4fr); gap: 10px; align-items: end; }
+      .preview-apps { display: flex; flex-wrap: wrap; gap: 8px 12px; min-width: 0; margin: 0; border: 1px solid var(--pi-border-muted); border-radius: 7px; padding: 7px 9px; }
+      .preview-apps:disabled { opacity: .55; }
+      .preview-apps legend { padding: 0 4px; color: var(--pi-muted); font-size: 11px; }
+      .preview-app { display: flex; align-items: center; gap: 5px; }
+      .preview-app input { width: auto; margin: 0; }
       .create-grid { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(160px, 1.4fr) minmax(130px, 1fr) auto; gap: 10px; align-items: end; }
       label { display: grid; gap: 5px; color: var(--pi-text-secondary); font-size: 12px; }
       input, select { box-sizing: border-box; width: 100%; border: 1px solid var(--pi-border); border-radius: 7px; background: var(--pi-bg); color: var(--pi-text); padding: 7px 8px; font: inherit; }
@@ -439,7 +489,7 @@ function styles() {
       .status.error { color: var(--pi-danger, #d84a4a); }
       .hint { margin: 0; font-size: 12px; line-height: 1.5; }
       .empty { padding: 16px; color: var(--pi-muted); }
-      @media (max-width: 720px) { .create-grid { grid-template-columns: 1fr; } .create-grid button { width: 100%; } }
+      @media (max-width: 720px) { .create-grid, .preview-selection { grid-template-columns: 1fr; } .create-grid button { width: 100%; } }
     </style>
   `;
 }
