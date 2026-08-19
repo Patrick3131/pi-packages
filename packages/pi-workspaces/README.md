@@ -12,3 +12,11 @@ The plugin delegates mutations to the `melon-worktree` and `melon-codex`
 commands supplied by `melon-remote`. Pi Web's bundled Git provider remains the
 workspace authority and continues to own discovery, status, diffs, and native
 worktree removal.
+
+Task workspaces also expose a single-slot preview card. `Start / Switch
+Preview` delegates to `melon-preview start .`, which replaces any active
+preview with the selected worktree. The card can open
+`https://preview.melonlabs.ai`, display runner logs in a terminal, or stop the
+active preview. Preview lifecycle, validation, staging configuration, and
+credentials remain server-side in `melon-remote`; the browser plugin receives
+no secrets.

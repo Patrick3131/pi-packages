@@ -71,6 +71,14 @@ export function isGitWorkspace(workspace) {
   return workspace?.provider?.metadata?.isGitRepo === true;
 }
 
+export function previewPathForBranch(branch) {
+  const value = typeof branch === "string" ? branch.toLowerCase() : "";
+  if (value.includes("engagement")) return "/app/engagement";
+  if (value.includes("admin")) return "/admin";
+  if (value.includes("portal")) return "/app";
+  return "/";
+}
+
 export function validTaskName(value) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(value);
 }
@@ -192,6 +200,25 @@ class MelonWorkspacesPanel extends HTMLElementBase {
       }
     });
     this.root.querySelector("[data-codex]")?.addEventListener("click", () => void this.openCodex(context));
+    this.root.querySelector("[data-preview-start]")?.addEventListener("click", () => {
+      void this.runAndWait(context, "Start workspace preview", "melon-preview start .");
+    });
+    this.root.querySelector("[data-preview-open]")?.addEventListener("click", () => {
+      window.open(`https://preview.melonlabs.ai${previewPathForBranch(branch)}`, "_blank", "noopener,noreferrer");
+    });
+    this.root.querySelector("[data-preview-logs]")?.addEventListener("click", () => {
+      void context.terminal.runCommand({
+        title: "Preview logs",
+        command: "melon-preview logs",
+        open: true,
+        metadata: { workflow: "melon-workspaces", preview: true },
+      });
+    });
+    this.root.querySelector("[data-preview-stop]")?.addEventListener("click", () => {
+      if (window.confirm("Stop the currently active workspace preview?")) {
+        void this.runAndWait(context, "Stop workspace preview", "melon-preview stop");
+      }
+    });
   }
 
   renderTaskActions(branch) {
@@ -207,6 +234,15 @@ class MelonWorkspacesPanel extends HTMLElementBase {
           <button data-push ${this.busy ? "disabled" : ""}>Push</button>
           <button data-pr ${this.busy ? "disabled" : ""}>Create / Open PR</button>
           <button class="danger" data-merge ${this.busy ? "disabled" : ""}>Merge into staging</button>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-heading"><strong>Workspace preview</strong><span>Run this worktree at preview.melonlabs.ai with hot reload and the protected staging environment.</span></div>
+        <div class="actions">
+          <button data-preview-start ${this.busy ? "disabled" : ""}>Start / Switch Preview</button>
+          <button data-preview-open ${this.busy ? "disabled" : ""}>Open Preview</button>
+          <button class="secondary" data-preview-logs ${this.busy ? "disabled" : ""}>Logs</button>
+          <button class="danger" data-preview-stop ${this.busy ? "disabled" : ""}>Stop Preview</button>
         </div>
       </article>
     `;
