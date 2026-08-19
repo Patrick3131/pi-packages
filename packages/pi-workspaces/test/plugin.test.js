@@ -78,5 +78,8 @@ test("uses explicit staging merge directions without task-to-production actions"
   assert.match(source, /Merge staging into production/u);
   assert.match(source, /melon-worktree merge staging/u);
   assert.match(source, /melon-worktree merge-push staging/u);
+  assert.match(source, /Discard tracked changes/u);
+  assert.match(source, /Untracked files will be kept/u);
+  assert.match(source, /melon-worktree discard/u);
   assert.doesNotMatch(source, /data-sync-production|melon-worktree sync production|data-merge-production|melon-worktree merge production|melon-worktree merge-push production/u);
 });

@@ -2,8 +2,9 @@
 
 Browser-only Pi Web plugin for the Melon Labs remote development stack. It
 adds a Workflows panel and action-palette commands for creating task
-worktrees, merging staging into a task workspace, committing, pushing, merging
-the task back into staging, and launching Codex through the shared workstation
+worktrees, merging staging into a task workspace, committing, discarding
+tracked changes without deleting untracked files, pushing, merging the task
+back into staging, and launching Codex through the shared workstation
 tmux socket. A combined action first updates staging from its remote, then
 merges the task and pushes staging. Production synchronization is exposed only
 between the staging and production workspaces and requires confirmation.

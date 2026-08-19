@@ -182,6 +182,11 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     this.root.querySelector("[data-open-terminal]")?.addEventListener("click", () => context.terminal.open());
     this.root.querySelector("[data-create]")?.addEventListener("click", () => void this.createWorkspace(context));
     this.root.querySelector("[data-commit]")?.addEventListener("click", () => void this.commitChanges(context, branch));
+    this.root.querySelector("[data-discard]")?.addEventListener("click", () => {
+      if (window.confirm(`Discard all staged and unstaged changes to tracked files in ${branch ?? "this workspace"}? Untracked files will be kept. This cannot be undone.`)) {
+        void this.runAndWait(context, "Discard tracked changes", "melon-worktree discard", true);
+      }
+    });
     this.root.querySelector("[data-sync]")?.addEventListener("click", () => void this.runAndWait(context, "Merge staging into this workspace", "melon-worktree sync staging"));
     this.root.querySelector("[data-push]")?.addEventListener("click", () => void this.runAndWait(context, "Push task branch", "melon-worktree push"));
     this.root.querySelector("[data-merge-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Merge into staging", "melon-worktree merge staging", true));
@@ -265,6 +270,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
           ${taskSyncAction}
           <button data-commit ${this.busy ? "disabled" : ""}>Commit changes</button>
           <button data-push ${this.busy ? "disabled" : ""}>Push</button>
+          <button class="danger" data-discard ${this.busy ? "disabled" : ""}>Discard tracked changes</button>
           ${taskMergeActions}
         </div>
       </article>
