@@ -13,7 +13,7 @@ const plugin = {
           {
             id: "workspace.open-workflow",
             title: "Open Melon Workspace Workflow",
-            description: "Create, pull, sync, commit, push, review, merge, or open an agent in a task worktree.",
+            description: "Create, pull, commit, push, merge, or open an agent in a task worktree.",
             group: "Workspace",
             enabled: ({ state }) => state.selectedWorkspace !== undefined,
             run: ({ selectWorkspaceTool }) => {
@@ -155,7 +155,6 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     const branch = workspaceBranch(context.workspace);
     const workspaceActions = this.renderWorkspaceActions(branch);
     const branchActions = branch === "staging" || branch === "production" ? this.renderBranchActions(branch) : "";
-    const releaseActions = branch === "staging" ? this.renderReleaseActions() : "";
     this.root.innerHTML = `
       ${styles()}
       <section class="toolbar">
@@ -176,7 +175,6 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         ${workspaceActions}
         ${this.renderPreviewActions()}
         ${branchActions}
-        ${releaseActions}
         <p class="hint">Pi Web discovers created worktrees automatically. Use <strong>Start Pi in Current Workspace</strong> from the action palette for a new Pi chat. Native workspace deletion remains in the workspace menu.</p>
       </section>
     `;
@@ -187,16 +185,20 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     this.root.querySelector("[data-sync]")?.addEventListener("click", () => void this.runAndWait(context, "Update from staging", "melon-worktree sync staging"));
     this.root.querySelector("[data-sync-production]")?.addEventListener("click", () => void this.runAndWait(context, "Update from production", "melon-worktree sync production"));
     this.root.querySelector("[data-push]")?.addEventListener("click", () => void this.runAndWait(context, "Push task branch", "melon-worktree push"));
-    this.root.querySelector("[data-pr]")?.addEventListener("click", () => void this.runAndWait(context, "Create or open pull request", "melon-worktree pr staging"));
-    this.root.querySelector("[data-merge]")?.addEventListener("click", () => {
-      if (window.confirm(`Squash-merge ${branch} into staging through its GitHub pull request?`)) {
-        void this.runAndWait(context, "Merge pull request into staging", "melon-worktree merge staging", true);
+    this.root.querySelector("[data-merge-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Merge into staging", "melon-worktree merge staging", true));
+    this.root.querySelector("[data-merge-push-staging]")?.addEventListener("click", () => {
+      if (window.confirm(`Pull staging, merge ${branch}, and push staging?`)) {
+        void this.runAndWait(context, "Merge into staging and push", "melon-worktree merge-push staging", true);
       }
     });
-    this.root.querySelector("[data-promote]")?.addEventListener("click", () => void this.runAndWait(context, "Create or open production PR", "melon-worktree promote staging production"));
-    this.root.querySelector("[data-promote-merge]")?.addEventListener("click", () => {
-      if (window.confirm("Merge the staging promotion pull request into production? This may trigger the production deployment.")) {
-        void this.runAndWait(context, "Merge staging into production", "melon-worktree promote-merge staging production", true);
+    this.root.querySelector("[data-merge-production]")?.addEventListener("click", () => {
+      if (window.confirm(`Merge ${branch} into the local production workspace?`)) {
+        void this.runAndWait(context, "Merge into production", "melon-worktree merge production", true);
+      }
+    });
+    this.root.querySelector("[data-merge-push-production]")?.addEventListener("click", () => {
+      if (window.confirm(`Pull production, merge ${branch}, and push production? This may trigger deployment.`)) {
+        void this.runAndWait(context, "Merge into production and push", "melon-worktree merge-push production", true);
       }
     });
     this.root.querySelector("[data-pull-production-into-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Pull production into staging", "melon-worktree sync-branch production staging", true));
@@ -261,6 +263,12 @@ class MelonWorkspacesPanel extends HTMLElementBase {
 
   renderWorkspaceActions(branch) {
     const owner = branchOwner(branch);
+    const mergeActions = owner === undefined ? "" : `
+      <button class="danger" data-merge-staging ${this.busy ? "disabled" : ""}>Merge into staging</button>
+      <button class="danger" data-merge-push-staging ${this.busy ? "disabled" : ""}>Merge into staging + push</button>
+      <button class="danger" data-merge-production ${this.busy ? "disabled" : ""}>Merge into production</button>
+      <button class="danger" data-merge-push-production ${this.busy ? "disabled" : ""}>Merge into production + push</button>
+    `;
     return `
       <article class="card">
         <div class="card-heading"><strong>${escapeHtml(branch ?? "Git workspace")}</strong><span>${owner === undefined ? "Git workspace operations" : `${owner === "codex" ? "Codex" : "Pi"}-owned task workspace`}</span></div>
@@ -270,8 +278,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
           <button data-sync-production ${this.busy ? "disabled" : ""}>Pull production</button>
           <button data-commit ${this.busy ? "disabled" : ""}>Commit changes</button>
           <button data-push ${this.busy ? "disabled" : ""}>Push</button>
-          <button data-pr ${this.busy ? "disabled" : ""}>Create / Open PR</button>
-          <button class="danger" data-merge ${this.busy ? "disabled" : ""}>Merge into staging</button>
+          ${mergeActions}
         </div>
       </article>
     `;
@@ -360,18 +367,6 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         <div class="actions">
           <button class="danger" data-pull-staging-into-production ${this.busy ? "disabled" : ""}>Pull staging into production</button>
           <button class="danger" data-push-production ${this.busy ? "disabled" : ""}>Push production</button>
-        </div>
-      </article>
-    `;
-  }
-
-  renderReleaseActions() {
-    return `
-      <article class="card">
-        <div class="card-heading"><strong>Release staging</strong><span>Promote the current staging branch to production through a reviewed GitHub pull request.</span></div>
-        <div class="actions">
-          <button data-promote ${this.busy ? "disabled" : ""}>Create / Open Production PR</button>
-          <button class="danger" data-promote-merge ${this.busy ? "disabled" : ""}>Merge into production</button>
         </div>
       </article>
     `;

@@ -69,3 +69,12 @@ test("starts all preview apps by default and supports explicit app selection", (
   );
   assert.throws(() => previewStartCommand([]), /Select at least one preview app/u);
 });
+
+test("uses direct workspace merges without pull request actions", () => {
+  const source = readFileSync(fileURLToPath(new URL("../browser/pi-web-plugin.js", import.meta.url)), "utf8");
+  assert.doesNotMatch(source, /Create \/ Open PR|pull request|melon-worktree pr|melon-worktree promote/u);
+  assert.match(source, /melon-worktree merge staging/u);
+  assert.match(source, /melon-worktree merge-push staging/u);
+  assert.match(source, /melon-worktree merge production/u);
+  assert.match(source, /melon-worktree merge-push production/u);
+});
