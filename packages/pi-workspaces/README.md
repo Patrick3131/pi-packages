@@ -13,10 +13,11 @@ commands supplied by `melon-remote`. Pi Web's bundled Git provider remains the
 workspace authority and continues to own discovery, status, diffs, and native
 worktree removal.
 
-Task workspaces also expose a single-slot preview card. `Start / Switch
+Every Git workspace also exposes the normal Git-operation controls and a
+single-slot preview card. `Start / Switch
 Preview` delegates to `melon-preview start .`, which replaces any active
-preview with the selected worktree. The card can open
-`https://preview.melonlabs.ai`, display runner logs in a terminal, or stop the
-active preview. Preview lifecycle, validation, staging configuration, and
-credentials remain server-side in `melon-remote`; the browser plugin receives
-no secrets.
+preview with the selected primary checkout or task worktree. The card opens
+the active app through `https://preview.melonlabs.ai/__preview/open`, displays
+runner logs in a terminal, or stops the active preview. Preview lifecycle,
+validation, staging configuration, and credentials remain server-side in
+`melon-remote`; the browser plugin receives no secrets.

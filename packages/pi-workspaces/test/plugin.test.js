@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import plugin, { branchOwner, isGitWorkspace, previewPathForBranch, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
+import plugin, { branchOwner, isGitWorkspace, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
 
 test("root package exposes the browser plugin from a narrow browser root", () => {
   const rootPackage = new URL("../../../package.json", import.meta.url);
@@ -41,11 +41,4 @@ test("validates and quotes form values", () => {
   assert.equal(validCommitMessage("   "), false);
   assert.equal(validCommitMessage("two\nlines"), false);
   assert.equal(shellQuote("it's"), "'it'\\''s'");
-});
-
-test("selects the useful preview route from the task branch", () => {
-  assert.equal(previewPathForBranch("pi/engagement-workspace-improvements"), "/app/engagement");
-  assert.equal(previewPathForBranch("codex/admin-filters"), "/admin");
-  assert.equal(previewPathForBranch("codex/portal-dashboard"), "/app");
-  assert.equal(previewPathForBranch("codex/marketing-copy"), "/");
 });

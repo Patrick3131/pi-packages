@@ -71,14 +71,6 @@ export function isGitWorkspace(workspace) {
   return workspace?.provider?.metadata?.isGitRepo === true;
 }
 
-export function previewPathForBranch(branch) {
-  const value = typeof branch === "string" ? branch.toLowerCase() : "";
-  if (value.includes("engagement")) return "/app/engagement";
-  if (value.includes("admin")) return "/admin";
-  if (value.includes("portal")) return "/app";
-  return "/";
-}
-
 export function validTaskName(value) {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(value);
 }
@@ -136,8 +128,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     }
 
     const branch = workspaceBranch(context.workspace);
-    const owner = branchOwner(branch);
-    const taskActions = owner === undefined ? "" : this.renderTaskActions(branch);
+    const workspaceActions = this.renderWorkspaceActions(branch);
     const branchActions = branch === "staging" || branch === "production" ? this.renderBranchActions(branch) : "";
     const releaseActions = branch === "staging" ? this.renderReleaseActions() : "";
     this.root.innerHTML = `
@@ -157,7 +148,8 @@ class MelonWorkspacesPanel extends HTMLElementBase {
             <button data-create ${this.busy ? "disabled" : ""}>Create</button>
           </div>
         </article>
-        ${taskActions}
+        ${workspaceActions}
+        ${this.renderPreviewActions()}
         ${branchActions}
         ${releaseActions}
         <p class="hint">Pi Web discovers created worktrees automatically. Use <strong>Start Pi in Current Workspace</strong> from the action palette for a new Pi chat. Native workspace deletion remains in the workspace menu.</p>
@@ -204,7 +196,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
       void this.runAndWait(context, "Start workspace preview", "melon-preview start .");
     });
     this.root.querySelector("[data-preview-open]")?.addEventListener("click", () => {
-      window.open(`https://preview.melonlabs.ai${previewPathForBranch(branch)}`, "_blank", "noopener,noreferrer");
+      window.open("https://preview.melonlabs.ai/__preview/open", "_blank", "noopener,noreferrer");
     });
     this.root.querySelector("[data-preview-logs]")?.addEventListener("click", () => {
       void context.terminal.runCommand({
@@ -221,11 +213,11 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     });
   }
 
-  renderTaskActions(branch) {
+  renderWorkspaceActions(branch) {
     const owner = branchOwner(branch);
     return `
       <article class="card">
-        <div class="card-heading"><strong>${escapeHtml(branch)}</strong><span>${owner === "codex" ? "Codex-owned task workspace" : "Pi-owned task workspace"}</span></div>
+        <div class="card-heading"><strong>${escapeHtml(branch ?? "Git workspace")}</strong><span>${owner === undefined ? "Git workspace operations" : `${owner === "codex" ? "Codex" : "Pi"}-owned task workspace`}</span></div>
         <div class="actions">
           ${owner === "codex" ? `<button data-codex ${this.busy ? "disabled" : ""}>Open Codex</button>` : ""}
           <button data-sync ${this.busy ? "disabled" : ""}>Pull staging</button>
@@ -236,8 +228,13 @@ class MelonWorkspacesPanel extends HTMLElementBase {
           <button class="danger" data-merge ${this.busy ? "disabled" : ""}>Merge into staging</button>
         </div>
       </article>
+    `;
+  }
+
+  renderPreviewActions() {
+    return `
       <article class="card">
-        <div class="card-heading"><strong>Workspace preview</strong><span>Run this worktree at preview.melonlabs.ai with hot reload and the protected staging environment.</span></div>
+        <div class="card-heading"><strong>Workspace preview</strong><span>Run this Git workspace at preview.melonlabs.ai with hot reload and the protected staging environment.</span></div>
         <div class="actions">
           <button data-preview-start ${this.busy ? "disabled" : ""}>Start / Switch Preview</button>
           <button data-preview-open ${this.busy ? "disabled" : ""}>Open Preview</button>
