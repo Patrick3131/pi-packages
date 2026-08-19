@@ -27,6 +27,16 @@
       "packages/pi-work/skills"
     ]
   },
+  "piWeb": {
+    "plugins": [
+      {
+        "id": "melon-workspaces",
+        "browserRoot": "packages/pi-workspaces/browser",
+        "module": "packages/pi-workspaces/browser/pi-web-plugin.js",
+        "machineSpecific": true
+      }
+    ]
+  },
   "devDependencies": {
     "jest": "^29.7.0"
   },

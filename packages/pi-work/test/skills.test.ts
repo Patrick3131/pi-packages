@@ -23,6 +23,18 @@ import {
 import type { WorkPackage } from "../src/types.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repositoryRoot = path.resolve(packageRoot, "../..");
+
+test("managed global settings exclude repo-local workflow skill duplicates", () => {
+  const settings = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "configs/global/settings.json"), "utf8")) as {
+    packages: Array<string | { source?: string; skills?: string[] }>;
+  };
+  const melonPackage = settings.packages.find((entry) =>
+    typeof entry === "object" && entry.source === "git:github.com/Patrick3131/pi-packages"
+  );
+  assert.ok(melonPackage && typeof melonPackage === "object");
+  assert.deepEqual(melonPackage.skills, ["!packages/pi-work/skills/**"]);
+});
 
 test("packageRootFromModuleUrl resolves package root", () => {
   assert.equal(packageRootFromModuleUrl(import.meta.url), packageRoot);

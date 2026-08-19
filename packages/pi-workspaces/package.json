@@ -1,0 +1,14 @@
+{
+  "name": "pi-melon-workspaces",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Melon Labs worktree workflow panel for Pi Web",
+  "scripts": {
+    "build": "node -e \"process.exit(0)\"",
+    "typecheck": "node -e \"process.exit(0)\"",
+    "lint": "node -e \"process.exit(0)\"",
+    "test": "node --test test/**/*.test.js",
+    "clean": "rm -rf coverage"
+  }
+}

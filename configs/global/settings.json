@@ -6,7 +6,12 @@
     "npm:pi-subagents",
     "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
-    "git:github.com/Patrick3131/pi-packages"
+    {
+      "source": "git:github.com/Patrick3131/pi-packages",
+      "skills": [
+        "!packages/pi-work/skills/**"
+      ]
+    }
   ],
   "extensions": [],
   "theme": "dark",

@@ -32,11 +32,11 @@ copy_file() {
 	local src="$1"
 	local dest="$2"
 	mkdir -p "$(dirname "$dest")"
+	if [[ -e "$dest" ]] && cmp -s "$src" "$dest"; then
+		echo "Unchanged $dest"
+		return
+	fi
 	if [[ -e "$dest" && "$FORCE" -ne 1 ]]; then
-		if cmp -s "$src" "$dest"; then
-			echo "Unchanged $dest"
-			return
-		fi
 		echo "Skip existing $dest (different from snapshot; pass --force to replace)"
 		diff -u "$dest" "$src" || true
 		return
