@@ -70,11 +70,13 @@ test("starts all preview apps by default and supports explicit app selection", (
   assert.throws(() => previewStartCommand([]), /Select at least one preview app/u);
 });
 
-test("uses direct workspace merges without pull request actions", () => {
+test("uses explicit staging merge directions without task-to-production actions", () => {
   const source = readFileSync(fileURLToPath(new URL("../browser/pi-web-plugin.js", import.meta.url)), "utf8");
   assert.doesNotMatch(source, /Create \/ Open PR|pull request|melon-worktree pr|melon-worktree promote/u);
+  assert.match(source, /Merge staging into this workspace/u);
+  assert.match(source, /Merge production into staging/u);
+  assert.match(source, /Merge staging into production/u);
   assert.match(source, /melon-worktree merge staging/u);
   assert.match(source, /melon-worktree merge-push staging/u);
-  assert.match(source, /melon-worktree merge production/u);
-  assert.match(source, /melon-worktree merge-push production/u);
+  assert.doesNotMatch(source, /data-sync-production|melon-worktree sync production|data-merge-production|melon-worktree merge production|melon-worktree merge-push production/u);
 });

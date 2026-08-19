@@ -182,8 +182,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     this.root.querySelector("[data-open-terminal]")?.addEventListener("click", () => context.terminal.open());
     this.root.querySelector("[data-create]")?.addEventListener("click", () => void this.createWorkspace(context));
     this.root.querySelector("[data-commit]")?.addEventListener("click", () => void this.commitChanges(context, branch));
-    this.root.querySelector("[data-sync]")?.addEventListener("click", () => void this.runAndWait(context, "Update from staging", "melon-worktree sync staging"));
-    this.root.querySelector("[data-sync-production]")?.addEventListener("click", () => void this.runAndWait(context, "Update from production", "melon-worktree sync production"));
+    this.root.querySelector("[data-sync]")?.addEventListener("click", () => void this.runAndWait(context, "Merge staging into this workspace", "melon-worktree sync staging"));
     this.root.querySelector("[data-push]")?.addEventListener("click", () => void this.runAndWait(context, "Push task branch", "melon-worktree push"));
     this.root.querySelector("[data-merge-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Merge into staging", "melon-worktree merge staging", true));
     this.root.querySelector("[data-merge-push-staging]")?.addEventListener("click", () => {
@@ -191,17 +190,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         void this.runAndWait(context, "Merge into staging and push", "melon-worktree merge-push staging", true);
       }
     });
-    this.root.querySelector("[data-merge-production]")?.addEventListener("click", () => {
-      if (window.confirm(`Merge ${branch} into the local production workspace?`)) {
-        void this.runAndWait(context, "Merge into production", "melon-worktree merge production", true);
-      }
-    });
-    this.root.querySelector("[data-merge-push-production]")?.addEventListener("click", () => {
-      if (window.confirm(`Pull production, merge ${branch}, and push production? This may trigger deployment.`)) {
-        void this.runAndWait(context, "Merge into production and push", "melon-worktree merge-push production", true);
-      }
-    });
-    this.root.querySelector("[data-pull-production-into-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Pull production into staging", "melon-worktree sync-branch production staging", true));
+    this.root.querySelector("[data-pull-production-into-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Merge production into staging", "melon-worktree sync-branch production staging", true));
     this.root.querySelector("[data-push-staging]")?.addEventListener("click", () => void this.runAndWait(context, "Push staging", "melon-worktree push-current staging"));
     this.root.querySelector("[data-push-staging-to-production]")?.addEventListener("click", () => {
       if (window.confirm("Push staging directly to production? This requires production to be fast-forwardable and may trigger deployment.")) {
@@ -209,8 +198,8 @@ class MelonWorkspacesPanel extends HTMLElementBase {
       }
     });
     this.root.querySelector("[data-pull-staging-into-production]")?.addEventListener("click", () => {
-      if (window.confirm("Pull staging into production and push production? This may trigger the production deployment.")) {
-        void this.runAndWait(context, "Pull staging into production", "melon-worktree sync-branch staging production", true);
+      if (window.confirm("Merge staging into production and push production? This may trigger the production deployment.")) {
+        void this.runAndWait(context, "Merge staging into production", "melon-worktree sync-branch staging production", true);
       }
     });
     this.root.querySelector("[data-push-production]")?.addEventListener("click", () => {
@@ -263,22 +252,20 @@ class MelonWorkspacesPanel extends HTMLElementBase {
 
   renderWorkspaceActions(branch) {
     const owner = branchOwner(branch);
-    const mergeActions = owner === undefined ? "" : `
+    const taskSyncAction = owner === undefined ? "" : `<button data-sync ${this.busy ? "disabled" : ""}>Merge staging into this workspace</button>`;
+    const taskMergeActions = owner === undefined ? "" : `
       <button class="danger" data-merge-staging ${this.busy ? "disabled" : ""}>Merge into staging</button>
       <button class="danger" data-merge-push-staging ${this.busy ? "disabled" : ""}>Merge into staging + push</button>
-      <button class="danger" data-merge-production ${this.busy ? "disabled" : ""}>Merge into production</button>
-      <button class="danger" data-merge-push-production ${this.busy ? "disabled" : ""}>Merge into production + push</button>
     `;
     return `
       <article class="card">
         <div class="card-heading"><strong>${escapeHtml(branch ?? "Git workspace")}</strong><span>${owner === undefined ? "Git workspace operations" : `${owner === "codex" ? "Codex" : "Pi"}-owned task workspace`}</span></div>
         <div class="actions">
           ${owner === "codex" ? `<button data-codex ${this.busy ? "disabled" : ""}>Open Codex</button>` : ""}
-          <button data-sync ${this.busy ? "disabled" : ""}>Pull staging</button>
-          <button data-sync-production ${this.busy ? "disabled" : ""}>Pull production</button>
+          ${taskSyncAction}
           <button data-commit ${this.busy ? "disabled" : ""}>Commit changes</button>
           <button data-push ${this.busy ? "disabled" : ""}>Push</button>
-          ${mergeActions}
+          ${taskMergeActions}
         </div>
       </article>
     `;
@@ -352,9 +339,9 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     if (branch === "staging") {
       return `
         <article class="card">
-          <div class="card-heading"><strong>Staging synchronization</strong><span>Pull production into staging, push staging, or fast-forward production from this checkout.</span></div>
+          <div class="card-heading"><strong>Staging synchronization</strong><span>Merge production into staging, push staging, or fast-forward production from this checkout.</span></div>
           <div class="actions">
-            <button data-pull-production-into-staging ${this.busy ? "disabled" : ""}>Pull production into staging</button>
+            <button data-pull-production-into-staging ${this.busy ? "disabled" : ""}>Merge production into staging</button>
             <button data-push-staging ${this.busy ? "disabled" : ""}>Push staging</button>
             <button class="danger" data-push-staging-to-production ${this.busy ? "disabled" : ""}>Push staging to production</button>
           </div>
@@ -363,9 +350,9 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     }
     return `
       <article class="card">
-        <div class="card-heading"><strong>Production synchronization</strong><span>Pull staging into production or push the checked-out production branch.</span></div>
+        <div class="card-heading"><strong>Production synchronization</strong><span>Merge staging into production or push the checked-out production branch.</span></div>
         <div class="actions">
-          <button class="danger" data-pull-staging-into-production ${this.busy ? "disabled" : ""}>Pull staging into production</button>
+          <button class="danger" data-pull-staging-into-production ${this.busy ? "disabled" : ""}>Merge staging into production</button>
           <button class="danger" data-push-production ${this.busy ? "disabled" : ""}>Push production</button>
         </div>
       </article>
