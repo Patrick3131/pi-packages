@@ -196,7 +196,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
       void this.runAndWait(context, "Start workspace preview", "melon-preview start .");
     });
     this.root.querySelector("[data-preview-open]")?.addEventListener("click", () => {
-      window.open("https://preview.melonlabs.ai/__preview/open", "_blank", "noopener,noreferrer");
+      window.open("https://preview.melonlabs.ai", "_blank", "noopener,noreferrer");
     });
     this.root.querySelector("[data-preview-logs]")?.addEventListener("click", () => {
       void context.terminal.runCommand({
