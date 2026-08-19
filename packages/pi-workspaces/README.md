@@ -18,7 +18,8 @@ single-slot preview card. `Start / Switch
 Preview` delegates to `melon-preview start .`, which replaces any active
 preview with the selected primary checkout or task worktree. The card opens
 `https://preview.melonlabs.ai`, which redirects to the active app's
-manifest-configured path, displays runner logs in a terminal, or stops the
-active preview. Preview lifecycle,
+manifest-configured path, displays live runner logs in a terminal, or stops the
+active preview. The card reads the public status endpoint to show the active
+workspace path, branch, apps, state, and configured URL. Preview lifecycle,
 validation, staging configuration, and credentials remain server-side in
 `melon-remote`; the browser plugin receives no secrets.
