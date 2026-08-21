@@ -57,13 +57,14 @@ Add to your Pi `settings.json`:
 
 ### From GitHub
 
-Add to your Pi `settings.json`:
+Use the monorepo Git package for normal installs:
 
-```json
-{
-  "extensions": ["github:Patrick3131/pi-packages/packages/pi-crawl4ai"]
-}
+```bash
+pi install git:github.com/Patrick3131/pi-packages
 ```
+
+Avoid also adding individual local extension paths globally, or Pi will load the
+same tools twice.
 
 ### For Local Development
 
@@ -71,14 +72,25 @@ Add to your Pi `settings.json`:
 git clone https://github.com/Patrick3131/pi-packages.git
 cd pi-packages
 npm install
-npm run build
 ```
 
-Add to your Pi `settings.json`:
+Keep the GitHub package in global settings for normal use. In this checkout only,
+use project-local `.pi/settings.json` to disable that package's resources and load
+the working tree instead:
 
 ```json
 {
-  "extensions": ["/path/to/pi-packages/packages/pi-crawl4ai/dist/index.mjs"]
+  "packages": [
+    {
+      "source": "git:github.com/Patrick3131/pi-packages",
+      "extensions": [],
+      "skills": [],
+      "prompts": [],
+      "themes": []
+    },
+    ".."
+  ],
+  "extensions": []
 }
 ```
 

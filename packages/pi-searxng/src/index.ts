@@ -53,14 +53,9 @@ export default function piSearxngExtension(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: TOOL_NAME,
 		label: "SearXNG search",
-		description:
-			"Search the web through the self-hosted discovery-services SearXNG instance (Brave + DuckDuckGo). Off by default. Enable with /tools, /preset research, or PI_SEARXNG_ENABLED=1. Does not use xAI web search.",
-		promptSnippet: "web_search_searxng(query): search the self-hosted SearXNG instance; off by default",
-		promptGuidelines: [
-			"Use web_search_searxng only when the user asks for live web search through the self-hosted SearXNG instance.",
-			"Do not use web_search_searxng for ordinary coding work. Prefer local files first.",
-			"This is not Grok/xAI web_search. Leave xAI search to /xai-tools.",
-		],
+		description: "Search the web with SearXNG.",
+		promptSnippet: "web_search_searxng(query): search the web with SearXNG",
+		promptGuidelines: ["Use only when the user requests a live web search."],
 		parameters: Type.Object({
 			query: Type.String({ description: "The search query to execute." }),
 			max_results: Type.Optional(
