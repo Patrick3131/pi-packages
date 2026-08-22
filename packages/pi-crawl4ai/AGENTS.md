@@ -14,8 +14,8 @@ This document defines working agreements, conventions, and navigation for the pi
 
 ## Scope
 
-A Pi extension for web crawling using crawl4ai. Browser auth profiles (cookies/headers/UA)
-are client-side. Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
+A Pi extension for web crawling using crawl4ai. Egress/proxy is owned by the crawl4ai
+server (operator pinning proxy).
 
 ## Commands
 

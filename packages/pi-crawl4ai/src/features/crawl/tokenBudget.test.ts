@@ -180,8 +180,7 @@ describe("slimResultDetails", () => {
 });
 
 describe("before/after token reduction benchmark", () => {
-  const executionSummary =
-    "*Execution:* siteHint=none auth=none authReason=none egress=server-managed cookies=no headers=no userAgent=no";
+  const executionSummary = "*Execution:* egress=server-managed";
 
   it("reduces deep-crawl tool text dramatically vs legacy full dump", () => {
     const results: CrawlResult[] = Array.from({ length: 12 }, (_, i) => ({

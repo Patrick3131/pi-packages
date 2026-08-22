@@ -1,33 +1,3 @@
-export interface AuthCookie {
-  name: string;
-  value: string;
-  url?: string;
-  domain?: string;
-  path?: string;
-  httpOnly?: boolean;
-  secure?: boolean;
-  sameSite?: "Strict" | "Lax" | "None";
-  expires?: number;
-}
-
-export interface AuthProfileConfig {
-  matchSites?: string[];
-  matchDomains?: string[];
-  cookies?: AuthCookie[] | string;
-  headers?: Record<string, string>;
-  userAgent?: string;
-  minRequestIntervalMs?: number | string;
-}
-
-export interface ResolvedAuthProfile {
-  matchSites?: string[];
-  matchDomains?: string[];
-  cookies?: AuthCookie[];
-  headers?: Record<string, string>;
-  userAgent?: string;
-  minRequestIntervalMs?: number;
-}
-
 export type ReturnModeConfig = "auto" | "inline" | "files";
 
 export interface TokenBudgetSettings {
@@ -60,7 +30,6 @@ export interface Crawl4AIJsonConfig {
    * Supports ${ENV_VAR} substitution.
    */
   apiToken?: string;
-  authProfiles?: Record<string, AuthProfileConfig>;
   /** Token-budget defaults for tool results returned to the model. */
   tokenBudget?: TokenBudgetSettings;
   /** Retention policy for saved crawl session directories. */
@@ -91,7 +60,6 @@ export interface ResolvedConfig {
   minRequestIntervalMs?: number;
   /** Resolved crawl4ai API bearer token (never log the value). */
   apiToken?: string;
-  authProfiles?: Record<string, ResolvedAuthProfile>;
   tokenBudget: ResolvedTokenBudget;
   retention: ResolvedRetention;
   /** Default crawl output root (./output-crawl4ai or env/config override). */
@@ -104,16 +72,4 @@ export interface Crawl4AIConfig {
   /** Optional bearer token for the crawl4ai HTTP API. */
   apiToken?: string;
   raw: ResolvedConfig;
-}
-
-export interface ResolveAuthProfileOptions {
-  urls: string[];
-  site?: string;
-  authProfile?: string;
-}
-
-export interface ResolvedAuthSelection {
-  profileName: string;
-  profile: ResolvedAuthProfile;
-  reason: "explicit-profile" | "site" | "domain";
 }

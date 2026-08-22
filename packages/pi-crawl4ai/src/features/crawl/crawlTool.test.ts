@@ -71,55 +71,21 @@ describe('registerCrawlTool', () => {
     expect(tool.parameters.properties.deepCrawl).toBeDefined();
   });
 
-  it('should include auth selection parameters in schema', () => {
+  it('should describe progressive saved output', () => {
     const mockPi = createMockPi();
     const config = loadConfig();
 
     registerCrawlTool(mockPi, config);
 
     const tool = mockPi.registeredTools[0];
-    expect(tool.parameters.properties.site).toBeDefined();
-    expect(tool.parameters.properties.authProfile).toBeDefined();
-  });
-
-  it('should include prompt guidance for site and auth profile selection', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
-
-    registerCrawlTool(mockPi, config);
-
-    const tool = mockPi.registeredTools[0];
-    expect(tool.promptSnippet).toContain('optional auth');
     expect(tool.promptSnippet).toContain('index');
     expect(tool.promptSnippet).toContain('crawl_read');
     expect(tool.promptGuidelines).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('automatic domain-based auth profile selection'),
-        expect.stringContaining('site parameter'),
-        expect.stringContaining('authProfile'),
+        expect.stringContaining('crawl-manifest.json'),
         expect.stringContaining('crawl_read'),
       ])
     );
-  });
-
-  it('should provide prepareArguments compatibility shims for site and auth profile aliases', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
-
-    registerCrawlTool(mockPi, config);
-
-    const tool = mockPi.registeredTools[0];
-    expect(tool.prepareArguments({
-      urls: ['https://x.com/some/status/1'],
-      platform: 'x',
-      profile: 'x-main',
-    })).toEqual({
-      urls: ['https://x.com/some/status/1'],
-      platform: 'x',
-      profile: 'x-main',
-      site: 'x',
-      authProfile: 'x-main',
-    });
   });
 });
 
@@ -247,19 +213,13 @@ describe('crawl tool execute', () => {
     );
 
     expect(result.content[0].text).toContain('*Execution:*');
-    expect(result.content[0].text).toContain('auth=none');
     expect(result.content[0].text).toContain('egress=server-managed');
     expect(result.content[0].text).toContain('# Example');
     expect(result.content[0].text).toContain('This is example content.');
     expect(result.details.format).toBe('markdown');
     expect(result.details.results).toHaveLength(1);
     expect(result.details.execution).toEqual({
-      siteHint: undefined,
-      authProfile: undefined,
-      authProfileReason: 'none',
-      hasCookies: false,
-      hasHeaders: false,
-      hasUserAgent: false,
+      egress: 'server-managed',
     });
   });
 
@@ -519,113 +479,23 @@ describe('crawl tool execute', () => {
   });
 
 
-  it('should auto-select auth profile by domain', async () => {
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    config.raw.authProfiles = {
-      'x-main': {
-        matchDomains: ['x.com', 'twitter.com'],
-        cookies: [{ name: 'auth_token', value: 'secret' }],
-        headers: { 'x-test': '1' },
-      },
-    };
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
+  it('should omit client-side browser configuration', async () => {
     const fetchMock = mockFetch({
       ok: true,
       data: { success: true, results: [] },
     });
 
-    const result = await execute(
+    await toolExecute(
       'tool-call-id',
-      { urls: ['https://x.com/some/status/1'] },
+      { urls: ['https://example.com'] },
       undefined,
       undefined,
       {}
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.headers).toEqual({
-      'x-test': '1',
-      Cookie: 'auth_token=secret',
-    });
-    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret', url: 'https://x.com/some/status/1' }]);
-    expect(result.content[0].text).toContain('auth=x-main');
-    expect(result.content[0].text).toContain('authReason=domain');
-    expect(result.content[0].text).toContain('egress=server-managed');
-    expect(result.content[0].text).toContain('cookies=yes');
-    expect(result.details.authProfile).toBe('x-main');
-    expect(result.details.authProfileReason).toBe('domain');
-    expect(result.details.execution).toEqual({
-      siteHint: undefined,
-      authProfile: 'x-main',
-      authProfileReason: 'domain',
-      hasCookies: true,
-      hasHeaders: true,
-      hasUserAgent: false,
-    });
+    expect(body.browser_config).toBeUndefined();
   });
-
-  it('should select auth profile by site hint', async () => {
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    config.raw.authProfiles = {
-      'x-main': {
-        matchSites: ['x', 'twitter'],
-        matchDomains: ['x.com', 'twitter.com'],
-        cookies: [{ name: 'auth_token', value: 'secret' }],
-      },
-    };
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    const result = await execute(
-      'tool-call-id',
-      { urls: ['https://x.com/some/status/1'], site: 'X' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config.cookies).toEqual([{ name: 'auth_token', value: 'secret', url: 'https://x.com/some/status/1' }]);
-    expect(result.content[0].text).toContain('siteHint=X');
-    expect(result.content[0].text).toContain('auth=x-main');
-    expect(result.content[0].text).toContain('authReason=site');
-    expect(result.details.authProfile).toBe('x-main');
-    expect(result.details.authProfileReason).toBe('site');
-    expect(result.details.siteHint).toBe('X');
-  });
-
-  it('should reject explicit auth profiles for mismatched domains', async () => {
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    config.raw.authProfiles = {
-      'x-main': {
-        matchDomains: ['x.com', 'twitter.com'],
-        cookies: [{ name: 'auth_token', value: 'secret' }],
-      },
-    };
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
-    await expect(
-      execute(
-        'tool-call-id',
-        { urls: ['https://reddit.com/r/test'], authProfile: 'x-main' },
-        undefined,
-        undefined,
-        {}
-      )
-    ).rejects.toThrow('Auth profile "x-main" is not allowed');
-  });
-
 
   it('should apply global request pacing between calls', async () => {
     jest.useFakeTimers();
@@ -659,45 +529,6 @@ describe('crawl tool execute', () => {
     }
   });
 
-  it('should let auth profile request pacing override the global value', async () => {
-    jest.useFakeTimers();
-
-    try {
-      const localMockPi = createMockPi();
-      const config = loadConfig();
-      config.raw.minRequestIntervalMs = 5000;
-      config.raw.authProfiles = {
-        'x-main': {
-          matchDomains: ['x.com'],
-          cookies: [{ name: 'auth_token', value: 'secret' }],
-          minRequestIntervalMs: 1000,
-        },
-      };
-      registerCrawlTool(localMockPi, config);
-      const execute = localMockPi.registeredTools[0].execute;
-
-      const fetchMock = mockFetch({ ok: true, data: { success: true, results: [] } });
-
-      await execute('tool-call-id-1', { urls: ['https://x.com/post/1'] }, undefined, undefined, {});
-      const secondCall = execute('tool-call-id-2', { urls: ['https://x.com/post/2'] }, undefined, undefined, {});
-
-      await Promise.resolve();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      await jest.advanceTimersByTimeAsync(999);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      await jest.advanceTimersByTimeAsync(1);
-      const result = await secondCall;
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(result.content[0].text).toContain('auth=x-main');
-      expect(result.details.authProfile).toBe('x-main');
-      expect(result.details.minRequestIntervalMs).toBe(1000);
-      expect(result.details.rateLimitWaitedMs).toBe(1000);
-    } finally {
-      jest.useRealTimers();
-    }
-  });
 });
 
 describe('crawl tool deep crawl', () => {

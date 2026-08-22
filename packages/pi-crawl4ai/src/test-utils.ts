@@ -52,8 +52,4 @@ export function resetEnv(): void {
   delete process.env.CRAWL4AI_RETENTION_MAX_AGE_DAYS;
   delete process.env.CRAWL4AI_RETENTION_MAX_TOTAL_MB;
 
-  // Auth profile test vars
-  delete process.env.X_COOKIES_JSON;
-  delete process.env.X_USER_AGENT;
-  delete process.env.X_MIN_REQUEST_INTERVAL_MS;
 }

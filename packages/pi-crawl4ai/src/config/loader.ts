@@ -1,6 +1,5 @@
 import { loadEnvFile, resolveEnvVars, resolveNumber } from "./env";
 import { findConfigFile, loadJsonConfig } from "./files";
-import { resolveAuthProfiles } from "./authProfiles";
 import type {
   Crawl4AIJsonConfig,
   ResolvedConfig,
@@ -13,10 +12,7 @@ import type {
 
 export { findConfigFile, loadJsonConfig } from "./files";
 export type {
-  AuthCookie,
-  AuthProfileConfig,
   Crawl4AIJsonConfig,
-  ResolvedAuthProfile,
   ResolvedConfig,
   ResolvedRetention,
   ResolvedTokenBudget,
@@ -135,7 +131,6 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
         ? resolveNumber(jsonConfig.minRequestIntervalMs)
         : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
     apiToken: resolveApiToken(jsonConfig),
-    authProfiles: resolveAuthProfiles(jsonConfig?.authProfiles),
     tokenBudget: resolveTokenBudget(jsonConfig),
     retention: resolveRetention(jsonConfig),
     outputDir: resolveOutputDir(jsonConfig),

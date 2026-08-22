@@ -3,7 +3,7 @@
  */
 
 import { applyRequestPacing, resetRequestPacingState } from "./requestPacing";
-import type { Crawl4AIConfig, ResolvedAuthSelection } from "../../config";
+import type { Crawl4AIConfig } from "../../config";
 
 function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
   return {
@@ -28,16 +28,6 @@ function createConfig(minRequestIntervalMs?: number): Crawl4AIConfig {
         maxTotalMb: 512,
       },
       outputDir: "./output-crawl4ai",
-    },
-  };
-}
-
-function createAuthSelection(name: string, minRequestIntervalMs?: number): ResolvedAuthSelection {
-  return {
-    profileName: name,
-    reason: "explicit-profile",
-    profile: {
-      minRequestIntervalMs,
     },
   };
 }
@@ -80,46 +70,12 @@ describe("applyRequestPacing", () => {
     expect(second).toEqual({ bucket: "global", minRequestIntervalMs: 5000, waitedMs: 5000 });
   });
 
-  it("should let auth profile pacing override the global value", async () => {
-    const config = createConfig(5000);
-    const authSelection = createAuthSelection("x-main", 1000);
-
-    const first = await applyRequestPacing(config, authSelection);
-    const secondPromise = applyRequestPacing(config, authSelection);
-
-    await Promise.resolve();
-    await jest.advanceTimersByTimeAsync(999);
-
-    let settled = false;
-    void secondPromise.then(() => {
-      settled = true;
-    });
-    expect(settled).toBe(false);
-
-    await jest.advanceTimersByTimeAsync(1);
-    const second = await secondPromise;
-
-    expect(first).toEqual({ bucket: "auth:x-main", minRequestIntervalMs: 1000, waitedMs: 0 });
-    expect(second).toEqual({ bucket: "auth:x-main", minRequestIntervalMs: 1000, waitedMs: 1000 });
-  });
-
-  it("should isolate auth buckets from each other", async () => {
-    const config = createConfig(5000);
-    const xSelection = createAuthSelection("x-main", 1000);
-    const redditSelection = createAuthSelection("reddit-main", 1000);
-
-    await applyRequestPacing(config, xSelection);
-    const reddit = await applyRequestPacing(config, redditSelection);
-
-    expect(reddit).toEqual({ bucket: "auth:reddit-main", minRequestIntervalMs: 1000, waitedMs: 0 });
-  });
-
   it("should support cancellation while waiting", async () => {
     const config = createConfig(5000);
     const controller = new AbortController();
 
     await applyRequestPacing(config);
-    const pending = applyRequestPacing(config, undefined, controller.signal);
+    const pending = applyRequestPacing(config, controller.signal);
 
     controller.abort();
 

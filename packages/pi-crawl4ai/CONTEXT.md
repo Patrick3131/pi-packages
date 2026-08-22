@@ -11,9 +11,8 @@ canonical_for: System architecture and data flow
 ## System Overview
 
 pi-crawl4ai is a Pi extension that provides web crawling capabilities using a crawl4ai
-Docker/API service. Auth profiles (cookies/headers/user-agent) are applied client-side.
-Egress/proxy is **server-managed** (operator pinning proxy on the crawl4ai host). This
-client never sends `proxy` / `proxy_config` in crawl request bodies.
+Docker/API service. Egress/proxy is **server-managed** (operator pinning proxy on the crawl4ai host).
+This client never sends `proxy` / `proxy_config` in crawl request bodies.
 
 ## Architecture
 
@@ -22,13 +21,11 @@ client never sends `proxy` / `proxy_config` in crawl request bodies.
 │                         Pi Agent                                 │
 │  crawl / crawl_read tools                                        │
 └───────────┬─────────────────────────────────────────────────────┘
-            │ POST /crawl  (urls, browser_config cookies/headers/UA,
-            │              crawler_config; Authorization bearer)
+            │ POST /crawl  (urls, crawler_config; Authorization bearer)
             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Extension (this package)                    │
-│  config → auth selection → browser_config (no proxy)             │
-│  token budget → optional save + crawl_read                       │
+│  config → token budget → optional save + crawl_read              │
 └───────────┬─────────────────────────────────────────────────────┘
             │
             ▼
@@ -45,7 +42,6 @@ client never sends `proxy` / `proxy_config` in crawl request bodies.
 ```
 User: "Crawl https://example.com"
   → Pi calls crawl { urls: ["https://example.com"], format: "markdown" }
-  → buildBrowserConfig() (auth only)
   → POST CRAWL4AI_BASE_URL/crawl
 ```
 
@@ -80,7 +76,7 @@ JSON config (.pi/crawl4ai.json or ~/.pi/agent/extensions/crawl4ai.json)
 ```
 
 Relevant keys: `url`, `apiToken`, `timeoutMs`, `minRequestIntervalMs`,
-`authProfiles`, `tokenBudget`, `retention`, `outputDir`. Startup on/off for
+`tokenBudget`, `retention`, `outputDir`. Startup on/off for
 `crawl` / `crawl_read` lives in `.pi/tools.json`.
 
 ## Extension Points

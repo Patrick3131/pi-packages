@@ -36,13 +36,3 @@ export function resolveNumber(value?: number | string): number | undefined {
   const parsed = parseInt(resolveEnvVars(value), 10);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
-
-export function resolveJsonValue<T>(value: T): T {
-  if (typeof value === "string") return resolveEnvVars(value) as T;
-  if (Array.isArray(value)) return value.map((item) => resolveJsonValue(item)) as T;
-  if (!value || typeof value !== "object") return value;
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .map(([key, entryValue]) => [key, resolveJsonValue(entryValue)]);
-  return Object.fromEntries(entries) as T;
-}

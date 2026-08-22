@@ -1,4 +1,4 @@
-import type { Crawl4AIConfig, ResolvedAuthSelection } from "../../config";
+import type { Crawl4AIConfig } from "../../config";
 
 const bucketQueues = new Map<string, Promise<void>>();
 const lastRequestAt = new Map<string, number>();
@@ -14,15 +14,12 @@ export interface RequestPacingResult {
   waitedMs: number;
 }
 
-function getRequestPacingPolicy(config: Crawl4AIConfig, authSelection?: ResolvedAuthSelection) {
-  const profileMinRequestIntervalMs = authSelection?.profile.minRequestIntervalMs;
-  const minRequestIntervalMs = profileMinRequestIntervalMs ?? config.raw.minRequestIntervalMs;
+function getRequestPacingPolicy(config: Crawl4AIConfig) {
+  const minRequestIntervalMs = config.raw.minRequestIntervalMs;
   if (minRequestIntervalMs === undefined || minRequestIntervalMs <= 0) return undefined;
 
   return {
-    bucket: profileMinRequestIntervalMs !== undefined && authSelection
-      ? `auth:${authSelection.profileName}`
-      : "global",
+    bucket: "global",
     minRequestIntervalMs,
   };
 }
@@ -48,21 +45,25 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 export async function applyRequestPacing(
   config: Crawl4AIConfig,
-  authSelection?: ResolvedAuthSelection,
   signal?: AbortSignal
 ): Promise<RequestPacingResult | undefined> {
-  const policy = getRequestPacingPolicy(config, authSelection);
+  const policy = getRequestPacingPolicy(config);
   if (!policy) return undefined;
 
   const prior = bucketQueues.get(policy.bucket) ?? Promise.resolve();
   let release!: () => void;
-  const marker = new Promise<void>((resolve) => { release = resolve; });
+  const marker = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   bucketQueues.set(policy.bucket, prior.then(() => marker, () => marker));
   await prior.catch(() => undefined);
 
   try {
     const previous = lastRequestAt.get(policy.bucket);
-    const waitedMs = previous === undefined ? 0 : Math.max(0, policy.minRequestIntervalMs - (Date.now() - previous));
+    const waitedMs =
+      previous === undefined
+        ? 0
+        : Math.max(0, policy.minRequestIntervalMs - (Date.now() - previous));
     await sleep(waitedMs, signal);
     lastRequestAt.set(policy.bucket, Date.now());
     return { bucket: policy.bucket, minRequestIntervalMs: policy.minRequestIntervalMs, waitedMs };

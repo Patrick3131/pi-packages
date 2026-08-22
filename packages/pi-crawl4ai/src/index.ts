@@ -2,7 +2,7 @@
  * pi-crawl4ai - Pi extension for web crawling with crawl4ai
  *
  * This extension provides a `crawl` tool that uses crawl4ai for
- * browser-rendered web scraping with optional auth profiles.
+ * browser-rendered web scraping.
  *
  * Egress/proxy is owned by the crawl4ai server (operator pinning proxy).
  * This client never sends proxy credentials in the request body.

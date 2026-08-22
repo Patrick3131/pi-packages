@@ -1,6 +1,6 @@
 # pi-crawl4ai
 
-A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [crawl4ai](https://github.com/unclecode/crawl4ai). Auth profiles are client-side; egress/proxy is server-managed.
+A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [crawl4ai](https://github.com/unclecode/crawl4ai). Egress/proxy is server-managed.
 
 ## Features
 
@@ -8,8 +8,7 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 - 🌳 **Deep crawling** - Follow links and crawl entire sites with configurable depth
 - 📝 **Multiple output formats** - Markdown, HTML, or extracted links
 - 💾 **Save to disk** - Optionally persist crawl results organized by domain and timestamp
-- 🔐 **Auth profiles** - Named cookie/header/UA profiles for authenticated crawling across multiple sites
-- ⏱️ **Configurable request pacing** - Global crawl pacing with per-auth-profile overrides
+- ⏱️ **Configurable request pacing** - Global crawl pacing
 - ⚡ **Pi integration** - Native tool for the Pi coding agent
 - 🎛️ **Lazy activation** - Tool disabled by default, enable with `/crawl-on` when needed
 - 🤖 **Subagent-friendly** - Explicit tool selection like `--tools crawl` is honored even when lazy activation is enabled
@@ -147,31 +146,6 @@ Manual commands:
 Startup on/off is owned by `.pi/tools.json` (`/tools`). This package does not
 have `enabledByDefault`. Set `"crawl"` / `"crawl_read"` there, or use
 `/crawl-on` / `/crawl-off` for the current session only.
-
-#### Auth Profiles (Named Cookies / Headers)
-
-Use `authProfiles` to define reusable authenticated browser contexts. This keeps cookies and headers out of prompts and lets the extension auto-select the right profile by site/domain.
-
-```json
-{
-  "authProfiles": {
-    "x-main": {
-      "matchSites": ["x", "twitter"],
-      "matchDomains": ["x.com", "twitter.com"],
-      "cookies": "${X_COOKIES_JSON}",
-      "userAgent": "${X_USER_AGENT}",
-      "minRequestIntervalMs": 5000
-    },
-    "reddit-main": {
-      "matchSites": ["reddit"],
-      "matchDomains": ["reddit.com"],
-      "cookies": "${REDDIT_COOKIES_JSON}",
-  "files": [
-    "example.com/index.md",
-    "example.com/docs/api.md"
-  ]
-}
-```
 
 #### Save Examples
 

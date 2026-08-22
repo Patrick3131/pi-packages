@@ -5,7 +5,6 @@
 import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
-import { buildBrowserConfig, resolveAuthSelection } from "../../config";
 import type {
   CrawlToolParams,
   CrawlResult,
@@ -95,65 +94,8 @@ function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages: number
   };
 }
 
-function buildExecutionDetails(
-  site: string | undefined,
-  authSelection: ReturnType<typeof resolveAuthSelection>
-): {
-  siteHint?: string;
-  authProfile?: string;
-  authProfileReason: string;
-  hasCookies: boolean;
-  hasHeaders: boolean;
-  hasUserAgent: boolean;
-} {
-  const profile = authSelection?.profile;
-
-  return {
-    siteHint: site,
-    authProfile: authSelection?.profileName,
-    authProfileReason: authSelection?.reason ?? "none",
-    hasCookies: Boolean(profile?.cookies?.length),
-    hasHeaders: Boolean(profile?.headers && Object.keys(profile.headers).length > 0),
-    hasUserAgent: Boolean(profile?.userAgent),
-  };
-}
-
-function formatExecutionSummary(details: ReturnType<typeof buildExecutionDetails>): string {
-  return [
-    "*Execution:*",
-    `siteHint=${details.siteHint ?? "none"}`,
-    `auth=${details.authProfile ?? "none"}`,
-    `authReason=${details.authProfileReason}`,
-    `egress=server-managed`,
-    `cookies=${details.hasCookies ? "yes" : "no"}`,
-    `headers=${details.hasHeaders ? "yes" : "no"}`,
-    `userAgent=${details.hasUserAgent ? "yes" : "no"}`,
-  ].join(" ");
-}
-
-function prepareCrawlArguments(args: unknown): unknown {
-  if (!args || typeof args !== "object") {
-    return args;
-  }
-
-  const input = args as Record<string, unknown>;
-  const next: Record<string, unknown> = { ...input };
-
-  if (next.site === undefined) {
-    const siteAlias = next.platform ?? next.siteName ?? next.sourceSite;
-    if (typeof siteAlias === "string") {
-      next.site = siteAlias;
-    }
-  }
-
-  if (next.authProfile === undefined) {
-    const authAlias = next.profile ?? next.auth_profile ?? next.auth;
-    if (typeof authAlias === "string") {
-      next.authProfile = authAlias;
-    }
-  }
-
-  return next;
+function formatExecutionSummary(): string {
+  return "*Execution:* egress=server-managed";
 }
 
 function resolveTokenBudget(
@@ -185,39 +127,24 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
     label: "Crawl Website",
     description:
       "Extract content from known URL(s) via crawl4ai browser rendering (JS/SPA). " +
-      "Not for search/discovery. Optional auth profiles (cookies/headers/UA). " +
+      "Not for search/discovery. " +
       "Egress/proxy is managed by the crawl4ai server, not this tool. " +
       "Small pages return markdown inline; large/deep crawls auto-save and return a page index plus exact paths—then use crawl_read. " +
       "Use returnMode/maxChars* to override.",
     promptSnippet:
-      "Crawl known URLs with optional auth; large results auto-save with a manifest, page index, and exact page paths—then use crawl_read.",
+      "Crawl known URLs; large results auto-save with a manifest, page index, and exact page paths—then use crawl_read.",
     promptGuidelines: [
       "Prefer discovering URLs with a search tool first when available; crawl only the pages you need.",
-      "If the user provides URLs directly, rely on automatic domain-based auth profile selection by default. Do not pass authProfile unless the user explicitly asks for a specific account, login context, or named auth setup.",
-      "Use the site parameter only when the user refers to a platform or site by name instead of giving a domain, for example 'from X', 'from Reddit', or similar site-name phrasing.",
-      "Do not invent authProfile values. Only pass authProfile when the user explicitly requests a known profile or prior context established one.",
       "For multi-page or deep crawls, read crawl-manifest.json first or use the exact page paths printed in the result with crawl_read; never invent flattened filenames.",
       "If save is omitted or false and inline output is truncated, it is not recoverable from disk; re-crawl with save=true for progressive reads.",
       "Use deepCrawl only when multi-page exploration is needed; start with low maxDepth/maxPages.",
       "Use returnMode=inline only when you truly need full bodies in-context for a small page set.",
     ],
-    prepareArguments: prepareCrawlArguments,
     parameters: Type.Object({
       urls: Type.Array(Type.String(), {
         description: "URLs to crawl (one or more). For deep crawling, provide a single start URL.",
         minItems: 1,
       }),
-      site: Type.Optional(
-        Type.String({
-          description: "Optional site hint for auth profile selection, e.g. x, twitter, reddit",
-        })
-      ),
-      authProfile: Type.Optional(
-        Type.String({
-          description:
-            "Optional explicit auth profile name from config. Overrides automatic site/domain matching.",
-        })
-      ),
       format: Type.Optional(
         Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links")], {
           description: "Output format: markdown (default), html, or links",
@@ -335,8 +262,6 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
     ) {
       const {
         urls,
-        site,
-        authProfile,
         format = "markdown",
         waitFor,
         jsCode,
@@ -363,13 +288,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         preferFitMarkdown,
       });
 
-      const authSelection = resolveAuthSelection(config, { urls, site, authProfile });
-      const executionDetails = buildExecutionDetails(site, authSelection);
-      const executionSummary = formatExecutionSummary(executionDetails);
-
-      // Build the request payload
-      const browserConfig = buildBrowserConfig(config, authSelection, urls);
-
+      const executionSummary = formatExecutionSummary();
       const crawlerConfig: Record<string, unknown> = {};
 
       if (waitFor) {
@@ -400,7 +319,6 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
 
       const payload = {
         urls,
-        browser_config: browserConfig,
         crawler_config: crawlerConfig,
       };
 
@@ -413,7 +331,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       }
 
       try {
-        const requestPacing = await applyRequestPacing(config, authSelection, signal);
+        const requestPacing = await applyRequestPacing(config, signal);
 
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
@@ -525,15 +443,9 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
           content: [{ type: "text", text }],
           details: {
             results: slimResults,
-            hasCookies: executionDetails.hasCookies,
-            hasHeaders: executionDetails.hasHeaders,
-            hasUserAgent: executionDetails.hasUserAgent,
-            siteHint: executionDetails.siteHint,
             format,
-            authProfile: executionDetails.authProfile,
-            authProfileReason: executionDetails.authProfileReason,
             egress: "server-managed",
-            execution: executionDetails,
+            execution: { egress: "server-managed" },
             minRequestIntervalMs: requestPacing?.minRequestIntervalMs,
             rateLimitWaitedMs: requestPacing?.waitedMs,
             savedPath,

@@ -23,10 +23,6 @@ Use Docker Compose for local installs.
 
 Set CRAWL4AI_BASE_URL=http://localhost:11235
 
-### Auth profiles
-
-Configure cookies under authProfiles.
-
 ## Configuration
 
 Timeout defaults to 60000ms.
@@ -42,12 +38,11 @@ describe("extractHeadings", () => {
     expect(headings.map((h) => h.title)).toEqual([
       "Install Guide",
       "Docker setup",
-      "Auth profiles",
       "Configuration",
       "Unrelated blog",
     ]);
     expect(headings[0].level).toBe(1);
-    expect(headings[2].level).toBe(3);
+    expect(headings[2].level).toBe(2);
   });
 });
 
@@ -70,7 +65,7 @@ describe("buildOutlineMarkdown / buildPageMeta", () => {
     });
     expect(meta.title).toBe("Install Guide");
     expect(meta.charCount).toBe(SAMPLE.length);
-    expect(meta.headings.length).toBe(5);
+    expect(meta.headings.length).toBe(4);
   });
 });
 
