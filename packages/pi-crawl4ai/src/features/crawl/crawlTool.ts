@@ -14,7 +14,11 @@ import type {
   ReturnMode,
 } from "./types";
 import { applyRequestPacing } from "./requestPacing";
-import { resolveOutputDir, saveCrawlResultsDetailed } from "./saveOutput";
+import {
+  resolveOutputDir,
+  saveCrawlResultsDetailed,
+  type SavedCrawlPage,
+} from "./saveOutput";
 import { formatCleanupSummary } from "./cleanup";
 import {
   DEFAULT_TOKEN_BUDGET,
@@ -183,16 +187,17 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
       "Extract content from known URL(s) via crawl4ai browser rendering (JS/SPA). " +
       "Not for search/discovery. Optional auth profiles (cookies/headers/UA). " +
       "Egress/proxy is managed by the crawl4ai server, not this tool. " +
-      "Small pages return markdown inline; large/deep crawls auto-save and return a page index + paths—then use crawl_read. " +
+      "Small pages return markdown inline; large/deep crawls auto-save and return a page index plus exact paths—then use crawl_read. " +
       "Use returnMode/maxChars* to override.",
     promptSnippet:
-      "Crawl known URLs with optional auth; large results auto-save and return an index—then use crawl_read.",
+      "Crawl known URLs with optional auth; large results auto-save with a manifest, page index, and exact page paths—then use crawl_read.",
     promptGuidelines: [
       "Prefer discovering URLs with a search tool first when available; crawl only the pages you need.",
       "If the user provides URLs directly, rely on automatic domain-based auth profile selection by default. Do not pass authProfile unless the user explicitly asks for a specific account, login context, or named auth setup.",
       "Use the site parameter only when the user refers to a platform or site by name instead of giving a domain, for example 'from X', 'from Reddit', or similar site-name phrasing.",
       "Do not invent authProfile values. Only pass authProfile when the user explicitly requests a known profile or prior context established one.",
-      "For multi-page or deep crawls, expect a page index + disk paths; use crawl_read (not raw read) to open specific pages progressively.",
+      "For multi-page or deep crawls, read crawl-manifest.json first or use the exact page paths printed in the result with crawl_read; never invent flattened filenames.",
+      "If save is omitted or false and inline output is truncated, it is not recoverable from disk; re-crawl with save=true for progressive reads.",
       "Use deepCrawl only when multi-page exploration is needed; start with low maxDepth/maxPages.",
       "Use returnMode=inline only when you truly need full bodies in-context for a small page set.",
     ],
@@ -456,6 +461,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         }
 
         let savedPath: string | undefined;
+        let manifestPath: string | undefined;
+        let savedPagePaths: SavedCrawlPage[] | undefined;
         let cleanupSummary: string | undefined;
         let cleanupDetails: ReturnType<typeof saveCrawlResultsDetailed>["cleanup"];
         if (outputDir) {
@@ -476,6 +483,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             }
           );
           savedPath = saved.sessionDir;
+          manifestPath = saved.manifestPath;
+          savedPagePaths = saved.pagePaths;
           cleanupDetails = saved.cleanup;
           if (saved.cleanup && saved.cleanup.deleted.length > 0) {
             cleanupSummary = formatCleanupSummary(saved.cleanup);
@@ -490,10 +499,22 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
           isDeepCrawl,
           maxDepth: deepCrawl?.maxDepth,
           savedPath,
+          manifestPath,
+          savedFiles: savedPagePaths?.map((page) => ({
+            url: page.url,
+            relativePath: page.file,
+            path: page.path,
+            outlinePath: page.outlinePath,
+            metaPath: page.metaPath,
+          })),
           executionSummary,
         });
 
-        const slimResults = slimResultDetails(built.pages, data.results);
+        const slimResults = slimResultDetails(
+          built.pages,
+          data.results,
+          built.savedFiles
+        );
         const text = cleanupSummary
           ? `${built.text}
 
@@ -516,6 +537,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             minRequestIntervalMs: requestPacing?.minRequestIntervalMs,
             rateLimitWaitedMs: requestPacing?.waitedMs,
             savedPath,
+            manifestPath: built.manifestPath,
+            savedFiles: built.savedFiles,
             returnMode: built.mode,
             returnModeReason: decision.reason,
             truncated: built.truncated,

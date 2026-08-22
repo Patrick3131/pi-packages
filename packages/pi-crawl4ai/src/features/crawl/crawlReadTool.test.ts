@@ -3,7 +3,7 @@
  */
 
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { loadConfig } from "../../config";
 import { registerCrawlReadTool, executeCrawlRead } from "./crawlReadTool";
 import { saveCrawlResults } from "./saveOutput";
@@ -122,6 +122,43 @@ describe("executeCrawlRead", () => {
     expect(result.text.length).toBeLessThanOrEqual(200);
   });
 
+  it("reads the manifest first and resolves a page URL to its nested path", () => {
+    const { sessionDir, pagePath } = seedSession();
+    const manifestPath = join(sessionDir, "crawl-manifest.json");
+
+    const manifest = executeCrawlRead(
+      { path: manifestPath },
+      { outputRoot: TEST_DIR, cwd: process.cwd() }
+    );
+    expect(manifest.details.manifestPath).toBe(resolve(manifestPath));
+    expect(manifest.text).toContain("crawl manifest");
+    expect(manifest.text).toContain(pagePath);
+
+    const byUrl = executeCrawlRead(
+      { path: manifestPath, url: "https://docs.example.com/install" },
+      { outputRoot: TEST_DIR, cwd: process.cwd() }
+    );
+    expect(byUrl.details.path).toBe(resolve(pagePath));
+    expect(byUrl.text).toContain("Installation");
+
+    const byUrlOnly = executeCrawlRead(
+      { url: "https://docs.example.com/install" },
+      { outputRoot: TEST_DIR, cwd: process.cwd() }
+    );
+    expect(byUrlOnly.details.path).toBe(resolve(pagePath));
+  });
+
+  it("lists exact valid paths when a flattened path is missing", () => {
+    const { pagePath } = seedSession();
+    const result = executeCrawlRead(
+      { path: join(TEST_DIR, "flattened-docs.example.com-install.md") },
+      { outputRoot: TEST_DIR, cwd: process.cwd() }
+    );
+    expect(result.text).toMatch(/not found/i);
+    expect(result.text).toContain(pagePath);
+    expect(result.text).toContain("crawl-manifest.json");
+  });
+
   it("errors on missing path", () => {
     const result = executeCrawlRead(
       { path: join(TEST_DIR, "nope.md") },
@@ -140,5 +177,17 @@ describe("registerCrawlReadTool", () => {
     registerCrawlReadTool(pi, loadConfig());
     expect(registered[0].name).toBe("crawl_read");
     expect(registered[0].parameters).toBeDefined();
+  });
+
+  it("marks a missing path as an actual tool error", async () => {
+    const registered: any[] = [];
+    const pi = {
+      registerTool: (tool: any) => registered.push(tool),
+    } as unknown as ExtensionAPI;
+    registerCrawlReadTool(pi, loadConfig());
+
+    await expect(
+      registered[0].execute("tool-call-id", { path: "./__definitely-missing-crawl-page__.md" })
+    ).rejects.toThrow(/not found/i);
   });
 });

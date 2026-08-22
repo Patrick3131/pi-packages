@@ -5,6 +5,7 @@
  * enforcing char budgets, and returning file indexes when content is large.
  */
 
+import { join } from "node:path";
 import type { CrawlFormat, CrawlResult, MarkdownGenerationResult } from "./types";
 
 export type ReturnMode = "auto" | "inline" | "files";
@@ -47,6 +48,16 @@ export interface FormattedPage {
   errorMessage?: string;
 }
 
+export interface SavedPagePath {
+  url: string;
+  /** Path relative to the saved crawl session. */
+  relativePath: string;
+  /** Exact path to the saved page content. */
+  path: string;
+  outlinePath?: string;
+  metaPath?: string;
+}
+
 export interface SlimResultDetail {
   url: string;
   success: boolean;
@@ -58,6 +69,10 @@ export interface SlimResultDetail {
   depth?: number;
   parentUrl?: string;
   errorMessage?: string;
+  /** Exact saved page path when this crawl was persisted. */
+  filePath?: string;
+  /** Path relative to the saved crawl session. */
+  relativeFilePath?: string;
 }
 
 export interface BudgetDecision {
@@ -73,6 +88,8 @@ export interface BuiltToolText {
   truncated: boolean;
   pages: FormattedPage[];
   mode: "inline" | "files";
+  manifestPath?: string;
+  savedFiles?: SavedPagePath[];
 }
 
 function isMarkdownObject(value: unknown): value is MarkdownGenerationResult {
@@ -294,9 +311,14 @@ export function applyInlineBudgets(
   });
 }
 
-export function slimResultDetails(pages: FormattedPage[], rawResults: CrawlResult[]): SlimResultDetail[] {
+export function slimResultDetails(
+  pages: FormattedPage[],
+  rawResults: CrawlResult[],
+  savedFiles?: SavedPagePath[]
+): SlimResultDetail[] {
   return pages.map((page, index) => {
     const raw = rawResults[index];
+    const saved = savedFiles?.[index];
     return {
       url: page.url,
       success: page.success,
@@ -308,8 +330,14 @@ export function slimResultDetails(pages: FormattedPage[], rawResults: CrawlResul
       depth: page.depth ?? raw?.metadata?.depth,
       parentUrl: raw?.metadata?.parent_url,
       errorMessage: page.errorMessage ?? raw?.error_message,
+      filePath: saved?.path,
+      relativeFilePath: saved?.relativePath,
     };
   });
+}
+
+function joinSavedManifestPath(savedPath?: string): string {
+  return savedPath ? join(savedPath, "crawl-manifest.json") : "crawl-manifest.json";
 }
 
 function formatIndexSections(
@@ -369,6 +397,8 @@ export function buildBudgetedToolText(options: {
   isDeepCrawl: boolean;
   maxDepth?: number;
   savedPath?: string;
+  manifestPath?: string;
+  savedFiles?: SavedPagePath[];
   executionSummary: string;
 }): BuiltToolText {
   const {
@@ -379,6 +409,8 @@ export function buildBudgetedToolText(options: {
     isDeepCrawl,
     maxDepth,
     savedPath,
+    manifestPath,
+    savedFiles,
     executionSummary,
   } = options;
 
@@ -389,21 +421,36 @@ export function buildBudgetedToolText(options: {
       ? `# Deep Crawl Results (${pages.length} pages${maxDepth !== undefined ? `, max depth: ${maxDepth}` : ""})`
       : `# Crawl Results (${pages.length} pages)`;
 
+    const savedFileLines = savedPath
+      ? [
+          "",
+          "## Saved page files",
+          `*Manifest: ${manifestPath ?? joinSavedManifestPath(savedPath)}*`,
+          "*Read crawl-manifest.json first with crawl_read, or use one of the exact page paths below. Do not invent flattened filenames.*",
+          ...(savedFiles ?? []).map((saved) => `- ${saved.url} → ${saved.path}`),
+        ]
+      : [];
+    const notSavedNotice = savedPath
+      ? undefined
+      : "*Not saved to disk (save=false or persistence disabled). The page index is not recoverable via crawl_read; re-run with save=true to persist the pages.*";
     const lines = [
       executionSummary,
       "",
       header,
       `*Return mode: files (${decision.reason}) — full page bodies kept off the model context.*`,
-      savedPath ? `*Results saved to: ${savedPath}*` : "*Not saved to disk (save=false). Content is summarized only.*",
+      savedPath ? `*Results saved to: ${savedPath}*` : notSavedNotice,
       `*Totals: ${totalOriginalChars} chars across ${pages.length} pages.*`,
       "",
       "## Page index",
       formatIndexSections(pages, rawResults, budget.excerptChars, isDeepCrawl, maxDepth),
+      ...savedFileLines,
       "",
-      "Full content is on disk when saved. Use `read` on specific files for details, or re-crawl with `returnMode: \"inline\"` / higher budgets for a single page.",
+      savedPath
+        ? "Full content is on disk. Read crawl-manifest.json first or use the exact saved page paths above with crawl_read; never invent or flatten filenames."
+        : "No crawl files exist for this result. Do not guess a path; re-crawl with save=true if progressive disk reads are needed.",
     ];
 
-    const text = lines.join("\n");
+    const text = lines.filter((line): line is string => line !== undefined).join("\n");
     return {
       text,
       totalOriginalChars,
@@ -411,15 +458,19 @@ export function buildBudgetedToolText(options: {
       truncated: true,
       pages,
       mode: "files",
+      manifestPath,
+      savedFiles,
     };
   }
 
   // inline mode with budgets
   const budgeted = applyInlineBudgets(pages, budget.maxCharsPerPage, budget.maxCharsPerCall);
   const anyTruncated = budgeted.some((page) => page.truncated);
-  const saveNotice = savedPath ? `\n\n*Results saved to: ${savedPath}*` : "";
+  const saveNotice = savedPath
+    ? `\n\n*Results saved to: ${savedPath}${manifestPath ? `. Manifest: ${manifestPath}` : ""}*`
+    : "\n\n*Results were not saved to disk (save was omitted or false); inline content is not recoverable via crawl_read.*";
   const truncationNote = anyTruncated
-    ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content: ${savedPath}` : " Re-crawl with save=true or higher budgets for full text."}*`
+    ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content is in the saved session; read crawl-manifest.json first or use its exact page paths with crawl_read.` : " Truncated inline text is not recoverable from disk; re-crawl with save=true or higher budgets for full text."}*`
     : "";
 
   const body =
@@ -439,6 +490,8 @@ export function buildBudgetedToolText(options: {
     truncated: anyTruncated,
     pages: budgeted,
     mode: "inline",
+    manifestPath,
+    savedFiles,
   };
 }
 

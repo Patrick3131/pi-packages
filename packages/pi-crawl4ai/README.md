@@ -117,7 +117,9 @@ Large crawls can burn a lot of model tokens if full page bodies are always inlin
 
 Per-call overrides on the tool: `returnMode`, `maxCharsPerPage`, `maxCharsPerCall`, `preferFitMarkdown`.
 
-When auto mode chooses files/index, results are auto-saved (unless `save: false`) so you can `read` specific files instead of re-inlining everything.
+When auto mode chooses files/index, results are auto-saved (unless `save: false`). Files-mode output prints the exact `crawl-manifest.json` path and each exact nested page path; read the manifest first or use one of those paths with `crawl_read`—never invent flattened filenames. `crawl_read` can also resolve a page URL through a manifest/session.
+
+With `save` omitted or `save: false`, inline output is intentionally not persisted. If inline content is truncated, it cannot be recovered by `crawl_read`; re-crawl with `save: true` or a larger budget.
 
 #### Retention (disk cleanup)
 

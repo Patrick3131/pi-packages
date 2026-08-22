@@ -211,8 +211,25 @@ export interface SaveCrawlOptions {
   retention?: RetentionPolicy;
 }
 
+export interface SavedCrawlPage {
+  /** Page URL as returned by crawl4ai. */
+  url: string;
+  /** Path relative to the crawl session directory (also stored in the manifest). */
+  file: string;
+  /** Exact path to the saved page content. */
+  path: string;
+  outlineFile?: string;
+  metaFile?: string;
+  outlinePath?: string;
+  metaPath?: string;
+}
+
 export interface SaveCrawlResult {
   sessionDir: string;
+  /** Exact path to the manifest that maps URLs to page files. */
+  manifestPath: string;
+  /** Exact paths for each saved page, in crawl result order. */
+  pagePaths: SavedCrawlPage[];
   cleanup?: CleanupResult;
 }
 
@@ -236,7 +253,7 @@ export function saveCrawlResults(
 
 /**
  * Save crawl results and optionally run retention cleanup.
- * Returns session path plus cleanup stats when retention ran.
+ * Returns the session, manifest, exact page paths, plus cleanup stats when retention ran.
  */
 export function saveCrawlResultsDetailed(
   outputDir: string,
@@ -254,6 +271,7 @@ export function saveCrawlResultsDetailed(
   mkdirSync(sessionDir, { recursive: true });
   
   const savedFiles: string[] = [];
+  const pagePaths: SavedCrawlPage[] = [];
   const pages: CrawlManifestPage[] = [];
   const savedAt = timestamp.toISOString();
   
@@ -310,6 +328,15 @@ export function saveCrawlResultsDetailed(
     }
 
     pages.push(pageEntry);
+    pagePaths.push({
+      url: result.url,
+      file: relativePath,
+      path: fullPath,
+      outlineFile: pageEntry.outlineFile,
+      metaFile: pageEntry.metaFile,
+      outlinePath: pageEntry.outlineFile ? join(sessionDir, pageEntry.outlineFile) : undefined,
+      metaPath: pageEntry.metaFile ? join(sessionDir, pageEntry.metaFile) : undefined,
+    });
   }
   
   // Create manifest
@@ -339,5 +366,10 @@ export function saveCrawlResultsDetailed(
     cleanup = cleanupCrawlSessions(outputDir, options.retention);
   }
   
-  return { sessionDir, cleanup };
+  return {
+    sessionDir,
+    manifestPath,
+    pagePaths,
+    cleanup,
+  };
 }

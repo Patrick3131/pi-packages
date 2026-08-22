@@ -1224,6 +1224,135 @@ describe('crawl tool save functionality', () => {
     expect(existsSync(join(result.details.savedPath, 'example.com/docs.md'))).toBe(true);
   });
 
+  it('should expose the manifest and exact nested page paths in files mode', async () => {
+    mockFetch({
+      ok: true,
+      data: {
+        success: true,
+        results: [
+          {
+            url: 'https://github.com/earendil-works/pi/issues/5512',
+            success: true,
+            markdown: '# Issue 5512',
+          },
+          {
+            url: 'https://github.com/earendil-works/pi/pulls/12',
+            success: true,
+            markdown: '# Pull 12',
+          },
+        ],
+      },
+    });
+
+    const result = await toolExecute(
+      'tool-call-id',
+      {
+        urls: [
+          'https://github.com/earendil-works/pi/issues/5512',
+          'https://github.com/earendil-works/pi/pulls/12',
+        ],
+        returnMode: 'files',
+        save: TEST_SAVE_DIR,
+      },
+      undefined,
+      undefined,
+      {}
+    );
+
+    const issuePath = join(
+      result.details.savedPath,
+      'github.com/earendil-works/pi/issues/5512.md'
+    );
+    const pullPath = join(result.details.savedPath, 'github.com/earendil-works/pi/pulls/12.md');
+    const manifestPath = join(result.details.savedPath, 'crawl-manifest.json');
+
+    expect(existsSync(issuePath)).toBe(true);
+    expect(existsSync(pullPath)).toBe(true);
+    expect(result.details.manifestPath).toBe(manifestPath);
+    expect(result.details.savedFiles).toEqual([
+      expect.objectContaining({
+        url: 'https://github.com/earendil-works/pi/issues/5512',
+        relativePath: 'github.com/earendil-works/pi/issues/5512.md',
+        path: issuePath,
+      }),
+      expect.objectContaining({
+        url: 'https://github.com/earendil-works/pi/pulls/12',
+        relativePath: 'github.com/earendil-works/pi/pulls/12.md',
+        path: pullPath,
+      }),
+    ]);
+    expect(result.details.results[0].filePath).toBe(issuePath);
+    expect(result.content[0].text).toContain(`Manifest: ${manifestPath}`);
+    expect(result.content[0].text).toContain(
+      `https://github.com/earendil-works/pi/issues/5512 → ${issuePath}`
+    );
+    expect(result.content[0].text).toContain(
+      `https://github.com/earendil-works/pi/pulls/12 → ${pullPath}`
+    );
+    expect(result.content[0].text).not.toContain('github.com-earendil-works-pi-issues-5512.md');
+  });
+
+  it('should preserve save=false for files mode and explain that no files exist', async () => {
+    mockFetch({
+      ok: true,
+      data: {
+        success: true,
+        results: [
+          { url: 'https://example.com/a', success: true, markdown: '# A' },
+          { url: 'https://example.com/b', success: true, markdown: '# B' },
+        ],
+      },
+    });
+
+    const result = await toolExecute(
+      'tool-call-id',
+      {
+        urls: ['https://example.com/a', 'https://example.com/b'],
+        returnMode: 'files',
+        save: false,
+      },
+      undefined,
+      undefined,
+      {}
+    );
+
+    expect(result.details.savedPath).toBeUndefined();
+    expect(result.details.manifestPath).toBeUndefined();
+    expect(result.details.savedFiles).toBeUndefined();
+    expect(result.content[0].text).toContain('No crawl files exist for this result');
+    expect(result.content[0].text).toContain('save=true');
+  });
+
+  it('should explain that unsaved truncated inline output is not recoverable', async () => {
+    mockFetch({
+      ok: true,
+      data: {
+        success: true,
+        results: [
+          { url: 'https://example.com/long', success: true, markdown: 'x'.repeat(1_000) },
+        ],
+      },
+    });
+
+    const result = await toolExecute(
+      'tool-call-id',
+      {
+        urls: ['https://example.com/long'],
+        returnMode: 'inline',
+        maxCharsPerPage: 100,
+        maxCharsPerCall: 5_000,
+      },
+      undefined,
+      undefined,
+      {}
+    );
+
+    expect(result.details.savedPath).toBeUndefined();
+    expect(result.details.truncated).toBe(true);
+    expect(result.content[0].text).toContain('not recoverable via crawl_read');
+    expect(result.content[0].text).toContain('save=true');
+  });
+
   it('should save deep crawl results', async () => {
     mockFetch({
       ok: true,

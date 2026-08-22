@@ -78,7 +78,8 @@ export interface CrawlToolParams {
   deepCrawl?: DeepCrawlConfig;
   /**
    * Save results to disk.
-   * - undefined/false: don't save (default; auto mode may still save when over budget)
+   * - undefined: don't save inline results; auto files mode may save when over budget
+   * - false: never save (including files mode)
    * - true: save to default directory (./output-crawl4ai or CRAWL4AI_OUTPUT_DIR)
    * - string: save to custom directory path
    */

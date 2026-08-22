@@ -61,7 +61,10 @@ crawl4ai returns CrawlResult[]
 
 ### 3. Progressive read (`crawl_read`)
 
-Saved pages get `*.outline.md`, `*.meta.json`, and manifest `pages[]`.
+Saved pages get `*.outline.md`, `*.meta.json`, and manifest `pages[]` with paths relative to the session. Files-mode crawl output also exposes the exact manifest and page paths; read the manifest first or use an exact path, never a flattened filename. `crawl_read` can resolve a page URL through a manifest/session and reports missing paths as tool errors.
+
+Inline results with `save` omitted or `false` are not persisted; truncated inline content cannot be recovered by `crawl_read`.
+
 `crawl_read` modes: outline | chunks | window | full.
 
 ### 4. Retention
