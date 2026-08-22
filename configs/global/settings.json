@@ -6,6 +6,7 @@
     "npm:pi-subagents",
     "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
+    "git:github.com/StanleyOneG/pi-compact",
     {
       "source": "git:github.com/Patrick3131/pi-packages",
       "skills": [

@@ -37,6 +37,17 @@ pi update --extensions
 This is the deployment and normal workstation setup. Local paths are reserved
 for development of an extension before it is pushed.
 
+### Temporary compaction workaround
+
+The global setup also installs [`pi-compact`](https://github.com/StanleyOneG/pi-compact)
+as a workaround for Pi's current auto-compaction gap during long assistant/tool
+loops. It compacts at completed turn boundaries and coordinates continuation
+ownership with `pi-goal`.
+
+This is not a replacement for native Pi behavior. The guard should eventually
+be handled by Pi core before the next provider request; remove `pi-compact` from
+the global package configuration once that native fix is available.
+
 ### From npm (recommended)
 
 ```bash

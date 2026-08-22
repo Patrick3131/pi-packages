@@ -85,6 +85,7 @@ wanted = [
     "npm:pi-subagents",
     "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
+    "git:github.com/StanleyOneG/pi-compact",
     "git:github.com/Patrick3131/pi-packages",
 ]
 
@@ -123,6 +124,7 @@ echo "Installing Pi packages (safe if already present)..."
 pi install npm:pi-subagents
 pi install npm:pi-xai-oauth
 pi install npm:@narumitw/pi-goal
+pi install git:github.com/StanleyOneG/pi-compact
 pi install git:github.com/Patrick3131/pi-packages
 
 echo

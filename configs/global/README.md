@@ -11,7 +11,7 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | `xai-defaults.json` | `~/.pi/agent/xai-defaults.json` |
 
 `settings.json` includes default model/theme/thinking, plus the npm packages
-`pi-subagents`, `pi-xai-oauth`, and `pi-goal`. It does **not** include secrets.
+`pi-subagents`, `pi-xai-oauth`, `pi-goal`, and `pi-compact`. It does **not** include secrets.
 
 Melon packages are installed as one Git-backed package. The global package
 entry excludes `packages/pi-work/skills/**`: Melon repositories already carry
@@ -22,6 +22,7 @@ locations would produce skill-name collisions. The package still provides:
 - `packages/pi-tools` — `/tools` command
 - `packages/pi-searxng` — `web_search_searxng` (off by default)
 - `packages/pi-xai-defaults` — default-on xAI extras for Grok (install after `pi-xai-oauth`)
+- `pi-compact` — proactive context compaction at completed turn boundaries
 
 Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is
 not registered twice. On managed remote hosts, `pi-init` uses `--force` so the
