@@ -25,7 +25,7 @@ Intro paragraph about the product.
 
 ## Installation
 
-Run npm install pi-crawl4ai.
+Install the package from the pi-packages Git repository.
 
 ## Docker
 

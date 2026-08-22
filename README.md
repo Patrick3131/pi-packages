@@ -1,18 +1,18 @@
 # pi-packages
 
-A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions published as npm packages.
+A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed as a Git package.
 
 ## Packages
 
-| Package | Description | Version |
-|---------|-------------|---------|
-| [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | [![npm](https://img.shields.io/npm/v/pi-crawl4ai.svg)](https://www.npmjs.com/package/pi-crawl4ai) |
-| [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | unpublished |
-| [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | unpublished |
-| [pi-tools](./packages/pi-tools) | Official `/tools` command | unpublished |
-| [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | unpublished |
-| [pi-xai-defaults](./packages/pi-xai-defaults) | Default-on xAI extras for Grok models | unpublished |
-| [pi-workspaces](./packages/pi-workspaces) | Pi Web workflow panel for Melon task worktrees and Codex | unpublished |
+| Package | Description | Distribution |
+|---------|-------------|--------------|
+| [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | Git package |
+| [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | Git package |
+| [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
+| [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
+| [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
+| [pi-xai-defaults](./packages/pi-xai-defaults) | Default-on xAI extras for Grok models | Git package |
+| [pi-workspaces](./packages/pi-workspaces) | Pi Web workflow panel for Melon task worktrees and Codex | Git package |
 
 ## Installation
 
@@ -47,35 +47,6 @@ ownership with `pi-goal`.
 This is not a replacement for native Pi behavior. The guard should eventually
 be handled by Pi core before the next provider request; remove `pi-compact` from
 the global package configuration once that native fix is available.
-
-### From npm (recommended)
-
-```bash
-npm install pi-crawl4ai
-# or
-npm install pi-work
-# or
-npm install pi-presets
-```
-
-Add to your Pi `settings.json`:
-
-```json
-{
-  "packages": ["pi-crawl4ai", "pi-work", "pi-presets"]
-}
-```
-
-### From GitHub
-
-Use the monorepo Git package for normal installs:
-
-```bash
-pi install git:github.com/Patrick3131/pi-packages
-```
-
-Avoid also adding individual local extension paths globally, or Pi will load the
-same tools twice.
 
 ### For Local Development
 
@@ -136,12 +107,19 @@ That copies sanitized global settings, personal job presets, and `/tools`. It do
 3. Update `package.json` with new name and description
 4. Add to the Packages table above
 
-## Publishing
+## Updating the Git package
+
+Push changes to the repository, then update installed copies with:
 
 ```bash
-cd packages/pi-crawl4ai
-npm version patch  # or minor, major
-npm publish
+pi update --extensions
+# In Pi: /reload
+```
+
+For a pinned release, install a Git tag or commit:
+
+```bash
+pi install git:github.com/Patrick3131/pi-packages@<tag-or-commit>
 ```
 
 ## Structure

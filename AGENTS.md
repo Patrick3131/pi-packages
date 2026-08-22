@@ -10,7 +10,7 @@ canonical_for: Repo-wide working agreements and navigation
 
 ## Purpose
 
-Root guidance for the pi-packages monorepo. Contains Pi extensions published as npm packages.
+Root guidance for the pi-packages monorepo. Contains Pi extensions distributed through the repository Git package.
 
 ## Scope
 
@@ -100,12 +100,12 @@ packages/<name>/
 - Run tests before committing: `npm run test`
 - Aim for meaningful coverage on core logic
 
-### Publishing
+### Releasing the Git package
 
-1. Update version in package `package.json`
-2. Run tests: `npm run test --workspace=packages/<name>`
-3. Build: `npm run build --workspace=packages/<name>`
-4. Publish: `npm publish` from package directory
+1. Run tests: `npm run test --workspace=packages/<name>`
+2. Build: `npm run build --workspace=packages/<name>`
+3. Push the changes to the repository
+4. Optionally create a Git tag for a pinned install
 
 ## Adding a New Package
 

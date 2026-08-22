@@ -10,7 +10,7 @@ canonical_for: System architecture and package relationships
 
 ## System Overview
 
-pi-packages is a monorepo containing Pi extensions published as npm packages. Each package provides tools and capabilities for the Pi coding agent.
+pi-packages is a monorepo containing Pi extensions distributed through one repository Git package. Each package provides tools and capabilities for the Pi coding agent.
 
 ## Architecture
 
@@ -125,16 +125,20 @@ throw new Error(`Operation failed: ${reason}`);
 Packages are **independent**:
 - No cross-package dependencies
 - Each has its own `package.json`, `tsconfig.json`
-- Each can be published independently
+- Each can be built and tested independently
 - Each has its own documentation
 
-## Publishing Flow
+The repository root is the canonical Pi package source. Install it with
+`git:github.com/Patrick3131/pi-packages`; use package filters when only one
+extension should be loaded.
+
+## Git Package Release Flow
 
 ```
 1. Develop in packages/<name>/
 2. Build: npm run build
 3. Test: npm run test
-4. Publish: cd packages/<name> && npm publish
+4. Push the repository; optionally create a Git tag for pinned installs
 ```
 
 ## Canonical Deep Context

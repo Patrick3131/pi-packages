@@ -20,44 +20,41 @@ A [Pi](https://github.com/badlogic/pi-mono) extension for web crawling using [cr
 
 ## Installation
 
-### Option 1: npm (recommended)
+Install the monorepo Git package (the same source used by the other Pi
+extensions):
 
 ```bash
-npm install pi-crawl4ai
+pi install git:github.com/Patrick3131/pi-packages
 ```
 
-Add to your Pi `settings.json`:
+The repository manifest loads `pi-crawl4ai` and the other extensions. To load
+only this extension, use a package filter in `settings.json`:
 
 ```json
 {
-  "packages": ["pi-crawl4ai"]
+  "packages": [
+    {
+      "source": "git:github.com/Patrick3131/pi-packages",
+      "extensions": ["packages/pi-crawl4ai/src/index.ts"]
+    }
+  ]
 }
 ```
 
-### Option 2: GitHub
-
-Add to your Pi `settings.json`:
-
-```json
-{
-  "extensions": ["github:Patrick3131/pi-packages/packages/pi-crawl4ai"]
-}
-```
-
-### Option 3: Local development
+### Local development
 
 ```bash
 git clone https://github.com/Patrick3131/pi-packages.git
-cd pi-packages/packages/pi-crawl4ai
+cd pi-packages
 npm install
-npm run build
+npm run build --workspace=packages/pi-crawl4ai
 ```
 
 Add to your Pi `settings.json`:
 
 ```json
 {
-  "extensions": ["/path/to/pi-packages/packages/pi-crawl4ai/dist/index.mjs"]
+  "extensions": ["/path/to/pi-packages/packages/pi-crawl4ai/dist/index.js"]
 }
 ```
 
