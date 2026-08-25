@@ -20,6 +20,7 @@
       "packages/pi-presets/src/preset.ts",
       "packages/pi-searxng/src/index.ts",
       "packages/pi-tools/src/tools.ts",
+      "packages/pi-keepalive/src/index.ts",
       "packages/pi-work/src/index.ts",
       "packages/pi-xai-defaults/src/index.ts"
     ],

@@ -18,6 +18,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
 - `packages/pi-presets` - Global `/preset` engine; job lists stay in JSON files
 - `packages/pi-tools` - Official `/tools` command, installed as a package
+- `packages/pi-keepalive` - Delayed provider-error retries and generic keepalive messages
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
 - `packages/pi-xai-defaults` - Default-on billed xAI extras for Grok models
 - `packages/pi-workspaces` - Melon worktree workflow panel for Pi Web

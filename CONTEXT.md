@@ -40,6 +40,10 @@ pi-packages/
 │   │   ├── src/
 │   │   └── package.json
 │   │
+│   ├── pi-keepalive/         # Delayed provider-error retries
+│   │   ├── src/
+│   │   └── package.json
+│   │
 │   ├── pi-searxng/           # SearXNG web_search_searxng
 │   │   ├── src/
 │   │   └── package.json
