@@ -72,6 +72,28 @@ export function isGitWorkspace(workspace) {
   return workspace?.provider?.metadata?.isGitRepo === true;
 }
 
+export function workspaceRenderKey(workspace) {
+  if (workspace === undefined) return undefined;
+  return JSON.stringify({
+    id: workspace?.id,
+    label: workspace?.label,
+    branch: workspaceBranch(workspace),
+    isGitRepo: isGitWorkspace(workspace),
+  });
+}
+
+export function workspaceContextChanged(previousWorkspace, nextWorkspace) {
+  return workspaceRenderKey(previousWorkspace) !== workspaceRenderKey(nextWorkspace);
+}
+
+export function createWorkspaceFormState(values = {}) {
+  return {
+    owner: values.owner === "codex" ? "codex" : "pi",
+    task: typeof values.task === "string" ? values.task : "",
+    base: typeof values.base === "string" ? values.base : "staging",
+  };
+}
+
 export function previewSource(state) {
   if (state?.status === "stopped") return undefined;
   return {
@@ -126,6 +148,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   previewLoading = false;
   previewScope = "all";
   selectedPreviewApps = new Set(previewAppNames);
+  createForm = createWorkspaceFormState();
   root;
 
   constructor() {
@@ -134,10 +157,15 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   }
 
   set context(value) {
-    const previous = this.contextValue?.workspace?.id;
+    const previousWorkspace = this.contextValue?.workspace;
+    const nextWorkspace = value?.workspace;
     this.contextValue = value;
-    if (previous !== value?.workspace?.id) this.status = undefined;
-    this.render();
+    if (!workspaceContextChanged(previousWorkspace, nextWorkspace)) return;
+    if (previousWorkspace?.id !== nextWorkspace?.id) {
+      this.status = undefined;
+      this.createForm = createWorkspaceFormState();
+    }
+    this.render({ preserveCreateForm: previousWorkspace?.id === nextWorkspace?.id });
   }
 
   connectedCallback() {
@@ -145,7 +173,8 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     void this.refreshPreviewState();
   }
 
-  render() {
+  render({ preserveCreateForm = true } = {}) {
+    if (preserveCreateForm) this.captureCreateFormState();
     const context = this.contextValue;
     if (context === undefined) {
       this.root.innerHTML = `${styles()}<section class="empty">Select a workspace.</section>`;
@@ -166,9 +195,9 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         <article class="card">
           <div class="card-heading"><strong>Create task workspace</strong><span>Creates an isolated branch from staging and shares the project environment.</span></div>
           <div class="create-grid">
-            <label>Owner<select data-owner><option value="pi">Pi</option><option value="codex">Codex</option></select></label>
-            <label>Task name<input data-task placeholder="fix-auth" autocomplete="off"></label>
-            <label>Base branch<input data-base value="staging" autocomplete="off"></label>
+            <label>Owner<select data-owner><option value="pi" ${this.createForm.owner === "pi" ? "selected" : ""}>Pi</option><option value="codex" ${this.createForm.owner === "codex" ? "selected" : ""}>Codex</option></select></label>
+            <label>Task name<input data-task value="${escapeAttr(this.createForm.task)}" placeholder="fix-auth" autocomplete="off"></label>
+            <label>Base branch<input data-base value="${escapeAttr(this.createForm.base)}" autocomplete="off"></label>
             <button data-create ${this.busy ? "disabled" : ""}>Create</button>
           </div>
         </article>
@@ -180,6 +209,15 @@ class MelonWorkspacesPanel extends HTMLElementBase {
     `;
 
     this.root.querySelector("[data-open-terminal]")?.addEventListener("click", () => context.terminal.open());
+    this.root.querySelector("[data-owner]")?.addEventListener("change", (event) => {
+      this.createForm = createWorkspaceFormState({ ...this.createForm, owner: event.target.value });
+    });
+    this.root.querySelector("[data-task]")?.addEventListener("input", (event) => {
+      this.createForm = createWorkspaceFormState({ ...this.createForm, task: event.target.value });
+    });
+    this.root.querySelector("[data-base]")?.addEventListener("input", (event) => {
+      this.createForm = createWorkspaceFormState({ ...this.createForm, base: event.target.value });
+    });
     this.root.querySelector("[data-create]")?.addEventListener("click", () => void this.createWorkspace(context));
     this.root.querySelector("[data-commit]")?.addEventListener("click", () => void this.commitChanges(context, branch));
     this.root.querySelector("[data-discard]")?.addEventListener("click", () => {
@@ -252,6 +290,17 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         void this.runAndWait(context, "Stop workspace preview", "melon-preview stop")
           .then(() => this.refreshPreviewState());
       }
+    });
+  }
+
+  captureCreateFormState() {
+    const owner = this.root?.querySelector("[data-owner]");
+    const task = this.root?.querySelector("[data-task]");
+    const base = this.root?.querySelector("[data-base]");
+    this.createForm = createWorkspaceFormState({
+      owner: owner?.value ?? this.createForm.owner,
+      task: task?.value ?? this.createForm.task,
+      base: base?.value ?? this.createForm.base,
     });
   }
 
@@ -383,9 +432,10 @@ class MelonWorkspacesPanel extends HTMLElementBase {
   }
 
   async createWorkspace(context) {
-    const owner = this.root.querySelector("[data-owner]")?.value ?? "";
-    const task = this.root.querySelector("[data-task]")?.value.trim() ?? "";
-    const base = this.root.querySelector("[data-base]")?.value.trim() ?? "";
+    this.captureCreateFormState();
+    const owner = this.createForm.owner;
+    const task = this.createForm.task.trim();
+    const base = this.createForm.base.trim();
     if ((owner !== "pi" && owner !== "codex") || !validTaskName(task) || !validBranchName(base)) {
       this.status = { kind: "error", message: "Use a valid owner, simple task name, and Git branch name." };
       this.render();

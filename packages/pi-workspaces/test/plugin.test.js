@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import plugin, { branchOwner, isGitWorkspace, previewAppNames, previewSource, previewStartCommand, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch } from "../browser/pi-web-plugin.js";
+import plugin, { branchOwner, createWorkspaceFormState, isGitWorkspace, previewAppNames, previewSource, previewStartCommand, shellQuote, validBranchName, validCommitMessage, validTaskName, workspaceBranch, workspaceContextChanged } from "../browser/pi-web-plugin.js";
 
 test("root package exposes the browser plugin from a narrow browser root", () => {
   const rootPackage = new URL("../../../package.json", import.meta.url);
@@ -30,6 +30,38 @@ test("recognizes task ownership from Git provider metadata", () => {
   assert.equal(branchOwner("pi/improve-tools"), "pi");
   assert.equal(branchOwner("staging"), undefined);
   assert.equal(isGitWorkspace(workspace), true);
+});
+
+test("ignores context refreshes that do not change the rendered workspace", () => {
+  const previous = {
+    id: "workspace-1",
+    label: "pi/fix-auth",
+    provider: { metadata: { isGitRepo: true, branch: "pi/fix-auth", status: "clean" } },
+  };
+  const refreshed = {
+    ...previous,
+    provider: { metadata: { isGitRepo: true, branch: "pi/fix-auth", status: "modified" } },
+  };
+  const changed = {
+    ...previous,
+    provider: { metadata: { isGitRepo: true, branch: "codex/fix-auth", status: "clean" } },
+  };
+
+  assert.equal(workspaceContextChanged(previous, refreshed), false);
+  assert.equal(workspaceContextChanged(previous, changed), true);
+});
+
+test("normalizes and preserves create workspace form state", () => {
+  assert.deepEqual(createWorkspaceFormState({ owner: "codex", task: "fix-auth", base: "staging" }), {
+    owner: "codex",
+    task: "fix-auth",
+    base: "staging",
+  });
+  assert.deepEqual(createWorkspaceFormState({ owner: "invalid", task: 42 }), {
+    owner: "pi",
+    task: "",
+    base: "staging",
+  });
 });
 
 test("validates and quotes form values", () => {
