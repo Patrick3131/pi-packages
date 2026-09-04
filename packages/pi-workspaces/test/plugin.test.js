@@ -92,9 +92,9 @@ test("normalizes the active preview source for display", () => {
   assert.equal(previewSource({ status: "stopped" }), undefined);
 });
 
-test("starts all preview apps by default and supports explicit app selection", () => {
+test("starts all preview apps explicitly and supports custom app selection", () => {
   assert.deepEqual(previewAppNames, ["marketing", "portal", "engagement", "admin", "backend"]);
-  assert.equal(previewStartCommand(), "melon-preview start .");
+  assert.equal(previewStartCommand(), "melon-preview start . --all-apps");
   assert.equal(
     previewStartCommand(["engagement", "portal"]),
     "melon-preview start . --apps 'portal,engagement'",

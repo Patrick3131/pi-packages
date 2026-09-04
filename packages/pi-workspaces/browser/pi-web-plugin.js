@@ -128,7 +128,7 @@ export function shellQuote(value) {
 }
 
 export function previewStartCommand(selectedApps) {
-  if (selectedApps === undefined) return "melon-preview start .";
+  if (selectedApps === undefined) return "melon-preview start . --all-apps";
   const selected = previewAppNames.filter((name) => selectedApps.includes(name));
   if (selected.length === 0) throw new Error("Select at least one preview app.");
   return `melon-preview start . --apps ${shellQuote(selected.join(","))}`;
@@ -351,7 +351,7 @@ class MelonWorkspacesPanel extends HTMLElementBase {
         <div class="preview-selection">
           <label>Apps
             <select data-preview-scope>
-              <option value="all" ${this.previewScope === "all" ? "selected" : ""}>All apps (default)</option>
+              <option value="all" ${this.previewScope === "all" ? "selected" : ""}>All apps</option>
               <option value="custom" ${this.previewScope === "custom" ? "selected" : ""}>Select apps</option>
             </select>
           </label>
