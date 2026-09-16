@@ -15,7 +15,6 @@
 		"src/format.ts",
 		"src/project-config.ts",
 		"src/state.ts",
-		"src/xai-bridge.ts",
 		"test/**/*.ts"
 	]
 }

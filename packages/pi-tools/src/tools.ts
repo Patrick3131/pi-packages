@@ -19,8 +19,7 @@ import {
 	snapshotProjectTools,
 	writeProjectToolsConfig,
 } from "./project-config.js";
-import { sameToolSet } from "./state.js";
-import { enableXaiNetworkTools } from "./xai-bridge.js";
+import { activePresetName, PRESET_FLAG_NAME, sameToolSet } from "./state.js";
 
 export interface ToolsPrintData {
 	text: string;
@@ -52,6 +51,20 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		return getProjectToolsPath(cwd, CONFIG_DIR_NAME);
 	}
 
+	/**
+	 * A job preset selects tools for a specific task; `.pi/tools.json` only
+	 * describes the repo's resting defaults. When a preset is active it owns the
+	 * tool set, so the defaults must not be re-applied behind it.
+	 */
+	function presetOwnsTools(ctx: ExtensionContext): boolean {
+		return (
+			activePresetName({
+				flagValue: pi.getFlag(PRESET_FLAG_NAME),
+				entries: ctx.sessionManager.getEntries(),
+			}) !== undefined
+		);
+	}
+
 	function reconcileFile(cwd: string) {
 		refreshCatalog();
 		const path = projectPath(cwd);
@@ -67,7 +80,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		return { path, tools: reconciled.tools, created: reconciled.created, added: reconciled.added };
 	}
 
-	async function applyProjectDefaults(ctx: ExtensionContext, tools: Record<string, boolean>) {
+	function applyProjectDefaults(tools: Record<string, boolean>) {
 		const next = enabledProjectToolNames(
 			tools,
 			allTools.map((tool) => tool.name),
@@ -76,9 +89,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		enabledTools = new Set(next);
 		if (changed) {
 			applyTools();
-		}
-		if (ctx.ui && typeof ctx.ui.notify === "function") {
-			await enableXaiNetworkTools(pi, ctx as ExtensionCommandContext, next);
 		}
 		appliedDefaults = true;
 	}
@@ -260,13 +270,22 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			return;
 		}
 		const { tools } = reconcileFile(ctx.cwd);
-		await applyProjectDefaults(ctx, tools);
+		if (presetOwnsTools(ctx)) {
+			// Still reconciled above so newly registered tools are recorded, but
+			// the preset's tool set stays exactly as the preset defined it.
+			return;
+		}
+		applyProjectDefaults(tools);
 	});
 
 	pi.on("before_agent_start", async (_event, ctx) => {
 		const { tools, created } = reconcileFile(ctx.cwd);
+		if (presetOwnsTools(ctx)) {
+			appliedDefaults = true;
+			return;
+		}
 		if (!appliedDefaults || created) {
-			await applyProjectDefaults(ctx, tools);
+			applyProjectDefaults(tools);
 		}
 	});
 }

@@ -55,7 +55,14 @@ mkdir -p "$AGENT_DIR/extensions"
 
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
-copy_file "$ROOT/xai-defaults.json" "$AGENT_DIR/xai-defaults.json"
+
+# xAI/Grok support is retired. Remove the leftover config if an older restore
+# installed it; pi-xai-defaults no longer reads it.
+if [[ -f "$AGENT_DIR/xai-defaults.json" ]]; then
+	backup_if_exists "$AGENT_DIR/xai-defaults.json"
+	rm -f "$AGENT_DIR/xai-defaults.json"
+	echo "Removed $AGENT_DIR/xai-defaults.json (xAI support retired)"
+fi
 
 if [[ -f "$AGENT_DIR/extensions/tools.ts" ]]; then
 	backup_if_exists "$AGENT_DIR/extensions/tools.ts"
@@ -83,11 +90,16 @@ def source_of(entry):
 
 wanted = [
     "npm:pi-subagents",
-    "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
     "git:github.com/StanleyOneG/pi-compact",
     "git:github.com/Patrick3131/pi-packages",
 ]
+
+# Retired first-party packages. Keeping any of these would reinstall dead or
+# superseded extensions on the next `pi update --extensions`.
+retired = {
+    "npm:pi-xai-oauth",
+}
 
 # Older restores installed Melon packages from machine-specific local paths.
 # The repository is now one Pi-managed git package, so `pi update
@@ -100,11 +112,16 @@ legacy_package_names = {
     "pi-xai-defaults",
 }
 
+def is_retired(entry):
+    return source_of(entry) in retired
+
+
 def is_legacy_local_package(entry):
     source = source_of(entry).replace("\\", "/").rstrip("/")
     return any(source.endswith(f"/pi-packages/packages/{name}") for name in legacy_package_names)
 
-filtered_packages = [entry for entry in packages if not is_legacy_local_package(entry)]
+dropped = [entry for entry in packages if is_retired(entry) or is_legacy_local_package(entry)]
+filtered_packages = [entry for entry in packages if not is_retired(entry) and not is_legacy_local_package(entry)]
 changed = filtered_packages != packages
 packages = filtered_packages
 existing = {source_of(entry) for entry in packages}
@@ -115,19 +132,24 @@ for item in wanted:
 if changed:
     settings["packages"] = packages
     settings_path.write_text(json.dumps(settings, indent=2) + "\n")
-    print(f"Added missing npm package entries to {settings_path}")
+    for entry in dropped:
+        print(f"Removed retired package entry {source_of(entry)} from {settings_path}")
+    print(f"Updated package list in {settings_path}")
 else:
-    print(f"Package list already contains npm restore targets in {settings_path}")
+    print(f"Package list already matches the restore targets in {settings_path}")
 PY
 
 echo "Installing Pi packages (safe if already present)..."
 pi install npm:pi-subagents
-pi install npm:pi-xai-oauth
 pi install npm:@narumitw/pi-goal
 pi install git:github.com/StanleyOneG/pi-compact
 pi install git:github.com/Patrick3131/pi-packages
 
+# Best-effort cleanup of the retired xAI package itself.
+pi remove npm:pi-xai-oauth || true
+
 echo
 echo "Restore finished."
 echo "Not copied (on purpose): auth.json, sessions/, trust.json, npm/, git/"
+echo "Also removed if present: xai-defaults.json, npm:pi-xai-oauth"
 echo "Reload Pi or restart, then run /preset and /tools."

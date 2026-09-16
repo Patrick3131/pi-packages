@@ -11,12 +11,12 @@ Pi package that registers `/tools` and project tool defaults.
   "read": true,
   "bash": true,
   "web_search_searxng": false,
-  "xai_generate_image": true,
-  "xai_image_to_video": false
+  "agent_browser": false
 }
 ```
 
-- Names are the `/tools` registry names (`xai_grok_read_file`, not `read_file`).
+- Names are the `/tools` registry names. Names the current session did not
+  register are ignored when the file is applied.
 - Values must be `true` or `false`.
 - A missing file is created on first `/tools` open, `/tools save`, or the first agent turn. Live-active tools seed as `true`; everything else is `false`.
 - Tools that appear later are appended as `false`. Existing keys are never rewritten automatically.

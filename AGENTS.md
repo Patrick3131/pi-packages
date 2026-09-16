@@ -20,7 +20,6 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-tools` - Official `/tools` command, installed as a package
 - `packages/pi-keepalive` - Delayed provider-error retries and generic keepalive messages
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
-- `packages/pi-xai-defaults` - Default-on billed xAI extras for Grok models
 - `packages/pi-workspaces` - Melon worktree workflow panel for Pi Web
 - `configs/global` - Sanitized machine restore snapshot (not a published package)
 - Future extensions added to `packages/`

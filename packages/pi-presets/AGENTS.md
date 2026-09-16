@@ -20,7 +20,7 @@ Global `/preset` engine. Named job tool sets stay in JSON files, not in this pac
 
 ## Rules
 
-- Keep the package project-agnostic. No Melon Labs names, no Grok/GPT tool lists.
+- Keep the package project-agnostic. No Melon Labs names, no provider-specific tool lists.
 - Project preset names replace the whole global object; do not field-merge.
 - `tools` replaces the active set. Unknown names warn and are skipped.
 - Do not add a recipe registry or install tools from a preset.

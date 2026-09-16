@@ -24,12 +24,7 @@ Commands:
 - `Ctrl+Shift+U` to cycle
 - `(none)` restores the snapshot taken before the first preset
 
-This package does not install tools. A preset can only enable tools already loaded in the current Pi process.
-
-Grok local adapters register as `xai_grok_*`. If a preset lists `read`, `bash`,
-`edit`/`write`, `ls`, `grep`, or the public names (`read_file`, …), those
-matching adapters stay on. Paid extras (`web_search`, image gen, multi-agent)
-stay opt-in via `/xai-tools` and should not be listed here.
+This package does not install tools. A preset can only enable tools already loaded in the current Pi process. Any name that is not registered is reported by `/preset` instead of failing silently.
 
 ## Install
 

@@ -11,58 +11,44 @@ const registry = [
 	"grep",
 	"find",
 	"ls",
-	"xai_grok_read_file",
-	"xai_grok_search_replace",
-	"xai_grok_list_dir",
-	"xai_grok_grep",
-	"xai_grok_run_terminal_command",
-	"xai_grok_web_search",
-	"xai_generate_image",
+	"crawl",
+	"crawl_read",
+	"agent_browser",
+	"web_search_searxng",
 ];
 
-test("maps Grok public names onto the live dispatchers", () => {
+test("keeps every requested name that is registered", () => {
 	const { valid, unknown } = resolvePresetToolNames({
-		requested: ["read", "read_file", "search_replace", "list_dir", "run_terminal_command"],
+		requested: ["read", "bash", "edit", "write", "grep", "find", "ls"],
 		allToolNames: registry,
 	});
 	assert.deepEqual(unknown, []);
-	assert.ok(valid.includes("read"));
-	assert.ok(valid.includes("xai_grok_read_file"));
-	assert.ok(valid.includes("xai_grok_search_replace"));
-	assert.ok(valid.includes("xai_grok_list_dir"));
-	assert.ok(valid.includes("xai_grok_run_terminal_command"));
-	assert.equal(valid.includes("xai_grok_web_search"), false);
+	assert.deepEqual(valid, ["read", "bash", "edit", "write", "grep", "find", "ls"]);
 });
 
-test("keeps Grok adapters that match listed Pi capabilities", () => {
+test("activates network and browser tools only when a preset asks for them", () => {
 	const { valid } = resolvePresetToolNames({
-		requested: ["read", "bash", "edit", "write", "grep", "ls"],
+		requested: ["read", "crawl", "web_search_searxng"],
 		allToolNames: registry,
 	});
-	assert.ok(valid.includes("xai_grok_read_file"));
-	assert.ok(valid.includes("xai_grok_search_replace"));
-	assert.ok(valid.includes("xai_grok_list_dir"));
-	assert.ok(valid.includes("xai_grok_grep"));
-	assert.ok(valid.includes("xai_grok_run_terminal_command"));
+	assert.ok(valid.includes("crawl"));
+	assert.ok(valid.includes("web_search_searxng"));
+	assert.equal(valid.includes("agent_browser"), false);
 });
 
-test("does not force mutating Grok adapters onto a read-only job", () => {
+test("deduplicates repeated names", () => {
 	const { valid } = resolvePresetToolNames({
-		requested: ["read", "grep", "find", "ls"],
+		requested: ["read", "read", "grep"],
 		allToolNames: registry,
 	});
-	assert.ok(valid.includes("xai_grok_read_file"));
-	assert.ok(valid.includes("xai_grok_grep"));
-	assert.ok(valid.includes("xai_grok_list_dir"));
-	assert.equal(valid.includes("xai_grok_search_replace"), false);
-	assert.equal(valid.includes("xai_grok_run_terminal_command"), false);
-	assert.equal(valid.includes("xai_generate_image"), false);
+	assert.deepEqual(valid, ["read", "grep"]);
 });
 
-test("reports names that are neither registered nor mappable", () => {
-	const { unknown } = resolvePresetToolNames({
-		requested: ["read", "nope"],
+test("reports names that are not registered, once each", () => {
+	const { valid, unknown } = resolvePresetToolNames({
+		requested: ["read", "nope", "nope", "read_file"],
 		allToolNames: registry,
 	});
-	assert.deepEqual(unknown, ["nope"]);
+	assert.deepEqual(valid, ["read"]);
+	assert.deepEqual(unknown, ["nope", "read_file"]);
 });

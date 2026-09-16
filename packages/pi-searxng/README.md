@@ -30,5 +30,5 @@ Reload Pi, then confirm `/tools` shows `web_search_searxng` disabled.
 /preset research
 ```
 
-Or keep Grok coding as usual and only turn the tool on when you need live search.
-Leave `/xai-tools` web search off unless you want billed xAI search instead.
+Or turn the tool on only when you need live search, and keep `/preset plan`
+for read-only work.

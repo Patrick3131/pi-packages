@@ -1,10 +1,9 @@
 {
-  "defaultProvider": "xai-auth",
-  "defaultModel": "grok-4.6",
-  "defaultThinkingLevel": "medium",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4.1-flash",
+  "defaultThinkingLevel": "high",
   "packages": [
     "npm:pi-subagents",
-    "npm:pi-xai-oauth",
     "npm:@narumitw/pi-goal",
     "git:github.com/StanleyOneG/pi-compact",
     {

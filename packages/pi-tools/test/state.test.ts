@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveEnabledTools, sameToolSet } from "../src/state.js";
+import { activePresetName, resolveEnabledTools, sameToolSet } from "../src/state.js";
 
 const all = ["read", "bash", "edit", "read_file", "search_replace"];
 
@@ -48,7 +48,7 @@ test("a snapshot keeps an explicit disable only when the tool is not live", () =
 	);
 });
 
-test("a live-active Grok adapter stays enabled even if the snapshot omitted it", () => {
+test("a live-active tool stays enabled even if the snapshot omitted it", () => {
 	assert.deepEqual(
 		resolveEnabledTools({
 			allToolNames: all,
@@ -86,4 +86,50 @@ test("unknown names from the snapshot or active list are ignored", () => {
 test("sameToolSet ignores order", () => {
 	assert.equal(sameToolSet(["read", "bash"], ["bash", "read"]), true);
 	assert.equal(sameToolSet(["read"], ["read", "bash"]), false);
+});
+
+test("a preset flag makes the preset the owner of the tool set", () => {
+	assert.equal(activePresetName({ flagValue: "plan" }), "plan");
+	assert.equal(activePresetName({ flagValue: " plan " }), "plan");
+});
+
+test("recorded preset state is used when no flag is present", () => {
+	assert.equal(
+		activePresetName({
+			entries: [
+				{ type: "message" },
+				{ type: "custom", customType: "tools-print", data: { query: "crawl" } },
+				{ type: "custom", customType: "preset-state", data: { name: "research" } },
+			],
+		}),
+		"research",
+	);
+});
+
+test("the newest preset state wins over an earlier one", () => {
+	assert.equal(
+		activePresetName({
+			entries: [
+				{ type: "custom", customType: "preset-state", data: { name: "plan" } },
+				{ type: "custom", customType: "preset-state", data: { name: "implement" } },
+			],
+		}),
+		"implement",
+	);
+});
+
+test("with neither signal, project defaults keep ownership", () => {
+	assert.equal(activePresetName({}), undefined);
+	assert.equal(activePresetName({ flagValue: false }), undefined);
+	assert.equal(activePresetName({ flagValue: "" }), undefined);
+	assert.equal(
+		activePresetName({
+			entries: [
+				{ type: "custom", customType: "preset-state" },
+				{ type: "custom", customType: "preset-state", data: { name: "  " } },
+				{ type: "custom", customType: "preset-state", data: { name: 7 } },
+			],
+		}),
+		undefined,
+	);
 });
