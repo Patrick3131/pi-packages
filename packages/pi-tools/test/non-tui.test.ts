@@ -16,11 +16,13 @@ test("bare /tools prints the catalog outside TUI mode", async () => {
 		},
 		getActiveTools: () => ["read"],
 		getAllTools: () => [{ name: "read", description: "Read a file" }],
+		getFlag: () => undefined,
 		on: () => undefined,
 		registerCommand: (_name: string, command: { handler: typeof handler }) => {
 			handler = command.handler;
 		},
 		registerEntryRenderer: () => undefined,
+		registerFlag: () => undefined,
 		setActiveTools: () => undefined,
 	} as unknown as ExtensionAPI;
 

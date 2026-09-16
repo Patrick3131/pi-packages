@@ -30,6 +30,12 @@ interface OriginalState {
 	tools: string[];
 }
 
+/**
+ * Session entry `pi-presets` writes whenever the active preset changes.
+ * `pi-tools` reads it to avoid re-applying `.pi/tools.json` over a preset.
+ */
+export const PRESET_STATE_ENTRY_TYPE = "preset-state";
+
 function loadEnabledProjectTools(cwd: string): string[] | undefined {
 	try {
 		const path = join(cwd, CONFIG_DIR_NAME, "tools.json");
@@ -101,7 +107,18 @@ export default function presetExtension(pi: ExtensionAPI) {
 
 		activePresetName = name;
 		activePreset = preset;
+		recordPresetState();
 		return true;
+	}
+
+	/**
+	 * Record the active preset in the session so a resume can restore it and so
+	 * other extensions can tell that a preset owns the tool set. `null` means no
+	 * preset is active; `pi-tools` watches this entry instead of re-applying
+	 * `.pi/tools.json` over an explicit preset.
+	 */
+	function recordPresetState(): void {
+		pi.appendEntry(PRESET_STATE_ENTRY_TYPE, { name: activePresetName ?? null });
 	}
 
 	function buildPresetDescription(preset: Preset): string {
@@ -120,6 +137,7 @@ export default function presetExtension(pi: ExtensionAPI) {
 	async function restoreOriginalState(ctx: ExtensionContext): Promise<void> {
 		activePresetName = undefined;
 		activePreset = undefined;
+		recordPresetState();
 		if (originalState) {
 			if (originalState.model) await pi.setModel(originalState.model);
 			pi.setThinkingLevel(originalState.thinkingLevel);
@@ -289,7 +307,10 @@ export default function presetExtension(pi: ExtensionAPI) {
 
 		const entries = ctx.sessionManager.getEntries();
 		const presetEntry = entries
-			.filter((entry: { type: string; customType?: string }) => entry.type === "custom" && entry.customType === "preset-state")
+			.filter(
+				(entry: { type: string; customType?: string }) =>
+					entry.type === "custom" && entry.customType === PRESET_STATE_ENTRY_TYPE,
+			)
 			.pop() as { data?: { name: string } } | undefined;
 
 		if (presetEntry?.data?.name && !presetFlag) {
@@ -305,7 +326,7 @@ export default function presetExtension(pi: ExtensionAPI) {
 
 	pi.on("turn_start", async () => {
 		if (activePresetName) {
-			pi.appendEntry("preset-state", { name: activePresetName });
+			recordPresetState();
 		}
 	});
 }

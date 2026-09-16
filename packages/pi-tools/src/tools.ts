@@ -19,7 +19,7 @@ import {
 	snapshotProjectTools,
 	writeProjectToolsConfig,
 } from "./project-config.js";
-import { activePresetName, PRESET_FLAG_NAME, sameToolSet } from "./state.js";
+import { activePresetName, sameToolSet } from "./state.js";
 
 export interface ToolsPrintData {
 	text: string;
@@ -55,14 +55,15 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	 * A job preset selects tools for a specific task; `.pi/tools.json` only
 	 * describes the repo's resting defaults. When a preset is active it owns the
 	 * tool set, so the defaults must not be re-applied behind it.
+	 *
+	 * `pi.getFlag` only reads flags the calling extension registered, and Pi
+	 * rejects a second owner for the same flag, so the shared signal is the
+	 * `preset-state` entry `pi-presets` records in the session. That entry is
+	 * written when a preset is applied, which is always before the first
+	 * `before_agent_start` of the session.
 	 */
 	function presetOwnsTools(ctx: ExtensionContext): boolean {
-		return (
-			activePresetName({
-				flagValue: pi.getFlag(PRESET_FLAG_NAME),
-				entries: ctx.sessionManager.getEntries(),
-			}) !== undefined
-		);
+		return activePresetName({ entries: ctx.sessionManager.getEntries() }) !== undefined;
 	}
 
 	function reconcileFile(cwd: string) {

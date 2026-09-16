@@ -88,12 +88,7 @@ test("sameToolSet ignores order", () => {
 	assert.equal(sameToolSet(["read"], ["read", "bash"]), false);
 });
 
-test("a preset flag makes the preset the owner of the tool set", () => {
-	assert.equal(activePresetName({ flagValue: "plan" }), "plan");
-	assert.equal(activePresetName({ flagValue: " plan " }), "plan");
-});
-
-test("recorded preset state is used when no flag is present", () => {
+test("the recorded preset state makes the preset the tool-set owner", () => {
 	assert.equal(
 		activePresetName({
 			entries: [
@@ -118,10 +113,20 @@ test("the newest preset state wins over an earlier one", () => {
 	);
 });
 
-test("with neither signal, project defaults keep ownership", () => {
+test("clearing a preset hands the tool set back to the project defaults", () => {
+	assert.equal(
+		activePresetName({
+			entries: [
+				{ type: "custom", customType: "preset-state", data: { name: "plan" } },
+				{ type: "custom", customType: "preset-state", data: { name: null } },
+			],
+		}),
+		undefined,
+	);
+});
+
+test("with no preset state, project defaults keep ownership", () => {
 	assert.equal(activePresetName({}), undefined);
-	assert.equal(activePresetName({ flagValue: false }), undefined);
-	assert.equal(activePresetName({ flagValue: "" }), undefined);
 	assert.equal(
 		activePresetName({
 			entries: [
