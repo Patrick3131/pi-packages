@@ -19,3 +19,14 @@ Be concise, clear, and practical.
 
 If helpful, end with a one-line recommendation or next step, but only when it is genuinely useful.
 If the user asks for more detail, expand as needed.
+
+## Config backups
+
+"Back it up", "back it up via pi-packages", and similar phrasing about shared
+config mean commit **and push** to the relevant config repository (for example
+`Patrick3131/pi-packages`). Do not stop to ask whether to push: the push is the
+backup. Report the commit and the pushed range instead, and say what needs a
+`pi update --extensions` or `/reload` to take effect.
+
+Ask before pushing only when the working tree holds unrelated dirty files that
+would be swept into the commit, or when the push would rewrite published history.
