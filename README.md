@@ -48,6 +48,18 @@ This is not a replacement for native Pi behavior. The guard should eventually
 be handled by Pi core before the next provider request; remove `pi-compact` from
 the global package configuration once that native fix is available.
 
+### UI extension
+
+The global setup also installs [`pi-open-tui`](https://github.com/OldSuns/pi-open-tui),
+a third-party TUI extension that replaces Pi's header, footer, and editor in
+interactive sessions: startup banner, git/runtime/context footer, turn
+telemetry (TPS, TTFT, stalls), and a thinking peek ticker in place of the hidden
+`Thinking...` label.
+
+It is UI-only and cosmetic; print and RPC sessions are unaffected. If a Pi
+upgrade breaks it, set `enabled: false` in `~/.pi/agent/open-tui.json` or remove
+`npm:pi-open-tui` from the package list — it never changes agent behavior.
+
 ### For Local Development
 
 ```bash

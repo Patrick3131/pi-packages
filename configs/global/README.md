@@ -11,7 +11,20 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 
 `settings.json` includes the default provider/model (`opencode-go` /
 `deepseek-v4.1-flash`), theme, and thinking level, plus the npm packages
-`pi-subagents`, `pi-goal`, and `pi-compact`. It does **not** include secrets.
+`pi-subagents`, `pi-goal`, `pi-compact`, and `pi-open-tui`. It does **not**
+include secrets.
+
+`pi-open-tui` is a third-party TUI-only extension: branded startup header,
+Starship-style footer (git working-tree state, runtime, context bar, tokens,
+cost), framed editor, turn telemetry (TPS/TTFT/stalls), and the thinking peek
+ticker that replaces Pi's hidden `Thinking...` label. It only activates in
+interactive TUI sessions and leaves print/RPC modes untouched.
+
+Its own settings live in `~/.pi/agent/open-tui.json`, which this snapshot does
+not restore, so a fresh machine starts from the extension's defaults (all
+footer segments on, telemetry on, thinking peek at one line). Tune with
+`/open-tui`; disable the extension entirely for a session by setting
+`enabled: false` there instead of removing the package.
 
 Melon packages are installed as one Git-backed package. The global package
 entry excludes `packages/pi-work/skills/**`: Melon repositories already carry

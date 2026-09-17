@@ -91,6 +91,7 @@ def source_of(entry):
 wanted = [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
+    "npm:pi-open-tui",
     "git:github.com/StanleyOneG/pi-compact",
     "git:github.com/Patrick3131/pi-packages",
 ]
@@ -144,6 +145,7 @@ pi install npm:pi-subagents
 pi install npm:@narumitw/pi-goal
 pi install git:github.com/StanleyOneG/pi-compact
 pi install git:github.com/Patrick3131/pi-packages
+pi install npm:pi-open-tui
 
 # Best-effort cleanup of the retired xAI package itself.
 pi remove npm:pi-xai-oauth || true
