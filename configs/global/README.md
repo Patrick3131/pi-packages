@@ -8,6 +8,7 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | --- | --- |
 | `settings.json` | `~/.pi/agent/settings.json` |
 | `presets.json` | `~/.pi/agent/presets.json` |
+| `APPEND_SYSTEM.md` | `~/.pi/agent/APPEND_SYSTEM.md` |
 
 `settings.json` includes the default provider/model (`opencode-go` /
 `deepseek-v4.1-flash`), theme, and thinking level, plus the npm packages

@@ -55,6 +55,7 @@ mkdir -p "$AGENT_DIR/extensions"
 
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
+copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 
 # xAI/Grok support is retired. Remove the leftover config if an older restore
 # installed it; pi-xai-defaults no longer reads it.
