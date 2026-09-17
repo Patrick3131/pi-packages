@@ -36,6 +36,7 @@ locations would produce skill-name collisions. The package still provides:
 - `packages/pi-searxng` — `web_search_searxng` (off by default)
 - `packages/pi-keepalive` — delayed provider-error retries
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read`
+- `packages/pi-skill-mentions` — `$<name>` mentions with `$` autocomplete, so one message can load several skills
 - `pi-compact` — proactive context compaction at completed turn boundaries
 
 Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is

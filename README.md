@@ -11,6 +11,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
 | [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
 | [pi-keepalive](./packages/pi-keepalive) | Delayed provider-error retries and configurable periodic keepalive messages | Git package |
+| [pi-skill-mentions](./packages/pi-skill-mentions) | Reference several skills from anywhere in one message (`$<name>`) | Git package |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
 | [pi-workspaces](./packages/pi-workspaces) | Pi Web workflow panel for Melon task worktrees and Codex | Git package |
 
