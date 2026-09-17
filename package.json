@@ -17,6 +17,7 @@
   "pi": {
     "extensions": [
       "packages/pi-crawl4ai/src/index.ts",
+      "packages/pi-delegation/src/index.ts",
       "packages/pi-presets/src/preset.ts",
       "packages/pi-searxng/src/index.ts",
       "packages/pi-tools/src/tools.ts",

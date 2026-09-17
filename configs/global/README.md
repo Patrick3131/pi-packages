@@ -37,12 +37,34 @@ locations would produce skill-name collisions. The package still provides:
 - `packages/pi-keepalive` — delayed provider-error retries
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read`
 - `packages/pi-skill-mentions` — `$<name>` mentions with `$` autocomplete, so one message can load several skills
+- `packages/pi-delegation` — standing delegation policy, appended to the
+  system prompt only when the `subagent` tool is active in the session
 - `pi-compact` — proactive context compaction at completed turn boundaries
 
 Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is
 not registered twice. On managed remote hosts, `pi-init` uses `--force` so the
 sanitized package policy remains authoritative without touching auth or
 session state.
+
+## Delegation policy
+
+`packages/pi-delegation` carries the standing delegation policy (route plans,
+work items, document review, and wide read-only reconnaissance to the appropriate
+agents; keep small sequential edits, credentialed work, and anything whose review
+costs as much as the work with the parent).
+
+It is a package extension rather than an `APPEND_SYSTEM.md` entry on purpose:
+
+- it appends **only** when the `subagent` tool is active, so a preset without
+  subagents is untouched and nothing is injected where delegation is impossible;
+- it never runs outside Pi, so no Pi-specific instruction leaks into a
+  repository's `AGENTS.md`, which Codex and Claude Code also read;
+- it is idempotent, so keeping a personal `APPEND_SYSTEM.md` copy of the same
+  policy would not duplicate it;
+- it updates with `pi update --extensions` instead of needing a restore step.
+
+Tune the text in `packages/pi-delegation/src/guidance.ts`. The heading is also the
+duplication marker, so change the text and the heading together.
 
 ## Retired packages
 

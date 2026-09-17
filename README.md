@@ -8,6 +8,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 |---------|-------------|--------------|
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | Git package |
 | [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | Git package |
+| [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate | Git package |
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
 | [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
 | [pi-keepalive](./packages/pi-keepalive) | Delayed provider-error retries and configurable periodic keepalive messages | Git package |
