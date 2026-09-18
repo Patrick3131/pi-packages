@@ -14,14 +14,14 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 | [pi-keepalive](./packages/pi-keepalive) | Delayed provider-error retries and configurable periodic keepalive messages | Git package |
 | [pi-skill-mentions](./packages/pi-skill-mentions) | Reference several skills from anywhere in one message (`$<name>`) | Git package |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
-| [pi-workspaces](./packages/pi-workspaces) | Pi Web workflow panel for Melon task worktrees and Codex | Git package |
+| [paseo-melon](./paseo-melon) | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees | Paseo plugin |
 
 ## Installation
 
 ### Install the complete Melon package repository
 
 Pi can manage this monorepo as one unpinned Git package. This installs every
-Melon extension, the Pi Web workspace plugin, and the `pi-work` skills declared
+Melon extension, the Paseo workspace plugin, and the `pi-work` skills declared
 by the root manifest:
 
 ```bash
