@@ -13,6 +13,7 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 | [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
 | [pi-keepalive](./packages/pi-keepalive) | Delayed provider-error retries and configurable periodic keepalive messages | Git package |
 | [pi-skill-mentions](./packages/pi-skill-mentions) | Reference several skills from anywhere in one message (`$<name>`) | Git package |
+| [pi-recap](./packages/pi-recap) | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`) | Git package |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
 | [paseo-melon](./paseo-melon) | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees | Paseo plugin |
 

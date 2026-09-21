@@ -23,6 +23,7 @@
       "packages/pi-tools/src/tools.ts",
       "packages/pi-keepalive/src/index.ts",
       "packages/pi-skill-mentions/src/index.ts",
+      "packages/pi-recap/src/index.ts",
       "packages/pi-work/src/index.ts"
     ],
     "skills": [

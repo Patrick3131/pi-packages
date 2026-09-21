@@ -20,6 +20,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-tools` - Official `/tools` command, installed as a package
 - `packages/pi-keepalive` - Delayed provider-error retries and generic keepalive messages
 - `packages/pi-skill-mentions` - Reference several skills from anywhere in one message (`$<name>`)
+- `packages/pi-recap` - Session recap HTML: user questions with short, expandable answers (`/recap`, `/user-messages`)
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
 - `paseo-melon/` - Paseo workspace panel for Melon worktrees and previews (installed with `paseo plugin add`)
 - `configs/global` - Sanitized machine restore snapshot (not a published package)
