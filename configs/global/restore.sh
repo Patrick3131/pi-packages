@@ -53,6 +53,16 @@ need python3
 
 mkdir -p "$AGENT_DIR/extensions"
 
+# pi-subagents expands a ~/ hook path against $HOME, but a container can keep
+# the agent dir outside $HOME (PI_CODING_AGENT_DIR). Expose the agent dir at
+# the conventional location in that case so the restored subagent config works
+# on every machine.
+if [[ "$AGENT_DIR" != "$HOME/.pi/agent" && ! -e "$HOME/.pi/agent" ]]; then
+	mkdir -p "$HOME/.pi"
+	ln -s "$AGENT_DIR" "$HOME/.pi/agent"
+	echo "Linked $HOME/.pi/agent -> $AGENT_DIR"
+fi
+
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
