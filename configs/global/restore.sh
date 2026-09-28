@@ -57,6 +57,10 @@ copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 copy_file "$ROOT/mcp-adapter.json" "$AGENT_DIR/mcp-adapter.json"
+copy_file "$ROOT/subagent.json" "$AGENT_DIR/extensions/subagent/config.json"
+copy_file "$ROOT/worktree-setup.mjs" "$AGENT_DIR/extensions/subagent/worktree-setup.mjs"
+# The worktree setup hook is executed directly, so the exec bit has to survive the copy.
+chmod +x "$AGENT_DIR/extensions/subagent/worktree-setup.mjs"
 
 # xAI/Grok support is retired. Remove the leftover config if an older restore
 # installed it; pi-xai-defaults no longer reads it.

@@ -1,0 +1,4 @@
+{
+  "worktreeSetupHook": "~/.pi/agent/extensions/subagent/worktree-setup.mjs",
+  "worktreeSetupHookTimeoutMs": 60000
+}

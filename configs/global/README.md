@@ -9,11 +9,42 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | `settings.json` | `~/.pi/agent/settings.json` |
 | `presets.json` | `~/.pi/agent/presets.json` |
 | `APPEND_SYSTEM.md` | `~/.pi/agent/APPEND_SYSTEM.md` |
+| `mcp-adapter.json` | `~/.pi/agent/mcp-adapter.json` |
+| `subagent.json` | `~/.pi/agent/extensions/subagent/config.json` |
+| `worktree-setup.mjs` | `~/.pi/agent/extensions/subagent/worktree-setup.mjs` |
 
 `settings.json` includes the default provider/model (`opencode-go` /
 `deepseek-v4.1-flash`), theme, and thinking level, plus the npm packages
-`pi-subagents`, `pi-goal`, `pi-compact`, and `pi-open-tui`. It does **not**
-include secrets.
+`pi-subagents`, `pi-goal`, `pi-compact`, `pi-mcp-adapter`, and `pi-open-tui`. It
+does **not** include secrets.
+
+`mcp-adapter.json` holds adapter policy only: generic `settings` such as
+`projectServers`, `approveTools`, and `outputGuard` limits. It declares no
+servers and no secrets; a repository that needs MCP servers adds them in its
+own project config, where Pi's project layer takes precedence. Package manifests
+cannot carry adapter `settings`, which is why these policy defaults live in
+this snapshot rather than in a Pi package.
+
+`subagent.json` holds the `pi-subagents` extension config that is not secret:
+the worktree setup hook path and its timeout. `pi-subagents` reads this file
+from `~/.pi/agent/extensions/subagent/config.json`, so it is machine state
+rather than package state and cannot live in a Pi package. A hook path that
+starts with `~/` is expanded against the home directory, which is why the
+restored copy works from any repository.
+
+`worktree-setup.mjs` is that hook: it mirrors a repository's dependency tree
+into a newly created managed worktree so `worktree: true` subagent lanes can
+run tests in isolation. It re-points npm workspace links at the worktree copy
+instead of the main checkout, because following the main checkout's link would
+let a lane test code it is not editing. Repositories without a root
+`package.json`, or without `node_modules`, are a no-op. Test it with
+`npm run test:configs`.
+
+Optional keys for `subagent.json`, unset by default: `worktreeBaseDir` moves the
+managed worktree root (`~/.pi/worktrees` keeps them out of the code parent
+directory), and `worktreeProvider` forces `native` or `worktrunk` instead of the
+`auto` default. Anything else Pi-specific about child models belongs in
+`settings.json` under `subagents`, not here.
 
 `pi-open-tui` is a third-party TUI-only extension: branded startup header,
 Starship-style footer (git working-tree state, runtime, context bar, tokens,

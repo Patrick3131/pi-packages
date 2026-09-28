@@ -12,7 +12,8 @@
     "lint": "npm run lint --workspaces",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "clean": "npm run clean --workspaces && rm -rf node_modules coverage"
+    "clean": "npm run clean --workspaces && rm -rf node_modules coverage",
+    "test:configs": "node --test configs/global/*.test.mjs"
   },
   "pi": {
     "extensions": [
