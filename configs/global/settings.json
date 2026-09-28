@@ -5,6 +5,7 @@
   "packages": [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
+    "npm:pi-mcp-adapter",
     "npm:pi-open-tui",
     "git:github.com/StanleyOneG/pi-compact",
     {

@@ -56,6 +56,7 @@ mkdir -p "$AGENT_DIR/extensions"
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
+copy_file "$ROOT/mcp-adapter.json" "$AGENT_DIR/mcp-adapter.json"
 
 # xAI/Grok support is retired. Remove the leftover config if an older restore
 # installed it; pi-xai-defaults no longer reads it.
@@ -92,6 +93,7 @@ def source_of(entry):
 wanted = [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
+    "npm:pi-mcp-adapter",
     "npm:pi-open-tui",
     "git:github.com/StanleyOneG/pi-compact",
     "git:github.com/Patrick3131/pi-packages",
