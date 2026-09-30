@@ -23,11 +23,15 @@ pi install /absolute/path/to/pi-packages/packages/pi-work
 pi install -l /absolute/path/to/pi-packages/packages/pi-work
 ```
 
-### From this monorepo once published
+### From the canonical Git package
 
 ```bash
-pi install npm:pi-work
+pi install git:github.com/Patrick3131/pi-packages
+pi update --extensions
+# /reload or start a fresh session after updating
 ```
+
+Install the repository once, not alongside a second local pi-work install. Before enabling its skills, inventory same-name skills in user/project discovery roots, including `.pi/skills` and `.agents/skills`, and coordinate removal of maintained consumer copies only after duplicate-free host discovery succeeds. An old `!packages/pi-work/skills/**` settings filter must be removed separately; package updates and `/reload` alone do not migrate persisted settings.
 
 Pi loads this package via `package.json`:
 
@@ -93,7 +97,9 @@ On `COMPLETE`, the implementation skill marks all three `done` and moves them to
 - the primary document explains why the work exists, what is in scope, and how success is observed;
 - the to-do companion tracks meaningful deliverables and validation, not every edit;
 - the test plan records material risks, the cheapest proof for each risk, and what is intentionally not tested;
-- skills provide the procedure, while templates provide a stable shape and the extension enforces readiness before handoff.
+- skills provide one host-neutral method, while templates provide a stable shape and the extension enforces readiness before handoff;
+- repositories own scope, commands, permissions, architecture, specialist skills, and feature-specific work locations; supplied package paths and `PI_WORK_*` overrides are preserved;
+- execution is direct by default. Only operator/instruction-authorized delegation uses bounded fresh-context builtin worker/reviewer handoffs; no scripts, phase agents, chains, registry, or new runtime are required. The parent verifies concise evidence and recovers from actual state rather than restarting completed phases.
 
 This division keeps the skills concise without making the resulting work vague. The agent still exercises judgment, but it must express that judgment through acceptance criteria, explicit assumptions, and a coverage decision.
 
@@ -184,10 +190,25 @@ All three skills set `disable-model-invocation: true` so they are not auto-injec
 - `/skill:plan-and-implement-runner`
 - or `/work` handoffs
 
-`/work` handoffs embed the full skill body because extension-injected messages do not expand `/skill:` commands. Skills are **generic**; optional project chains are used when present:
+`/work` handoffs embed the full skill body because extension-injected messages do not expand `/skill:` commands. Both entry points use these exact canonical files. Available subagent tools alone never authorize delegation.
 
-- `.pi/agents/work-item-creation.chain.md`
-- `.pi/agents/implement-tdd-review.chain.md`
+### Existing non-Pi hosts (no maintained copies)
+
+For Codex, link from its user-level `~/.codex/skills` discovery root to the **installed Git package**, not a second source checkout. Verify the installed path with `pi list` and the actual checkout before setting `installed_skills`. For the default Pi agent directory, the current checkout layout is:
+
+```bash
+installed_skills="$HOME/.pi/agent/git/github.com/Patrick3131/pi-packages/packages/pi-work/skills"
+# Adjust for the verified installation / PI_CODING_AGENT_DIR.
+# Check existing targets first; do not overwrite same-name skills or links.
+mkdir -p "$HOME/.codex/skills"
+for name in task-and-plan-routing implement-tdd-review-runner plan-and-implement-runner _shared; do
+  ln -s "$installed_skills/$name" "$HOME/.codex/skills/$name"
+done
+```
+
+`_shared` is a sibling resource link, not another skill. Keep all four links together so relative templates/testing-policy and composite references resolve. Each public skill ships `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex, alongside Pi's frontmatter flag. Invoke explicitly with `$task-and-plan-routing`, `$implement-tdd-review-runner`, or `$plan-and-implement-runner`. For other hosts, verify supported operator-only metadata and actual discovery before deleting their old copies; do not assume they honor Pi or Codex flags.
+
+Do not put these links in `.agents/skills` or another directory Pi also scans: the Git package already exposes them to Pi. Do not commit machine-specific absolute links or introduce copying/syncing. After updates, restart/reload the host and verify all three names resolve once, explicit invocation works, and sibling resources load. These checks are cutover gates on every affected local/remote installation; source tests cannot prove live discovery. If a gate fails, retain old consumers and roll back only the targeted setting/link changes from backups.
 
 ## Development
 

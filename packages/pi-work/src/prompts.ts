@@ -79,7 +79,7 @@ export function buildImplementUserArgs(pkg: WorkPackage): string {
   const c = packageCompleteness(pkg);
   const readiness = assessReadiness(pkg);
   return [
-    "Implement this existing work item using the implement-tdd-review workflow.",
+    "Implement this existing work item using the implement-tdd-review-runner skill; execute directly unless delegation is authorized.",
     "",
     `Title: ${pkg.title}`,
     `Base: ${pkg.baseName}`,
@@ -118,10 +118,10 @@ export function buildPlanUserArgs(args?: string): string {
     "",
     "Instructions:",
     "- Run the clarification gate before writing files.",
-    "- Place all open packages under the same open work directory (default `docs/work/work/`).",
-    "- Type is metadata only — do not create type-based subfolders.",
+    "- Resolve supplied paths and local work/feature guidance first; default open location is `docs/work/work/`.",
+    "- Type is metadata only by default — do not introduce type-based subfolders unless existing repository policy requires them.",
     "- Instantiate the bundled work-item, to-do-list, and test-plan templates; do not invent alternate headings.",
-    "- When the work spans independent paths, fill the to-do list Slice table so independent slices can run in parallel.",
+    "- Use the optional Slice table only when independent path ownership helps; it neither requires nor authorizes delegation.",
     "- Read the bundled testing policy before proposing automated coverage.",
     "- Create primary + `-to-do-list.md` + `-test.md` for implementation-bound work.",
     "- For pure intake (`idea` / early `triage`), you may create a lighter capture; do not claim implementation-ready.",
@@ -140,7 +140,7 @@ export function buildPlanAndImplementUserArgs(args?: string): string {
     "Instructions:",
     "- Phase A: follow task-and-plan-routing via the relative sibling skill path; stop if clarification is required.",
     "- Do not start Phase B until the three-file package is implementation-ready.",
-    "- Docs-only commit when planning succeeds and Git allows a narrow commit; otherwise report commit skipped with reason.",
+    "- Make a narrow docs-only checkpoint commit only when authorized; otherwise skip it. Planning does not imply push authority.",
     "- Phase B: follow implement-tdd-review-runner via the relative sibling skill path.",
     "- Stay responsible until user-facing COMPLETE or BLOCKED (not merely launched).",
     "- Report validations run and final artifact paths (including finished paths if moved).",

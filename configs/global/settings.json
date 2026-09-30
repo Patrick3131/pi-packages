@@ -8,9 +8,6 @@
     "npm:pi-open-tui",
     {
       "source": "git:github.com/Patrick3131/pi-packages",
-      "skills": [
-        "!packages/pi-work/skills/**"
-      ],
       "extensions": [
         "!packages/pi-keepalive/**"
       ]

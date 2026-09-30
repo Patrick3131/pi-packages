@@ -25,7 +25,7 @@ import type { WorkPackage } from "../src/types.js";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 
-test("managed global settings exclude repo-local workflow skill duplicates", () => {
+test("managed global settings enable canonical package skills", () => {
   const settings = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "configs/global/settings.json"), "utf8")) as {
     packages: Array<string | { source?: string; skills?: string[] }>;
   };
@@ -33,7 +33,7 @@ test("managed global settings exclude repo-local workflow skill duplicates", () 
     typeof entry === "object" && entry.source === "git:github.com/Patrick3131/pi-packages"
   );
   assert.ok(melonPackage && typeof melonPackage === "object");
-  assert.deepEqual(melonPackage.skills, ["!packages/pi-work/skills/**"]);
+  assert.equal(melonPackage.skills, undefined);
 });
 
 test("packageRootFromModuleUrl resolves package root", () => {

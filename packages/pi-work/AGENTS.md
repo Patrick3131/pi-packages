@@ -24,11 +24,13 @@ General-purpose docs-as-work package: skills + `/work` extension + scaffold.
 - Keep the package **project-agnostic**. Defaults may be `docs/work`, but never hardcode a company/product name.
 - Prefer pure functions in `config` / `parse` / `discover` / `format` / `prompts` / `scaffold` for testability.
 - Extension UI stays thin: select → detail → `sendUserMessage` handoff.
-- Skills remain `disable-model-invocation: true`.
+- Skills remain operator-only: `disable-model-invocation: true` for Pi and `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex.
+- Keep one host-neutral method in the three public skills: direct execution by default, delegation only with operator/instruction authority, no required scripts or project phase agents. Local repositories own commands, permissions, architecture, and feature-specific work placement.
+- Non-Pi user-level links must target the installed package and preserve sibling `_shared` resources; do not maintain copied bodies or add syncing.
 - Do not overwrite user files in scaffold.
 - Companion naming is part of the public contract: `-to-do-list.md`, `-test.md`.
 - `/work` handoffs must embed full skill bodies (`formatSkillBlock`); never rely on `/skill:` expansion for extension messages.
-- Flat folders only; type grouping is UI-only via `formatSelectItems`.
+- Default scaffold folders stay flat; type grouping is UI-only via `formatSelectItems`. Shared instructions honor pre-existing repository routing and feature-owned work locations rather than imposing a migration of local work docs.
 - Readiness logic lives in `src/readiness.ts` and must stay aligned with the skills.
 - Templates under `skills/_shared/templates/` are the canonical output shape; update them and the package README/CONTEXT together when the work-document contract changes.
 - `skills/_shared/testing-policy.md` is the canonical guidance for avoiding speculative or duplicate tests.

@@ -6,82 +6,52 @@ disable-model-invocation: true
 
 # Execute Work Package
 
-Implement an existing **three-file work package** and stay responsible until `COMPLETE` or `BLOCKED`. A chain or subagent ending is not success by itself.
+Own an existing **three-file work package** until COMPLETE or BLOCKED. Execute directly by default; no chain, script, phase agents, or delegation is required.
 
 ## Preflight
 
-1. Resolve the primary, `-to-do-list.md`, and `-test.md` paths from any supplied artifact path.
-2. Verify all three exist; never guess across unrelated folders.
-3. Read all three documents and the applicable project `<root>/AGENTS.md` / `<root>/CONTEXT.md`.
-4. Inspect the repository before inventing file paths or validation commands.
-5. Confirm readiness: concrete outcome/scope/acceptance criteria, no blocking `Open Questions`, and no `idea` intake. A `triage` package must be classified, complete, and have status `backlog` or `in_progress`.
-6. Treat the three documents as the canonical scope. Do not silently expand it.
+1. Resolve the primary, `-to-do-list.md`, and `-test.md` from the supplied path, keeping their shared basename and actual folder. Never guess across unrelated folders.
+2. Read all three, repository `AGENTS.md` / `CONTEXT.md`, and applicable work-folder and feature guidance. Respect local scope, permissions, commands, and feature-owned work locations; shared skills define the method, not project policy.
+3. Inspect the repository and confirm readiness: concrete outcome, scope, acceptance criteria, justified test plan, and no blocking `Open Questions` or `idea` intake. A `triage` package must be classified, complete, and `backlog` or `in_progress`.
+4. Treat these documents as canonical scope. Escalate unapproved product, architecture, or scope decisions instead of inventing them.
 
-If preflight fails, stop with `BLOCKED` and state the exact missing artifact, decision, or path.
+If readiness fails, report BLOCKED with the exact missing artifact, path, or decision.
 
-## Execute
+## Implement and verify
 
-When implementation begins, set all three artifacts to `status: in_progress` and update `last_reviewed`.
+Set all three artifacts to `status: in_progress` and update `last_reviewed` when implementation starts.
 
-1. Read `../_shared/testing-policy.md` and the companion test plan.
-2. Inspect existing coverage before adding tests.
-3. Add automated coverage only for named material risks, using the cheapest stable layer. Default to zero to three new cases; exceed that only for distinct risks.
-4. For a regression test, verify the new test fails for the intended reason before applying the fix when practical.
-5. Honor `No automated test needed`; do not invent tests for compiler guarantees, framework behavior, mocks, test helpers, source structure, exact copy, CSS classes, trivial prop forwarding, or duplicate layers.
-6. Implement the smallest change that satisfies the acceptance criteria.
-7. Keep the to-do list current and map acceptance criteria to validation evidence.
-8. Review the final diff for scope drift, run the documented commands, and perform required manual checks.
+- Read `../_shared/testing-policy.md` and the test companion. Inspect existing coverage first; add tests only for named material risks at the cheapest stable layer. Default to zero to three new cases; honor `No automated test needed` and avoid duplicate proof.
+- For regressions, establish a failing test for the intended reason before fixing when practical. Implement the smallest in-scope change in one ownership loop.
+- Keep the to-do list accurate. Run verified local validation commands and required manual checks; record acceptance evidence and failed or unavailable checks honestly.
+- Review the actual final diff for correctness and scope. For substantial work, obtain fresh read-only review when delegation is authorized and useful; otherwise review directly. Apply accepted findings and revalidate affected behavior, not completed unrelated checks.
 
-## Keep the cost per step low
+## Optional authorized delegation
 
-Delegated phases pay one model round trip per step, so step count decides how
-long a package takes far more than task size does.
+Delegate only when the current request or applicable user/project instructions authorize it. Tool availability, task size, or risk alone is not authority.
 
-- Change files with the host's file-edit tool. Never rewrite a file by piping a
-  script (`sed`, `perl`, a shell heredoc) into it.
-- Batch independent inspection into one step: read several paths together, or run
-  one pattern search over the paths that matter, instead of one call per file.
-- Inspect exact paths. Repeated directory listings or status checks to re-derive
-  what you already read are pure cost.
-- Run each focused check once per change. Do not repeat a check that is already
-  green without a new change, a failure, or an unresolved concern.
-- Never wait on a sleep or a polling loop. Run the real command once and read its
-  output; a polling loop blocks the step and hides the result you are waiting for.
-- Write the companion documents once, in the finishing pass. A parallel run has
-  one document owner so two workers never rewrite the same checklist.
+Use one bounded worker slice when it improves execution or isolation, and a fresh read-only reviewer when it adds independent evidence. Extra review lenses or parallel writers must earn their overhead through named risks and exclusive paths; keep one writer per worktree and one owner for package documents. The parent retains decisions, integration, verification, final acceptance, and publication authority. Children do not delegate unless explicitly authorized.
 
-## Parallel packages
+Give fresh children concise, cold-start-complete handoffs: goal; repo/cwd/ref; exact owned paths and prohibited actions; relevant guidance and package paths; acceptance criteria; validation; expected evidence; stop/escalation conditions. Ask for changed paths, commands and outcomes, findings, remaining work, and artifact pointers, not copied transcripts. Fork only for a documented dependency on inherited state.
 
-Independent packages can run at the same time when the host supports isolated
-writers. The precondition is a plan, not a flag: the companion to-do list names
-path slices, one slice owns each path, and a slice lists a dependency only when
-it needs another slice's code to compile or behave correctly. Independent slices
-may run concurrently; a chain of dependent slices is one writer's work in order.
+## Recovery
 
-Isolation also requires a clean source checkout, and a worker in a fresh checkout
-needs its dependencies present before it can run a check. When either is missing,
-keep the serial order and say so instead of dropping isolation silently.
-
-Prefer the project chain `.pi/agents/implement-tdd-review.chain.md` when available. Otherwise perform the same phases with subagents or in-process. Continue internally while required in-scope work remains and there is no concrete blocker.
+After interruption or failure, inspect the actual worktree/diff, validation state, and existing run/handoff before continuing. Preserve completed work and resume only the remaining slice; do not restart phases or infer success from a child ending. Distinguish infrastructure interruption from an external task blocker. Capture partial changes and failed checks; do not silently switch a governed execution mode or retry an active writer. Seek approval when recovery requires new authority.
 
 ## Completion
 
-### COMPLETE
+**COMPLETE** requires every in-scope acceptance criterion verified, passing required validations or successful documented manual proof, and evidence in the primary, to-do, and test documents. Mark all three `status: done`, update `last_reviewed`, and move them together to the locally configured finished location. Resolve `PI_WORK_*` overrides and local lifecycle guidance; preserve feature-owned placement. Report final paths and validations. Never claim complete while required evidence or work is missing.
 
-- Required in-scope work is done;
-- validations pass or documented manual checks succeed;
-- acceptance criteria, to-do list, and test plan contain evidence;
-- all three artifacts are `status: done` with updated `last_reviewed`;
-- the complete package is moved to the finished directory;
-- the response reports the new finished paths and validations run.
+**BLOCKED** reports the concrete blocker, exact remaining work, and needed path or decision. Keep incomplete documents in their actual open location with an accurate handoff. An infrastructure failure is not proof that the task itself is impossible.
 
-### BLOCKED
+## Host notes
 
-Report the concrete blocker, exact remaining work, and the path or clarification needed. Keep incomplete artifacts in the open directory.
+- Pi: use existing builtin `worker` / `reviewer` from pi-subagents; inspect installed role resolution and controls before launching. Direct `{ agent, task }` is sufficient for one child; prefer async and `context: "fresh"`. No project workflow files are needed.
+- On launches or resumes, explicitly set supported per-run elapsed deadline/checkpoint controls with finishing margin; consult the installed tool reference. Current Pi single-agent async launches support `timeoutMs` (alias `maxRuntimeMs`) and `checkpointBeforeDeadlineMs`; other run shapes or resumes may require an explicit steer after active tools return. Checkpoints report changed files, test state, remaining work, and publication state. Avoid hard tool-call caps for mutation work. Checkpoint delivery is best-effort; a timeout is not a mutation-safe boundary.
+- Non-Pi: execute directly or use the host's authorized worker/reviewer equivalents and supported controls. Do not claim unsupported Pi mechanics or successful delegation.
 
 ## References
 
 - Testing policy: `../_shared/testing-policy.md`
-- Optional chain: `.pi/agents/implement-tdd-review.chain.md`
-- Planning skill: `../task-and-plan-routing/SKILL.md`
-- Composite skill: `../plan-and-implement-runner/SKILL.md`
+- Planning: `../task-and-plan-routing/SKILL.md`
+- Composition: `../plan-and-implement-runner/SKILL.md`

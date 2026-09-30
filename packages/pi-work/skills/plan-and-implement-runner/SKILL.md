@@ -1,48 +1,27 @@
 ---
 name: plan-and-implement-runner
-description: Create an implementation-ready work package, optionally commit plan docs, then implement it to completion. Use only when explicitly asked to plan and implement in one guided flow. User-facing outcomes are COMPLETE or BLOCKED.
+description: Create an implementation-ready work package, optionally commit authorized plan docs, then implement it to completion. Use only when explicitly asked to plan and implement in one guided flow. User-facing outcomes are COMPLETE or BLOCKED.
 disable-model-invocation: true
 ---
 
 # Plan And Implement
 
-Own the complete two-phase flow until `COMPLETE` or `BLOCKED`; do not stop after creating docs or launching implementation.
+Own planning and execution until COMPLETE or BLOCKED. Work directly by default; this composition adds no workflow engine, chain, or required agents.
 
-## Required sibling skills
+Read both sibling skills completely, resolving paths relative to this skill directory:
 
-Read and follow these files completely, resolving paths relative to this skill directory:
+- `../task-and-plan-routing/SKILL.md`
+- `../implement-tdd-review-runner/SKILL.md`
 
-1. `../task-and-plan-routing/SKILL.md`
-2. `../implement-tdd-review-runner/SKILL.md`
+Report BLOCKED if either is unavailable.
 
-Stop with `BLOCKED` if either file is unavailable.
+1. Follow the planning skill to create or finalize the primary, to-do, and test documents in the repository's actual work location.
+2. Verify its clarification/readiness gates. Do not implement an intake, provisional, incomplete, or blocked package.
+3. If a plan checkpoint commit is authorized, make it narrowly docs-only and verify only the intended paths are staged. Otherwise skip it; a commit is not a readiness prerequisite. Never infer push/publication authority.
+4. Pass the three absolute paths to the implementation skill and follow it through completion, including risk-based testing, local policy, review, actual-state recovery, evidence, and the three-file finished move. Do not stop merely because planning or a child run ended.
 
-## Phase A — Plan
+Report the final artifact paths, validations, and any authorized docs commit hash (or concise skip reason). On BLOCKED, identify the concrete blocker and remaining work, retaining incomplete documents in their open location.
 
-1. Follow the planning skill to create or finalize the primary, to-do, and test documents.
-2. Run its clarification and readiness gates.
-3. If clarification is needed, the package is intake/not-ready, or any artifact is missing, stop. Do not implement or commit a provisional plan.
+## Host notes
 
-After a ready package exists, prefer a narrow docs-only checkpoint commit when Git permits it and the plan files changed in this run. Skip and report the reason when the repository is unavailable, the files are unchanged/ignored/outside the repository, the user declined, or a narrow commit is unsafe. Verify that only the intended plan paths are staged.
-
-## Phase B — Implement
-
-1. Pass the three absolute paths as canonical scope to the implementation skill.
-2. Follow it through `COMPLETE` or `BLOCKED`.
-3. Preserve its readiness, risk-based testing, scope, documentation, and finished-move rules.
-
-## Output
-
-### COMPLETE
-
-Report the final artifact paths, any docs commit hash or `commit skipped: <reason>`, validations run, and a concise completion summary.
-
-### BLOCKED
-
-Report the failed stage (`planning`, `clarification gate`, `validation`, `docs commit`, or `implementation`), the concrete blocker, and the exact next path or clarification.
-
-## References
-
-- Planning: `../task-and-plan-routing/SKILL.md`
-- Implementation: `../implement-tdd-review-runner/SKILL.md`
-- Optional chain: `.pi/agents/implement-tdd-review.chain.md`
+Both siblings are operator-only. Their host notes govern authorized delegation and controls; use the current host's tools, not guessed Pi mechanics in another host.

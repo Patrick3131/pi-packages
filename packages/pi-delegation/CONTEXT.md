@@ -8,11 +8,10 @@ and which alternative placements were rejected. Package rules live in
 
 ## Why the policy is injected, not written down in the repository
 
-The obvious home for "delegate by default" is the repository's `AGENTS.md`. That
-file is loaded by every harness that reads the `AGENTS.md` convention, so the
-instruction would also land in Codex and Claude Code sessions, where `.pi/agents`
-and the `subagent` tool do not exist. An instruction nothing can act on is worse
-than no instruction: it invites an agent to claim it delegated.
+The shared method works directly by default in any host. Pi-specific delegation
+mechanics belong in this extension, not repository `AGENTS.md` files also read
+by other harnesses. Repositories retain their local scope, commands, architecture,
+and permissions; no project phase-agent definitions are required.
 
 The second obvious home is `~/.pi/agent/APPEND_SYSTEM.md`. That one is correctly
 Pi-only, but it is global to every repository and preset and lives outside Pi's
@@ -46,8 +45,10 @@ extension and could fight another one.
 The check order is deliberate:
 
 1. **Capability first.** `selectedTools.includes("subagent")` — `selectedTools`
-   reflects the active preset and CLI flags, so `plan` or a `--tools` allowlist
-   without subagents gets nothing.
+   reflects the active preset and CLI flags, so a preset or `--tools` allowlist
+   without subagents gets nothing. This is a visibility gate, not delegation
+   authorization; the policy requires the current request or applicable
+   user/project instructions to authorize a launch.
 2. **Idempotence second.** If the prompt already contains
    `## Delegation policy`, decline. That keeps a personal `APPEND_SYSTEM.md` copy
    of the same policy from being injected twice, which would waste tokens and
@@ -55,15 +56,18 @@ The check order is deliberate:
 
 ## What is deliberately not here
 
-- **No repository detection.** Checking for `.pi/agents` would make the policy
-  depend on the working directory rather than on whether delegation is possible.
-  In a repository without those agents the routing lines fall back to the
-  user-level and builtin agents that ship with `pi-subagents`, which is the
-  correct behaviour rather than an error state.
-- **No agent definitions.** This package carries policy only. Agents stay where
-  they are: repository workflow agents in `.pi/agents`, and the reusable ones in
-  `pi-subagents`. Moving the melon-labs workflow agents here would make this
-  package depend on one repository's process.
+- **No repository detection.** Guidance visibility depends on capability, not
+  `.pi/agents` or a working-directory allowlist. Authorized handoffs use existing
+  builtin roles, subject to actual resolution and capability restrictions.
+- **No agent definitions or workflow engine.** This package carries policy only.
+  Bounded worker/reviewer handoffs need no project phase agents or scripted
+  stages. Fresh-context concise evidence is the default; fork only for a
+  documented inherited-state dependency. Per-run deadline/checkpoint controls
+  remain the installed host's responsibility, not global timeout changes.
+- **No phase restart recovery.** Inspect actual worktree, validation, and handoff
+  state after failure, preserve completed work, and distinguish infrastructure
+  interruption from external blockers. Parent decisions and publication
+  authority remain unchanged.
 - **No model or preset awareness.** Thinking level, model, and tool counts are not
   evidence about whether delegation is appropriate; the operator's request is.
 

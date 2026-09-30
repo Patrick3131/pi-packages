@@ -10,22 +10,34 @@ export const DELEGATION_HEADING = "## Delegation policy";
 
 export const DELEGATION_GUIDANCE = `${DELEGATION_HEADING}
 
-Delegate by default rather than waiting to be asked, whenever a task has a
-bounded lane that another agent can own end to end.
+Work directly by default. Delegate only when the current request or applicable
+user/project instructions authorize delegation. Available tools, task size,
+complexity, or risk alone do not authorize it.
 
-- Plans, work items, and document review: \`work-item-router\`,
-  \`work-item-researcher\`, \`work-item-writer\`, \`work-item-reviewer\`, where the
-  repository provides them.
-- Independent review of a change: \`reviewer\`, \`test-validator\`, or the
-  repository's \`implement-tdd-review-*\` reviewers.
-- Wide read-only reconnaissance across files or subsystems: \`scout\`, or a
-  bounded \`work-item-researcher\` fan-out.
-- High-context decisions where inherited state could cause drift: \`oracle\`.
+Once authorized, choose the smallest useful bounded handoff to existing builtin
+roles: \`worker\` for an approved implementation slice, \`reviewer\` for independent
+review, \`scout\` for local reconnaissance, or \`researcher\` for external evidence.
+Use \`oracle\` only for a material unresolved decision requiring advisory context.
+No project phase agents, chain files, or scripted workflow are required.
 
 Keep with the parent: small sequential edits, anything needing production
 credentials or a live session, and any step where checking a child's output costs
-as much as doing the work. Reviewers are fresh-context and read-only. A single
-child is valid; extra confidence from the same context is not.`;
+as much as doing the work. The parent owns decisions, integration, verification,
+final acceptance, and publication authority. Reviewers are fresh-context and
+read-only. A single child is valid; additional review lenses or isolated parallel
+writers must earn their overhead through named risks and exclusive path ownership.
+Keep one writer per worktree; children do not delegate without explicit authority.
+
+Use fresh context with exact repo/cwd/ref, owned paths, relevant guidance,
+approved scope, acceptance criteria, validation, expected evidence, and stop rules.
+Fork only for a documented inherited-state dependency. Request concise changed
+paths, commands/outcomes, findings, remaining work, and artifact references.
+Use supported per-run deadline/checkpoint controls explicitly on launches or
+resumes, with finishing margin; checkpoints after active tools return are
+best-effort, not safe-termination guarantees. Do not use hard tool-call caps for
+mutation work. After failure, inspect actual worktree and handoff state, preserve
+completed work, and continue only what remains. Distinguish infrastructure
+interruption from external blockers; do not silently change execution mode.`;
 
 export type DelegationPromptInput = {
   selectedTools?: readonly string[];

@@ -9,9 +9,9 @@ Pi assembles a system prompt per turn and fires `before_agent_start` before the
 agent loop, giving extensions the chance to replace it. This extension appends a
 short policy to that prompt when the `subagent` tool is active:
 
-- where to route planning, work-item authoring, and document review;
-- where to route independent review and wide read-only reconnaissance;
-- what stays with the parent, and why.
+- direct execution by default; delegation only when authorized by the current request or applicable user/project instructions, never tool availability alone;
+- bounded handoffs to existing builtin worker/reviewer/scout/researcher roles, with fresh concise context and evidence rather than required project phases;
+- parent-owned decisions, verification, acceptance, publication, and actual-state recovery after interruption.
 
 It returns `undefined` when the policy does not apply, which leaves the prompt
 exactly as Pi and any earlier extension built it.
@@ -45,8 +45,7 @@ reviewable and testable without a Pi runtime. `DELEGATION_HEADING` is both the
 injected heading and the idempotence marker; change them together or a duplicated
 policy stops being detected.
 
-Keep the "keep with the parent" clause. It is what stops "delegate by default"
-from turning every task into a fan-out.
+Keep both the authorization gate and the "keep with the parent" limits. Capability controls whether guidance is visible, not whether a child may launch. No project phase agents, chain files, scripted workflow, or new runtime are required.
 
 ## Commands
 

@@ -67,10 +67,19 @@ footer segments on, telemetry on, thinking peek at one line). Tune with
 `/open-tui`; disable the extension entirely for a session by setting
 `enabled: false` there instead of removing the package.
 
-Melon packages are installed as one Git-backed package. The global package
-entry excludes `packages/pi-work/skills/**`: Melon repositories already carry
-their canonical workflow skills under `.agents/skills`, and loading both
-locations would produce skill-name collisions. The package still provides:
+Shared packages are installed as one Git-backed package. Its three operator-only
+work skills load from canonical `packages/pi-work/skills/`; `/work` embeds the
+same source. Repositories own local scope, commands, permissions, architecture,
+and feature-specific work paths, not copied generic workflow bodies.
+
+Before activating this snapshot on any existing local or remote setup, inventory
+same-name skills in all discovery roots and verify duplicate-free Pi and existing
+non-Pi discovery before deleting consumer copies. See
+`packages/pi-work/README.md` for user-level Codex links to the installed package's
+three directories plus sibling `_shared`; no tracked absolute links, copies, or
+new syncing are needed. The package provides:
+
+- `packages/pi-work` — three shared operator skills and `/work`
 
 - `packages/pi-presets` — `/preset` engine
 - `packages/pi-tools` — `/tools` command
@@ -88,10 +97,12 @@ session state.
 
 ## Delegation policy
 
-`packages/pi-delegation` carries the standing delegation policy (route plans,
-work items, document review, and wide read-only reconnaissance to the appropriate
-agents; keep small sequential edits, credentialed work, and anything whose review
-costs as much as the work with the parent).
+`packages/pi-delegation` carries the standing delegation policy: work directly
+by default; only request/instruction-authorized delegation uses bounded existing
+builtin roles and fresh concise evidence. Available tools alone do not authorize
+it. Keep small sequential edits, credentialed work, decisions, verification,
+acceptance, and publication with the parent. No project phase agents or required
+scripted workflows are introduced.
 
 It is a package extension rather than an `APPEND_SYSTEM.md` entry on purpose:
 
@@ -131,6 +142,41 @@ Requires Pi 0.99.0 or newer (`pi update` upgrades Pi itself).
 ```
 
 The script never copies `auth.json`, sessions, `trust.json`, or npm/git caches. Log in again with `/login` on a new machine.
+
+Without `--force`, differing existing settings are retained, then the existing
+package normalization removes only the exact obsolete
+`!packages/pi-work/skills/**` skill filter from the canonical Git source object.
+Other skill filters and settings survive; a consumed old filter list loses its
+`skills` key (omitting it enables package skills), while a pre-existing `skills: []`
+continues to mean deliberately disabled. New or string-form Git entries no longer
+receive the old filter. Existing retired-package/keepalive normalization remains
+unchanged. Repeat restore is stable for settings.
+
+For an authorized persisted-settings cutover without snapshot replacement:
+
+```bash
+PI_CODING_AGENT_DIR=/data/pi-agent ./configs/global/restore.sh --migrate-work-skills
+# Locally, omit PI_CODING_AGENT_DIR to use ~/.pi/agent.
+```
+
+`--migrate-work-skills` runs alone, requires only Python 3, backs up settings
+before changing them, removes only the exact old filter from canonical Git
+source objects, and exits. It does not install/update packages, edit other
+settings values, copy snapshot files, alter subagent config, or touch installed
+checkout/lockfiles. Missing settings and already-migrated settings are no-ops;
+repeat runs neither rewrite settings nor add backups. Malformed JSON fails
+before changing anything. It cannot be combined with `--force`.
+
+`--force` still replaces differing snapshot files after backups; do not use it
+over personal settings just for this cutover. Remote `paseo-init` consumes
+restore, but updating extensions alone does not migrate persisted skill filters.
+The update/init caller can invoke migration-only mode after the authorized package
+update; then reload/start fresh and verify actual discovery on every affected
+installation.
+Publication, live local/remote activation, consumer removal, and runtime smoke
+checks are separate gates; this source snapshot does not prove they happened.
+On failure retain consumer resources and restore only the targeted setting from
+its backup to avoid dual discovery or unrelated preference rollback.
 
 Orca-only extensions (`orca-*.ts`) are not part of this snapshot. Restore removes
 the obsolete `minimal-mode.ts` tool overrides.

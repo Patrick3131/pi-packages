@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Create Work Package
 
-Create durable work documents as an executable contract between planning and implementation. Keep this skill project-agnostic: resolve the project’s configured work root and read its local guidance before writing files.
+Create durable work documents as an executable contract between planning and implementation. Execute directly by default; no scripted workflow, chain, or project agents are required. Shared skills own the method; repositories own scope, architecture, commands, permissions, and work placement.
 
 ## Choose the mode
 
@@ -21,12 +21,9 @@ Use **intake mode** for intentional capture of an idea or early triage. Keep it 
 
 ## Resolve placement
 
-Use one flat pair of lifecycle directories:
+Start with supplied work-package paths and applicable repository/work-folder/feature guidance. Preserve feature-owned locations; do not relocate a supplied package to defaults.
 
-- `<root>/<openDir>/` — open, planned, or in-progress work;
-- `<root>/<finishedDir>/` — completed packages.
-
-Resolve `PI_WORK_ROOT`, `PI_WORK_OPEN_DIR`, and `PI_WORK_FINISHED_DIR` before writing; defaults are `docs/work`, `work`, and `finished`. Read `<root>/AGENTS.md` and `<root>/CONTEXT.md` when present. Do not create type-based folders. Topic subfolders require explicit project guidance.
+For new packages, resolve `PI_WORK_ROOT`, `PI_WORK_OPEN_DIR`, and `PI_WORK_FINISHED_DIR` and local placement rules before writing; defaults are `docs/work`, `work`, and `finished`. Read repository `AGENTS.md` / `CONTEXT.md` and applicable guidance at the chosen work root. Keep open and finished packages in their configured lifecycle folders. Do not introduce type-based folders by default; retain existing repository-mandated type routing and use topic or feature placement only with project guidance.
 
 ## Clarification gate
 
@@ -51,7 +48,7 @@ Choose the narrowest label that describes the work; it affects filenames and UI 
    - `../_shared/templates/to-do-list.md`
    - `../_shared/templates/test-plan.md`
 2. Inspect the repository before filling `Files` or `Commands`; include verified paths and commands only.
-3. Keep tasks meaningful and tied to acceptance criteria; do not turn every edit into a checkbox. When the work splits across independent paths, add the `## Slices` table from the to-do-list template: one slice owns each path, and a slice lists a dependency only when it needs another slice's code to compile or behave correctly. Independent slices can then run at the same time; dependent slices stay in order.
+3. Keep tasks meaningful and tied to acceptance criteria; do not turn every edit into a checkbox. Use the optional `## Slices` table only when independent path ownership helps: one owner per path, dependencies only for actual code/behavior needs. A slice table describes safe ownership, not permission to delegate or a requirement to parallelize.
 4. Read `../_shared/testing-policy.md` while writing the test plan.
 5. Remove unused placeholders and keep `## Open Questions` as `None` when the package is ready.
 6. Name the files with one dated, lowercase, kebab-case base:
@@ -70,7 +67,7 @@ Before reporting success, verify that the three files exist, share a basename, a
 
 Return:
 
-- whether the package is parallelizable, and the slice ownership that makes it so;
+- any useful slice ownership or dependencies;
 - the type and placement rationale when non-obvious;
 - absolute paths created or updated;
 - `ready`, `intake`, or `not_ready` with reasons;
@@ -80,10 +77,13 @@ Return:
 
 Implementation is responsible for setting all three files to `done`, updating `last_reviewed`, and moving the complete package to the configured finished directory. Do not move incomplete work.
 
+## Host notes
+
+Use the current host's tools. Delegation requires authorization in the request or applicable user/project instructions, not merely available tools. If authorized research or review materially improves the plan, use a bounded fresh-context child with exact paths, relevant local guidance, acceptance questions, and concise evidence. Keep decisions and document ownership with the parent; Pi may use existing builtin roles, never required project agents. Implementation host notes cover execution controls and recovery.
+
 ## References
 
-- Project `<root>/AGENTS.md` and `<root>/CONTEXT.md` when present
+- Repository and applicable work-folder/feature `AGENTS.md` / `CONTEXT.md`
 - Templates: `../_shared/templates/`
 - Testing policy: `../_shared/testing-policy.md`
-- Optional chain: `.pi/agents/work-item-creation.chain.md`
 - Related skills: `../implement-tdd-review-runner/SKILL.md`, `../plan-and-implement-runner/SKILL.md`

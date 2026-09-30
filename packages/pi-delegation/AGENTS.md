@@ -25,8 +25,8 @@ where other harnesses would read them.
 
 - **Gate on the capability, never on the repository.** The policy applies when
   the `subagent` tool is active in the session. Do not add path or `cwd` checks:
-  the same extension runs in every repository, and a repository that has nothing
-  to delegate to simply has no `.pi/agents`.
+  the same extension runs in every repository. This gate controls guidance
+  visibility only; tool availability never grants delegation authority.
 - **Return `undefined` to decline.** The handler must never return a
   `systemPrompt` that drops or reorders what Pi and earlier extensions built.
   Append to `event.systemPrompt`, never replace it.
@@ -34,14 +34,16 @@ where other harnesses would read them.
   both the injected heading and the idempotence check. Renaming one without the
   other silently allows a duplicated policy when an `APPEND_SYSTEM.md` copy
   exists.
-- **Keep the "keep with the parent" limits.** Without them, "delegate by default"
-  becomes ceremony on small sequential edits. Reviewers are named as
-  fresh-context and read-only for the same reason.
-- **Name agents that actually resolve.** Repository agents (`work-item-*`,
-  `implement-tdd-review-*`, `test-validator`) must stay phrased as conditional on
-  the repository providing them; user and builtin agents (`reviewer`, `scout`,
-  `oracle`, `researcher`, `delegate`) ship with `pi-subagents` and are always
-  available when `subagent` is.
+- **Keep direct execution and the authority gate.** Delegation requires the
+  current request or applicable user/project instructions. Retain parent-owned
+  decisions, verification, acceptance, publication, and small sequential edits.
+  Reviewers are fresh-context and read-only; extra stages must earn their cost.
+- **Use existing builtin roles, not required project phase agents.** `worker`,
+  `reviewer`, `scout`, `researcher`, and `oracle` ship with `pi-subagents`.
+  Resolution may be overridden or restricted; availability is not authority.
+- **Recover from actual state.** Bound authorized work with exact paths and
+  concise evidence; preserve completed work after interruption rather than
+  replaying phases. Per-run controls remain host-owned, not a new runtime.
 - **Stay dependency-free.** No imports beyond pi's type-only `ExtensionAPI`, and
   no dependency on another pi-packages package.
 - **Never do work in the handler.** It runs once per user prompt: no I/O, no

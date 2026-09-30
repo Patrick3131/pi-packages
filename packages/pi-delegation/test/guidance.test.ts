@@ -50,7 +50,13 @@ test("does not duplicate a policy already present in the prompt", () => {
 });
 
 test("keeps the parent-owned limits in the policy text", () => {
-  // The limits are the part that stops "delegate by default" becoming ceremony.
+  // Capability-gated injection must not grant authority or imply phase agents.
+  assert.ok(DELEGATION_GUIDANCE.includes("Work directly by default"));
+  assert.ok(DELEGATION_GUIDANCE.includes("instructions authorize delegation"));
+  assert.ok(DELEGATION_GUIDANCE.includes("risk alone do not authorize it"));
   assert.ok(DELEGATION_GUIDANCE.includes("Keep with the parent"));
   assert.ok(DELEGATION_GUIDANCE.includes("fresh-context"));
+  assert.ok(DELEGATION_GUIDANCE.includes("read-only"));
+  assert.ok(DELEGATION_GUIDANCE.includes("publication authority"));
+  assert.doesNotMatch(DELEGATION_GUIDANCE, /work-item-(?:router|researcher|writer|reviewer)|test-validator|implement-tdd-review-\*/);
 });

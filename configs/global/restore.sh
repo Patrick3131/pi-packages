@@ -7,6 +7,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 FORCE=0
 
+for arg in "$@"; do
+	if [[ "$arg" == "--migrate-work-skills" && "$#" -ne 1 ]]; then
+		echo "Use --migrate-work-skills alone; it cannot be combined with --force." >&2
+		exit 1
+	fi
+done
+
 if [[ "${1:-}" == "--force" ]]; then
 	FORCE=1
 fi
@@ -48,8 +55,51 @@ copy_file() {
 	echo "Wrote $dest"
 }
 
-need pi
 need python3
+
+# Targeted persisted-settings cutover: no snapshot copies, package operations,
+# version checks, or changes to subagent config and installed checkout state.
+if [[ "${1:-}" == "--migrate-work-skills" ]]; then
+	python3 - "$AGENT_DIR/settings.json" <<'PYWORKSKILLS'
+import json
+import shutil
+import sys
+from datetime import datetime
+from pathlib import Path
+
+settings_path = Path(sys.argv[1])
+if not settings_path.exists():
+    print(f"No existing settings to migrate at {settings_path}")
+    raise SystemExit(0)
+settings = json.loads(settings_path.read_text())
+packages = settings.get("packages")
+changed = False
+if isinstance(packages, list):
+    for entry in packages:
+        if not isinstance(entry, dict) or entry.get("source") != "git:github.com/Patrick3131/pi-packages":
+            continue
+        skills = entry.get("skills")
+        if not isinstance(skills, list) or "!packages/pi-work/skills/**" not in skills:
+            continue
+        remaining = [item for item in skills if item != "!packages/pi-work/skills/**"]
+        if remaining:
+            entry["skills"] = remaining
+        else:
+            del entry["skills"]
+        changed = True
+if changed:
+    backup = settings_path.with_name(settings_path.name + ".bak." + datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+    shutil.copy2(settings_path, backup)
+    print(f"Backed up {settings_path} -> {backup}")
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+    print(f"Removed obsolete shared-work skill filter from {settings_path}")
+else:
+    print(f"No obsolete shared-work skill filter in {settings_path}")
+PYWORKSKILLS
+	exit 0
+fi
+
+need pi
 
 # The retired adapter is replaced by native MCP, first available in 0.99.0.
 python3 - "$(pi --version)" <<'PYVERSION'
@@ -157,14 +207,25 @@ packages = filtered_packages
 existing = {source_of(entry) for entry in packages}
 for item in wanted:
     if item not in existing:
-        packages.append({"source": item, "skills": ["!packages/pi-work/skills/**"], "extensions": ["!packages/pi-keepalive/**"]} if item.endswith("/pi-packages") else item)
+        packages.append({"source": item, "extensions": ["!packages/pi-keepalive/**"]} if item.endswith("/pi-packages") else item)
         changed = True
 for index, entry in enumerate(packages):
     if source_of(entry) != "git:github.com/Patrick3131/pi-packages":
         continue
     if isinstance(entry, str):
-        entry = {"source": entry, "skills": ["!packages/pi-work/skills/**"]}
+        entry = {"source": entry}
         packages[index] = entry
+        changed = True
+    # Remove only the retired duplicate-skill filter. An empty list explicitly
+    # disables all skills, so omit the key when removal consumes the old list;
+    # preserve an intentional pre-existing [] and every other resource filter.
+    skills = entry.get("skills")
+    if isinstance(skills, list) and "!packages/pi-work/skills/**" in skills:
+        remaining = [item for item in skills if item != "!packages/pi-work/skills/**"]
+        if remaining:
+            entry["skills"] = remaining
+        else:
+            del entry["skills"]
         changed = True
     exclusions = entry.get("extensions")
     if exclusions is None:
