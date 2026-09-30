@@ -208,6 +208,13 @@ done
 
 `_shared` is a sibling resource link, not another skill. Keep all four links together so relative templates/testing-policy and composite references resolve. Each public skill ships `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex, alongside Pi's frontmatter flag. Invoke explicitly with `$task-and-plan-routing`, `$implement-tdd-review-runner`, or `$plan-and-implement-runner`. For other hosts, verify supported operator-only metadata and actual discovery before deleting their old copies; do not assume they honor Pi or Codex flags.
 
+When container homes are not mutually visible, the installed checkout must be
+on an existing shared mount before creating links. Retain Pi's managed install
+path as a symlink to that one checkout and point the non-Pi user links at the
+visible location; verify a real `pi update` still follows the alias. Move code
+only, never the agent directory, credentials, trust, or sessions. Do not create
+a second maintained checkout or a synchronization service.
+
 Do not put these links in `.agents/skills` or another directory Pi also scans: the Git package already exposes them to Pi. Do not commit machine-specific absolute links or introduce copying/syncing. After updates, restart/reload the host and verify all three names resolve once, explicit invocation works, and sibling resources load. These checks are cutover gates on every affected local/remote installation; source tests cannot prove live discovery. If a gate fails, retain old consumers and roll back only the targeted setting/link changes from backups.
 
 ## Development
