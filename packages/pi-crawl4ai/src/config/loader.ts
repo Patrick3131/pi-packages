@@ -4,10 +4,7 @@ import type {
   Crawl4AIJsonConfig,
   ResolvedConfig,
   ResolvedRetention,
-  ResolvedTokenBudget,
   RetentionSettings,
-  ReturnModeConfig,
-  TokenBudgetSettings,
 } from "./types";
 
 export { findConfigFile, loadJsonConfig } from "./files";
@@ -15,20 +12,8 @@ export type {
   Crawl4AIJsonConfig,
   ResolvedConfig,
   ResolvedRetention,
-  ResolvedTokenBudget,
   RetentionSettings,
-  ReturnModeConfig,
-  TokenBudgetSettings,
 } from "./types";
-
-const DEFAULT_TOKEN_BUDGET: ResolvedTokenBudget = {
-  maxCharsPerPage: 12_000,
-  maxCharsPerCall: 12_000,
-  returnMode: "auto",
-  preferFitMarkdown: true,
-  deepCrawlDefaultMaxPages: 10,
-  excerptChars: 200,
-};
 
 const DEFAULT_RETENTION: ResolvedRetention = {
   enabled: true,
@@ -45,43 +30,6 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
-}
-
-function parseReturnMode(value: string | undefined, fallback: ReturnModeConfig): ReturnModeConfig {
-  if (!value) return fallback;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "auto" || normalized === "inline" || normalized === "files") {
-    return normalized;
-  }
-  return fallback;
-}
-
-function resolveTokenBudget(jsonConfig: Crawl4AIJsonConfig | null): ResolvedTokenBudget {
-  const fromJson: TokenBudgetSettings = jsonConfig?.tokenBudget ?? {};
-  return {
-    maxCharsPerPage:
-      resolveNumber(fromJson.maxCharsPerPage) ??
-      resolveNumber(process.env.CRAWL4AI_MAX_CHARS_PER_PAGE) ??
-      DEFAULT_TOKEN_BUDGET.maxCharsPerPage,
-    maxCharsPerCall:
-      resolveNumber(fromJson.maxCharsPerCall) ??
-      resolveNumber(process.env.CRAWL4AI_MAX_CHARS_PER_CALL) ??
-      DEFAULT_TOKEN_BUDGET.maxCharsPerCall,
-    returnMode:
-      fromJson.returnMode ??
-      parseReturnMode(process.env.CRAWL4AI_RETURN_MODE, DEFAULT_TOKEN_BUDGET.returnMode),
-    preferFitMarkdown:
-      fromJson.preferFitMarkdown ??
-      parseBoolean(process.env.CRAWL4AI_PREFER_FIT_MARKDOWN, DEFAULT_TOKEN_BUDGET.preferFitMarkdown),
-    deepCrawlDefaultMaxPages:
-      resolveNumber(fromJson.deepCrawlDefaultMaxPages) ??
-      resolveNumber(process.env.CRAWL4AI_DEEP_CRAWL_DEFAULT_MAX_PAGES) ??
-      DEFAULT_TOKEN_BUDGET.deepCrawlDefaultMaxPages,
-    excerptChars:
-      resolveNumber(fromJson.excerptChars) ??
-      resolveNumber(process.env.CRAWL4AI_EXCERPT_CHARS) ??
-      DEFAULT_TOKEN_BUDGET.excerptChars,
-  };
 }
 
 function resolveRetention(jsonConfig: Crawl4AIJsonConfig | null): ResolvedRetention {
@@ -131,7 +79,6 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
         ? resolveNumber(jsonConfig.minRequestIntervalMs)
         : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
     apiToken: resolveApiToken(jsonConfig),
-    tokenBudget: resolveTokenBudget(jsonConfig),
     retention: resolveRetention(jsonConfig),
     outputDir: resolveOutputDir(jsonConfig),
     trafilatura: { pythonPath: resolveEnvVars(jsonConfig?.trafilatura?.pythonPath ?? process.env.CRAWL4AI_TRAFILATURA_PYTHON ?? "") || undefined },
@@ -139,14 +86,11 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
   const url = new URL(config.baseUrl);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("crawl4ai url must be HTTP(S) without embedded credentials");
   config.baseUrl = config.baseUrl.replace(/\/+$/, "");
-  for (const [name, value] of Object.entries({ timeout: config.timeout, ...config.tokenBudget })) {
-    if (typeof value === "number" && (!Number.isFinite(value) || value <= 0)) throw new Error(`${name} must be positive and finite`);
-  }
-  if (!["auto", "inline", "files"].includes(config.tokenBudget.returnMode)) throw new Error("Invalid returnMode");
+  if (!Number.isFinite(config.timeout) || config.timeout <= 0) throw new Error("timeout must be positive and finite");
   for (const [name, value] of Object.entries({ minRequestIntervalMs: config.minRequestIntervalMs, maxSessions: config.retention.maxSessions, maxAgeDays: config.retention.maxAgeDays, maxTotalMb: config.retention.maxTotalMb })) {
     if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error(`${name} must be nonnegative and finite`);
   }
-  if (!Number.isInteger(config.tokenBudget.deepCrawlDefaultMaxPages) || !Number.isInteger(config.retention.maxSessions)) throw new Error("Page/session counts must be integers");
+  if (!Number.isInteger(config.retention.maxSessions)) throw new Error("Session counts must be integers");
   return config;
 }
 

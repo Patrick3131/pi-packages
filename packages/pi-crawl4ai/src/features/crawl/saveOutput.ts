@@ -5,7 +5,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync, renameSync, realpathSync } from "node:fs";
 import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
 import { createHash } from "node:crypto";
-import type { CrawlResult, CrawlFormat, MarkdownGenerationResult } from "./types";
+import type { CrawlResult, CrawlFormat, DeepCrawlStrategyType, MarkdownGenerationResult } from "./types";
 import {
   cleanupCrawlSessions,
   type CleanupResult,
@@ -156,6 +156,40 @@ export interface CrawlManifestPage {
   charCount?: number;
   headingCount?: number;
   success: boolean;
+  /** Redacted failure reason for failed pages. */
+  error?: string;
+}
+
+/**
+ * Effective request values that produced a crawl, with defaults already applied.
+ * Never contains credentials: `jsCode` is recorded as a boolean only.
+ */
+export interface CrawlManifestRequest {
+  format: CrawlFormat;
+  bypassCache: boolean;
+  preferFitMarkdown: boolean;
+  /** Milliseconds waited after rendering, when requested. */
+  waitFor?: number;
+  /** True when remote-browser JavaScript ran; the source is never persisted. */
+  jsCode?: true;
+  deepCrawl?: {
+    strategy: DeepCrawlStrategyType;
+    /** Link hops from the seed, as recorded in the legacy deepCrawl field. */
+    maxDepth: number;
+    maxPages: number;
+    includeExternal?: boolean;
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    allowedDomains?: string[];
+    scoreThreshold?: number;
+  };
+  bm25?: { query: string; threshold: number };
+  extractor?: { name: "trafilatura"; includeLinks: boolean };
+}
+
+/** Service endpoint that produced a crawl, without credentials. */
+export interface CrawlManifestService {
+  baseUrl: string;
 }
 
 export interface CrawlManifest {
@@ -172,10 +206,19 @@ export interface CrawlManifest {
     maxDepth: number;
     maxPages?: number;
   };
+  /** Effective request values (new manifests) */
+  request?: CrawlManifestRequest;
+  /** Service endpoint without credentials (new manifests) */
+  service?: CrawlManifestService;
   /** List of saved content files (relative paths) */
   files: string[];
   /** Per-page metadata for progressive reads */
-  pages?: CrawlManifestPage[];
+  pages: CrawlManifestPage[];
+}
+
+/** Strip URL userinfo so a persisted service endpoint never carries credentials. */
+export function credentialFreeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/@]*@/, "$1");
 }
 
 /**
@@ -215,6 +258,10 @@ export interface SaveCrawlOptions {
   artifacts?: Array<{ sourceContent?: string; rawHtmlFile?: string; filter?: CrawlManifestPage["filter"]; extractor?: CrawlManifestPage["extractor"] }>;
   /** When set and enabled, prune old sessions under outputDir after save. */
   retention?: RetentionPolicy;
+  /** Effective request values recorded in the manifest. */
+  request?: CrawlManifestRequest;
+  /** Credential-free service endpoint recorded in the manifest. */
+  service?: CrawlManifestService;
 }
 
 export interface SavedCrawlPage {
@@ -243,24 +290,6 @@ export interface SaveCrawlResult {
   /** Exact paths for each saved page, in crawl result order. */
   pagePaths: SavedCrawlPage[];
   cleanup?: CleanupResult;
-}
-
-export function saveCrawlResults(
-  outputDir: string,
-  urls: string[],
-  results: CrawlResult[],
-  format: CrawlFormat,
-  deepCrawl?: { maxDepth: number; maxPages?: number },
-  options?: SaveCrawlOptions
-): string {
-  return saveCrawlResultsDetailed(
-    outputDir,
-    urls,
-    results,
-    format,
-    deepCrawl,
-    options
-  ).sessionDir;
 }
 
 /**
@@ -304,6 +333,8 @@ export function saveCrawlResultsDetailed(
       url: result.url,
       file: relativePath,
       success: result.success,
+      // Failed pages record the reason; callers redact server diagnostics before saving.
+      error: result.success ? undefined : result.error_message,
       title: result.metadata?.title,
       charCount: content.length,
     };
@@ -382,6 +413,9 @@ export function saveCrawlResultsDetailed(
       maxPages: deepCrawl.maxPages,
     };
   }
+
+  if (options?.request) manifest.request = options.request;
+  if (options?.service) manifest.service = options.service;
   
   const manifestPath = join(sessionDir, "crawl-manifest.json");
   const pendingManifest = writeCrawlArtifact(sessionDir, ".crawl-manifest.pending", JSON.stringify(manifest, null, 2));

@@ -22,14 +22,14 @@ The root Git manifest loads this extension and the other repository resources. T
 
 Optional agents are discovered separately by pi-subagents through `pi.subagents.agents`, not through a top-level `pi.agents` field or Pi's extension filter. The standalone npm manifest exposes `dist/index.js` and `agents/`; its tarball includes both. For local development, load `packages/pi-crawl4ai/src/index.ts` directly or build and load `dist/index.js`.
 
-## Migration: file-first, externally activated
+## File-first output and activation
 
-- **Omitted `save` now saves even small pages.** Omitted/`auto` return mode returns compact file references, not an adaptive inline/file decision.
+- **Omitted `save` saves complete pages.** Omitted/`auto` return mode returns compact file references.
 - `save: true` uses the configured root; a string selects a custom directory. Relative paths resolve from the tool context's working directory.
 - `returnMode: "inline"` returns a bounded preview **and still saves** unless `save: false` is explicit.
-- `save: false` performs no disk writes and returns bounded inline content. Omitted content is not recoverable with `crawl_read`; re-crawl with saving enabled. `save: false` plus explicit/effective `returnMode: "files"` fails before the network request.
-- `returnMode`, `maxCharsPerPage`, `maxCharsPerCall`, `preferFitMarkdown` and existing JSON/env token-budget settings remain compatibility controls. Smaller positive preview limits are honored; larger limits cannot lift the fixed cap. No adaptive token estimation or new budget knobs.
-- `/crawl-on` and `/crawl-off` have been removed. Enable/disable `crawl` and `crawl_read` with external `/tools`, `.pi/tools.json`, presets or explicit CLI/child tool allowlists. The extension does not rewrite the active set at load/reload.
+- `save: false` performs no disk writes and returns bounded inline content. Omitted content is not recoverable with `crawl_read`; re-crawl with saving enabled. `save: false` plus `returnMode: "files"` fails before the network request.
+- `returnMode` selects file references or bounded inline previews. `maxCharsPerPage` and `maxCharsPerCall` can lower preview limits; larger values cannot lift the fixed cap. `preferFitMarkdown` defaults to true and selects main-content Markdown when available.
+- Enable/disable `crawl` and `crawl_read` with `/tools`, `.pi/tools.json`, presets or explicit CLI/child tool allowlists. The extension does not rewrite the active set at load/reload.
 
 ## Crawl and read
 
@@ -49,7 +49,7 @@ Modes: `outline`, `chunks` (optionally ranked by `query`), `window` (1-based `of
 
 | Output | Limit |
 | --- | --- |
-| Explicit inline/no-save crawl bodies | 12,000 characters total per call, or smaller compatibility limits |
+| Explicit inline/no-save crawl bodies | 12,000 characters total per call, or smaller caller preview limits |
 | `crawl_read` | 6,000 characters by default; caller overrides remain subject to host limits |
 | Displayed page index | First 20 entries; complete manifest contains the remaining entries |
 | Final model-facing tool text | Pi byte/line limits (currently 50 KiB / 2,000 lines), with omission/recovery notice |
@@ -62,7 +62,7 @@ Saved bodies are not shortened to fit presentation limits. Query ranking and tru
 
 Deep crawling requires one seed and supports `bfs`, `dfs`, `best-first`, integer `maxDepth`/`maxPages`, optional `includeExternal`, glob `includePatterns`/`excludePatterns`, and `allowedDomains`. Public `maxDepth: 1` is seed-only (translated to upstream depth zero). Default `maxPages` is 10. `scoreThreshold` requires best-first and a value in [0,1]. These are crawl bounds, distinct from the 20-entry display cap.
 
-**Verified operator deployment (2026-09-30):** `discovery-services` adds narrow server-owned, non-streaming BFS/DFS/best-first construction with bounded glob/domain filters, attempted-page budgets, frontiers and a total deadline. Ordinary configuration remains untrusted; SSRF/DNS pinning and operator-only egress remain intact. The genuine Pi live suite passed rendered delay, typed cache and seed-depth/maxPages/include/exclude/domain traversal against the deployed image. Stock upstream **0.9.4** still rejects these untrusted strategy objects; unsupported errors remain actionable and must never be bypassed. A health GET alone is not proof of traversal. Server limits cap depth at 5 and attempted pages at 100; raw-regex patterns and deep streaming are not supported by this operator capability.
+The operator-managed `discovery-services` deployment supports narrow server-owned, non-streaming BFS/DFS/best-first construction with bounded glob/domain filters, attempted-page budgets, frontiers and a total deadline. Ordinary configuration remains untrusted; SSRF/DNS pinning and operator-only egress remain intact. Stock upstream **0.9.4** rejects these untrusted strategy objects; unsupported errors remain actionable and must never be bypassed. A health GET alone is not proof of traversal. Server limits cap depth at 5 and attempted pages at 100; raw-regex patterns and deep streaming are not supported by this operator capability.
 
 The configured deadline covers process-local pacing, fetch, response-body reading and optional extraction. HTTP abort/cancellation **does not necessarily cancel server-side browser work**. No automatic crawl POST retries are performed. Multi-process/deep-crawl pacing belongs on the server. Invalid URLs/options, malformed responses and total page failure are errors; mixed results explicitly report partial failure, and empty ordinary page content is a warning.
 
@@ -72,7 +72,7 @@ The configured deadline covers process-local pacing, fetch, response-body readin
 {"urls":["https://example.com/docs"],"bm25Query":"installation","bm25Threshold":1}
 ```
 
-Initial crawl-time BM25 supports **one URL, Markdown/text, no deep crawl**. `bm25Threshold` defaults to 1.0, must be finite and nonnegative, and requires a nonblank query. HTML/links/deep/multi-URL combinations fail preflight. Text also requires Trafilatura.
+Crawl-time BM25 supports **one URL, Markdown/text, no deep crawl**. `bm25Threshold` defaults to 1.0, must be finite and nonnegative, and requires a nonblank query. HTML/links/deep/multi-URL combinations fail preflight. Text also requires Trafilatura.
 
 The shared Okapi scorer (k1=1.5, b=0.75) uses Unicode-aware tokens and heading sections/headingless paragraphs, respects fenced code and intact table/code blocks, and saves matching sections in source order. `crawl_read` reuses this scorer for positive query matches without another public threshold. No heading-ancestry or cross-section link/reference reconstruction is promised.
 
@@ -104,7 +104,7 @@ Native extraction can lose navigation, headings, tables, links, images and forma
 
 ## Configuration
 
-JSON is searched in order: `.pi/crawl4ai.json`, then `~/.pi/agent/extensions/crawl4ai.json`; JSON values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
+JSON is searched in the working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` in each directory. Prefer `.pi/crawl4ai.json` for project configuration. JSON values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
 
 ```json
 {
@@ -113,14 +113,6 @@ JSON is searched in order: `.pi/crawl4ai.json`, then `~/.pi/agent/extensions/cra
   "timeoutMs": 60000,
   "minRequestIntervalMs": 1000,
   "outputDir": "./output-crawl4ai",
-  "tokenBudget": {
-    "returnMode": "auto",
-    "maxCharsPerPage": 12000,
-    "maxCharsPerCall": 12000,
-    "preferFitMarkdown": true,
-    "deepCrawlDefaultMaxPages": 10,
-    "excerptChars": 200
-  },
   "retention": {"enabled": true, "maxSessions": 20, "maxAgeDays": 7, "maxTotalMb": 512}
 }
 ```
@@ -132,14 +124,19 @@ See [.env.example](.env.example) for env equivalents, including `CRAWL4AI_BASE_U
 ```text
 /crawl-status             # bounded on-demand service health; no tool activation
 /crawl-status extractor   # also check configured local extraction
-/crawl-sessions           # saved default-root sessions and sizes
+/crawl-sessions           # saved default-root sessions: size, host and page count
+/crawl-sessions 1         # drill into session #1 (or a name / unique name prefix)
 /crawl-cleanup dry-run    # preview retention
 /crawl-cleanup            # apply retention now
 ```
 
 No startup health requests, subprocess probes, persistent status footer or custom renderer. Status is not an end-to-end traversal test.
 
-Saves use unique sessions/hashed URL filenames and publish the manifest last. Existing manifests remain readable; optional `sourceFile`, `rawHtmlFile`, `filter` and `extractor` fields are additive. Generated/manifest artifact paths are checked for session containment, including symlink escape; the reader is **not a filesystem security sandbox**.
+Rows read `1. <name>  <size> MB  <host> ×<pages>  <timestamp>`, with `unknown-host`/`?` when a manifest lacks usable URL or page metadata. A selector prints the numbered `URL → exact path` lines of that session, capped at 20 entries with an explicit `… and N more` remainder, plus the recorded request summary and the manifest path. The drill-down is sent as a `crawl-sessions` message so the model sees it (a follow-up "summarise 3" resolves); the plain list stays a notification. Unknown selectors error with the searched root, ambiguous prefixes list the matching session names, and neither prints another session's pages; selector errors stay notifications in UI mode and are sent as a message in headless runs.
+
+Saves use unique sessions/hashed URL filenames and publish the manifest last. `pages[]` maps URLs to primary files; optional `sourceFile`, `rawHtmlFile`, `filter` and `extractor` fields describe filtering/extraction artifacts. Generated/manifest artifact paths are checked for session containment, including symlink escape; the reader is **not a filesystem security sandbox**.
+
+New manifests also record provenance: `request` holds the effective values that shaped the crawl (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `jsCode: true` — the source is never persisted — `deepCrawl` with resolved `strategy`/`maxDepth`/`maxPages` and any filters, optional `bm25`, optional `extractor`), `service.baseUrl` is the endpoint with credentials removed, and a failed `pages[]` entry keeps a redacted `error` reason. The legacy top-level `deepCrawl` field is unchanged.
 
 Retention runs after saves on completed owned sessions only and protects the just-returned session during that pass. Defaults: 20 sessions, 7 days, soft 512 MiB; zero disables age/size rules. An oversized returned session survives that pass but may expire later; paths are not permanently pinned. Unrelated/incomplete directories are not cleaned.
 

@@ -10,19 +10,23 @@ canonical_ref: none
 ## Slices
 
 Delete this section when the work is one serial unit. Use it when parts of the
-package touch independent paths, so they can be implemented in parallel or
-handed to different workers.
+package deliver independently observable outcomes and own independent paths.
 
-| Slice | Owns (paths) | Depends on |
-| ----- | ------------ | ---------- |
-| <slice> | <paths this slice owns> | <slice it needs to compile or behave correctly, or `-`> |
+| Slice | Observable outcome | Owns (exclusive paths) | Depends on | Unblocked by | Local check |
+| ----- | ------------------ | ---------------------- | ---------- | ------------ | ----------- |
+| <slice> | <what passing this slice proves on its own> | `<path>` | <slice, or `-`> | <artifact or interface the dependency must deliver, or `-`> | `<command>` |
 
-One slice owns each path; no path appears twice. List a dependency only when the
-slice genuinely needs the other slice's code, not because it was planned second.
+- Shared interface: <contract frozen before parallel work and the one slice that owns it, or `none`>.
+- Integrated acceptance: <check that proves the combined result after integration>.
+
+One slice owns each path; no path appears twice. A dependency is a real compile
+or behavior edge, not planning order. Independent slices may run in separate
+worktrees; tightly coupled chains normally stay with one writer. Start a separate
+dependent slice only after its named prerequisite is integrated and verified.
 
 ## Tasks
 
-- [ ] <Meaningful implementation task>
+- [ ] <Slice> — <meaningful implementation task>
 
 ## Validation
 
@@ -35,4 +39,5 @@ slice genuinely needs the other slice's code, not because it was planned second.
 ## Completion
 
 - [ ] Every acceptance criterion is verified
+- [ ] Each slice passed its local check and integrated acceptance ran on the combined result
 - [ ] Test plan records coverage decisions and evidence

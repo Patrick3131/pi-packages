@@ -25,7 +25,7 @@ General-purpose docs-as-work package: skills + `/work` extension + scaffold.
 - Prefer pure functions in `config` / `parse` / `discover` / `format` / `prompts` / `scaffold` for testability.
 - Extension UI stays thin: select → detail → `sendUserMessage` handoff.
 - Skills remain operator-only: `disable-model-invocation: true` for Pi and `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex.
-- Keep one host-neutral method in the three public skills: direct execution by default, delegation only with operator/instruction authority, no required scripts or project phase agents. Local repositories own commands, permissions, architecture, and feature-specific work placement.
+- Keep one detailed host-neutral method in the three core workflow skills plus auxiliary operator-only work-note cleanup: direct execution for small/coupled work, optional parallel sliced implementation with operator/instruction authority, no required scripts or project phase agents. Preserve useful clarification/resume, ownership/dependency, validation/review and integration policies rather than shortening away operational detail. Local repositories own commands, permissions, architecture, and feature-specific work placement.
 - Non-Pi user-level links must target the installed package and preserve sibling `_shared` resources; do not maintain copied bodies or add syncing.
 - Do not overwrite user files in scaffold.
 - Companion naming is part of the public contract: `-to-do-list.md`, `-test.md`.
@@ -34,6 +34,8 @@ General-purpose docs-as-work package: skills + `/work` extension + scaffold.
 - Readiness logic lives in `src/readiness.ts` and must stay aligned with the skills.
 - Templates under `skills/_shared/templates/` are the canonical output shape; update them and the package README/CONTEXT together when the work-document contract changes.
 - `skills/_shared/testing-policy.md` is the canonical guidance for avoiding speculative or duplicate tests.
+- `_shared/procedures/` holds optional specialised briefs and native composition examples, not a workflow engine. One writer per cwd, one parent doc/integration owner; combined acceptance is separate from slice success. Cleanup requires an exact approved path set after a retain-first dry run.
+- Keep source-backed capability disposition in `_shared/capability-recovery.md`; never claim faster/better custom roles without same-input comparative evidence.
 
 ## Commands
 

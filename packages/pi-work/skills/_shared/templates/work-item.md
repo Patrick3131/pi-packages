@@ -31,7 +31,13 @@ canonical_ref: none
 
 ## Implementation Notes
 
-<Approach, constraints, assumptions, and dependencies discovered from the repository.>
+<Approach, constraints, dependencies, and verified repository findings with their source. Keep assumptions visibly unverified and reused prior work distinct from newly checked work.>
+
+## Decisions and Assumptions
+
+<!-- Nonblocking decisions and reversible assumptions with the chosen default, each with a stable id. Blocking questions belong under Open Questions. -->
+
+- `D1` <Decision or assumption, and the default chosen>
 
 ## Files
 
@@ -47,4 +53,5 @@ canonical_ref: none
 
 ## Open Questions
 
+<!-- Blocking questions only, each with a stable id such as `Q1`. Use `None` when ready. -->
 None

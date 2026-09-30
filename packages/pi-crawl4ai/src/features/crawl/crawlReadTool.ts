@@ -2,14 +2,14 @@
  * Progressive reader for saved crawl session pages.
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { Type } from "typebox";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
 import { getDefaultOutputDir, containedArtifactPath } from "./saveOutput";
 import { listCrawlSessions } from "./cleanup";
-import { capToolText } from "./tokenBudget";
+import { capToolText } from "./presentation";
 import {
   buildOutlineMarkdown,
   selectChunks,
@@ -40,8 +40,8 @@ function isPathInside(parent: string, child: string): boolean {
 }
 
 /**
- * Resolve a user-provided path to a readable markdown/html file under output root when relative.
- * Absolute paths are allowed only if they exist and look like crawl artifacts (have sibling/ancestor manifest optional).
+ * Resolve an exact file or session manifest, relative to cwd or the output root.
+ * Exact files need no manifest; directories must identify a saved session.
  */
 export function resolveReadablePath(
   inputPath: string,
@@ -53,17 +53,15 @@ export function resolveReadablePath(
     return { absolutePath: "", error: "path is required" };
   }
 
-  const absolutePath = isAbsolute(trimmed)
+  let absolutePath = isAbsolute(trimmed)
     ? normalize(trimmed)
     : resolve(cwd, trimmed);
 
   if (!existsSync(absolutePath)) {
     // try under output root
     const underRoot = resolve(cwd, outputRoot, trimmed);
-    if (existsSync(underRoot)) {
-      return { absolutePath: underRoot };
-    }
-    return { absolutePath, error: `File not found: ${trimmed}` };
+    if (!existsSync(underRoot)) return { absolutePath, error: `File not found: ${trimmed}` };
+    absolutePath = underRoot;
   }
 
   const stat = statSync(absolutePath);
@@ -72,16 +70,7 @@ export function resolveReadablePath(
     const manifestPath = join(absolutePath, MANIFEST_NAME);
     if (existsSync(manifestPath)) return { absolutePath: manifestPath };
 
-    // Prefer index.md / first .md in domain folder
-    const indexMd = join(absolutePath, "index.md");
-    if (existsSync(indexMd)) return { absolutePath: indexMd };
-    try {
-      const firstMd = readdirSync(absolutePath).find((name) => name.endsWith(".md"));
-      if (firstMd) return { absolutePath: join(absolutePath, firstMd) };
-    } catch {
-      // ignore
-    }
-    return { absolutePath, error: `Path is a directory without markdown files: ${trimmed}` };
+    return { absolutePath, error: `Directory has no crawl-manifest.json: ${trimmed}` };
   }
 
   return { absolutePath };
@@ -140,7 +129,7 @@ function readManifest(manifestPath: string): {
   try {
     containedArtifactPath(dirname(manifestPath), basename(manifestPath));
     const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf-8"));
-    if (!parsed || typeof parsed !== "object") {
+    if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Record<string, unknown>).pages)) {
       return { error: `Invalid crawl manifest: ${manifestPath}` };
     }
     return { manifest: parsed as Record<string, unknown> };
@@ -152,26 +141,11 @@ function readManifest(manifestPath: string): {
 
 function manifestPages(manifest: Record<string, unknown>): ManifestPageRecord[] {
   const pages = Array.isArray(manifest.pages) ? manifest.pages : [];
-  const files = Array.isArray(manifest.files) ? manifest.files : [];
-  const urls = Array.isArray(manifest.urls) ? manifest.urls : [];
-  const count = Math.max(pages.length, files.length, urls.length);
-
-  return Array.from({ length: count }, (_, index) => {
-    const page = pages[index];
+  return pages.map((page) => {
     const record = page && typeof page === "object" ? (page as Record<string, unknown>) : undefined;
     return {
-      url:
-        typeof record?.url === "string"
-          ? record.url
-          : typeof urls[index] === "string"
-            ? urls[index]
-            : undefined,
-      file:
-        typeof record?.file === "string"
-          ? record.file
-          : typeof files[index] === "string"
-            ? files[index]
-            : undefined,
+      url: typeof record?.url === "string" ? record.url : undefined,
+      file: typeof record?.file === "string" ? record.file : undefined,
       outlineFile: typeof record?.outlineFile === "string" ? record.outlineFile : undefined,
       metaFile: typeof record?.metaFile === "string" ? record.metaFile : undefined,
     };
@@ -312,10 +286,16 @@ function formatValidArtifacts(outputRoot: string, cwd: string): string {
     .join("\n");
 }
 
-function buildManifestOverview(
+/**
+ * Manifest outline: header plus one `URL → exact path` line per page.
+ * Optional numbering and a page cap keep the session drill-down bounded;
+ * the default (no options) output is unchanged.
+ */
+export function buildManifestOverview(
   manifestPath: string,
   manifest: Record<string, unknown>,
-  cwd: string
+  cwd: string,
+  options?: { numbered?: boolean; maxPages?: number }
 ): string {
   const pages = manifestPages(manifest);
   const lines = [
@@ -325,14 +305,19 @@ function buildManifestOverview(
     "",
     "Read one of these exact page paths with crawl_read; do not invent flattened filenames.",
   ];
+  const pageLines: string[] = [];
 
   for (const page of pages) {
     if (!page.file) continue;
     const pagePath = resolve(dirname(manifestPath), page.file);
     try { containedArtifactPath(dirname(manifestPath), page.file); }
     catch { continue; }
-    lines.push(`- ${page.url ?? "(unknown URL)"} → ${pagePath}`);
+    pageLines.push(`${options?.numbered ? `${pageLines.length + 1}. ` : "- "}${page.url ?? "(unknown URL)"} → ${pagePath}`);
   }
+
+  const shown = options?.maxPages === undefined ? pageLines : pageLines.slice(0, options.maxPages);
+  lines.push(...shown);
+  if (shown.length < pageLines.length) lines.push(`- … and ${pageLines.length - shown.length} more`);
 
   return lines.join("\n");
 }
@@ -340,7 +325,6 @@ function buildManifestOverview(
 function loadSidecars(contentPath: string): {
   outline?: string;
   meta?: PageMeta;
-  sessionManifest?: Record<string, unknown>;
 } {
   // Unsupported extensions (including native text) have no sidecar naming convention.
   const sidecarBase = /\.(?:md|html)$/i.test(contentPath) ? contentPath.replace(/\.(?:md|html)$/i, "") : undefined;
@@ -349,7 +333,6 @@ function loadSidecars(contentPath: string): {
   const result: {
     outline?: string;
     meta?: PageMeta;
-    sessionManifest?: Record<string, unknown>;
   } = {};
 
   if (outlinePath && existsSync(outlinePath)) {
@@ -366,16 +349,6 @@ function loadSidecars(contentPath: string): {
       const root = findSessionRoot(contentPath) ?? dirname(contentPath);
       containedArtifactPath(root, relative(root, metaPath));
       result.meta = JSON.parse(readFileSync(metaPath, "utf-8")) as PageMeta;
-    } catch {
-      // ignore
-    }
-  }
-  const sessionRoot = findSessionRoot(contentPath);
-  if (sessionRoot) {
-    try {
-      result.sessionManifest = JSON.parse(
-        readFileSync(join(sessionRoot, MANIFEST_NAME), "utf-8")
-      ) as Record<string, unknown>;
     } catch {
       // ignore
     }
@@ -525,7 +498,7 @@ export function executeCrawlRead(
   const root = path && existsSync(path) ? findSessionRoot(path) : undefined;
   const timestamp = root ? readManifest(join(root, MANIFEST_NAME)).manifest?.timestamp : undefined;
   const rendered = (params.url || (params.path && isUrlReference(params.path))) && !result.details.error
-    ? `Chosen file: ${path}\nSaved at: ${typeof timestamp === "string" ? timestamp : "unknown (legacy)"}\n${result.text}` : result.text;
+    ? `Chosen file: ${path}\n${typeof timestamp === "string" ? `Saved at: ${timestamp}\n` : ""}${result.text}` : result.text;
   const text = capToolText(rendered, path, params.maxChars ?? DEFAULT_MAX_CHARS);
   return { text, details: { ...result.details, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } };
 }
@@ -565,7 +538,7 @@ function executeCrawlReadContent(
 
   const isManifest = basename(absolutePath) === MANIFEST_NAME;
   const sidecars = isManifest
-    ? { outline: undefined, meta: undefined, sessionManifest: undefined }
+    ? { outline: undefined, meta: undefined }
     : loadSidecars(absolutePath);
   const url = sidecars.meta?.url;
   const title = sidecars.meta?.title;

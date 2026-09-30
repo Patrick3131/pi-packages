@@ -1,11 +1,11 @@
 /**
- * Tests for configLoader module
+ * Tests for configuration loading
  */
 
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { findConfigFile, loadJsonConfig, mergeConfigWithEnv, type Crawl4AIJsonConfig } from "./configLoader";
-import { resetEnv } from "./test-utils";
+import { findConfigFile, loadJsonConfig, mergeConfigWithEnv, type Crawl4AIJsonConfig } from "./loader";
+import { resetEnv } from "../test-utils";
 
 // Mock homedir to use a temp directory
 const originalHomedir = require("node:os").homedir;
@@ -137,7 +137,6 @@ describe("mergeConfigWithEnv", () => {
 
   it.each([
     { timeoutMs: 0 }, { timeoutMs: NaN }, { minRequestIntervalMs: -1 },
-    { tokenBudget: { maxCharsPerPage: -1 } }, { tokenBudget: { deepCrawlDefaultMaxPages: 1.5 } },
     { retention: { maxTotalMb: -1 } }, { retention: { maxSessions: 1.5 } },
     { url: "file:///tmp/server" }, { url: "http://user:secret@server" },
   ])("rejects invalid configured numbers/URL %j", config => {
@@ -152,10 +151,26 @@ describe("mergeConfigWithEnv", () => {
     expect(() => mergeConfigWithEnv(null)).toThrow();
   });
 
-  it("normalizes service trailing slashes and preserves smaller legacy preview limits", () => {
-    const config = mergeConfigWithEnv({ url: "https://server///", tokenBudget: { maxCharsPerPage: 100, maxCharsPerCall: 500 } });
-    expect(config.baseUrl).toBe("https://server"); expect(config.tokenBudget.maxCharsPerPage).toBe(100); expect(config.tokenBudget.maxCharsPerCall).toBe(500);
-    expect(mergeConfigWithEnv(null).tokenBudget.maxCharsPerCall).toBe(12000);
+  it("normalizes service trailing slashes without resolving preview configuration", () => {
+    const config = mergeConfigWithEnv({ url: "https://server///" });
+    expect(config.baseUrl).toBe("https://server");
+    expect(config).not.toHaveProperty("tokenBudget");
+  });
+
+  it("does not read obsolete JSON/env presentation defaults", () => {
+    const names = ["CRAWL4AI_RETURN_MODE", "CRAWL4AI_MAX_CHARS_PER_PAGE", "CRAWL4AI_MAX_CHARS_PER_CALL", "CRAWL4AI_PREFER_FIT_MARKDOWN", "CRAWL4AI_DEEP_CRAWL_DEFAULT_MAX_PAGES", "CRAWL4AI_EXCERPT_CHARS"];
+    const previous = names.map(name => process.env[name]);
+    try {
+      for (const name of names) process.env[name] = "invalid";
+      const input = JSON.parse('{"tokenBudget":{"returnMode":"files","maxCharsPerCall":-1}}');
+      expect(mergeConfigWithEnv(input)).toEqual(mergeConfigWithEnv(null));
+      expect(mergeConfigWithEnv(input)).not.toHaveProperty("tokenBudget");
+    } finally {
+      names.forEach((name, index) => {
+        if (previous[index] === undefined) delete process.env[name];
+        else process.env[name] = previous[index];
+      });
+    }
   });
   beforeEach(() => {
     resetEnv();

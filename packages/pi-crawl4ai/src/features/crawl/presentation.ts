@@ -1,11 +1,5 @@
-/**
- * Token-budget helpers for crawl tool results.
- *
- * Keeps large crawl bodies off the model context by preferring fit markdown,
- * enforcing char budgets, and returning file indexes when content is large.
- */
+/** Fixed, bounded crawl previews and compact saved-page indexes. */
 
-import { join } from "node:path";
 import { truncateHead, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 
 /** Apply host byte/line limits after reserving an exact recovery reference. */
@@ -22,11 +16,9 @@ export function capToolText(text: string, pointer = "", maxChars = Number.MAX_SA
   }).content;
   return body + safeFooter;
 }
-import type { CrawlFormat, CrawlResult, MarkdownGenerationResult } from "./types";
+import type { CrawlFormat, CrawlResult, MarkdownGenerationResult, ReturnMode } from "./types";
 
-export type ReturnMode = "auto" | "inline" | "files";
-
-export interface TokenBudgetConfig {
+export interface PreviewSettings {
   /** Max characters of body content per page in the tool result. */
   maxCharsPerPage: number;
   /** Max total body characters returned for one crawl call. */
@@ -35,19 +27,13 @@ export interface TokenBudgetConfig {
   returnMode: ReturnMode;
   /** Prefer crawl4ai fit_markdown (main content) over raw_markdown. */
   preferFitMarkdown: boolean;
-  /** Default max pages for deep crawl when the model omits maxPages. */
-  deepCrawlDefaultMaxPages: number;
-  /** Excerpt length used in index / files mode. */
-  excerptChars: number;
 }
 
-export const DEFAULT_TOKEN_BUDGET: TokenBudgetConfig = {
+export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
   maxCharsPerPage: 12_000,
   maxCharsPerCall: 12_000,
   returnMode: "auto",
   preferFitMarkdown: true,
-  deepCrawlDefaultMaxPages: 10,
-  excerptChars: 200,
 };
 
 export interface FormattedPage {
@@ -95,10 +81,9 @@ export interface SlimResultDetail {
   relativeFilePath?: string;
 }
 
-export interface BudgetDecision {
+export interface ReturnModeDecision {
   mode: "inline" | "files";
   reason: string;
-  autoSave: boolean;
 }
 
 export interface BuiltToolText {
@@ -220,7 +205,7 @@ export function truncateContent(
 export function toFormattedPages(
   results: CrawlResult[],
   format: CrawlFormat,
-  budget: TokenBudgetConfig
+  budget: PreviewSettings
 ): FormattedPage[] {
   return results.map((result) => {
     const { content: rawBody, usedFitMarkdown } = formatPageBody(
@@ -250,18 +235,13 @@ export function toFormattedPages(
  */
 export function decideReturnMode(options: {
   requestedMode: ReturnMode;
-  pages: FormattedPage[];
-  isDeepCrawl: boolean;
-  urlCount: number;
-  maxCharsPerCall: number;
   saveRequested: boolean | string | undefined;
-}): BudgetDecision {
+}): ReturnModeDecision {
   const { requestedMode, saveRequested } = options;
   if (requestedMode === "files" && saveRequested === false) throw new Error("returnMode=files requires saving; save=false is incompatible");
   return {
     mode: requestedMode === "inline" || saveRequested === false ? "inline" : "files",
     reason: saveRequested === false ? "save=false" : `returnMode=${requestedMode} (file-first)`,
-    autoSave: saveRequested !== false,
   };
 }
 
@@ -297,35 +277,30 @@ export function slimResultDetails(
     return {
       url: page.url,
       success: page.success,
-      statusCode: page.statusCode ?? raw?.status_code,
-      title: page.title ?? raw?.metadata?.title,
+      statusCode: page.statusCode,
+      title: page.title,
       charCount: page.originalChars,
       truncated: page.truncated,
       usedFitMarkdown: page.usedFitMarkdown,
-      depth: page.depth ?? raw?.metadata?.depth,
+      depth: page.depth,
       parentUrl: raw?.metadata?.parent_url,
-      errorMessage: page.errorMessage ?? raw?.error_message,
+      errorMessage: page.errorMessage,
       filePath: saved?.path,
       relativeFilePath: saved?.relativePath,
     };
   });
 }
 
-function joinSavedManifestPath(savedPath?: string): string {
-  return savedPath ? join(savedPath, "crawl-manifest.json") : "crawl-manifest.json";
-}
-
 function formatIndexSections(
   pages: FormattedPage[],
-  rawResults: CrawlResult[],
   excerptChars: number,
   isDeepCrawl: boolean,
   maxDepth?: number
 ): string {
   if (isDeepCrawl) {
     const byDepth = new Map<number, FormattedPage[]>();
-    pages.forEach((page, index) => {
-      const depth = page.depth ?? rawResults[index]?.metadata?.depth ?? 0;
+    pages.forEach((page) => {
+      const depth = page.depth ?? 0;
       if (!byDepth.has(depth)) byDepth.set(depth, []);
       byDepth.get(depth)!.push({ ...page, depth });
     });
@@ -366,9 +341,8 @@ function formatIndexSections(
  */
 export function buildBudgetedToolText(options: {
   pages: FormattedPage[];
-  rawResults: CrawlResult[];
-  budget: TokenBudgetConfig;
-  decision: BudgetDecision;
+  budget: PreviewSettings;
+  decision: ReturnModeDecision;
   isDeepCrawl: boolean;
   maxDepth?: number;
   savedPath?: string;
@@ -378,7 +352,6 @@ export function buildBudgetedToolText(options: {
 }): BuiltToolText {
   const {
     pages,
-    rawResults,
     budget,
     decision,
     isDeepCrawl,
@@ -392,46 +365,40 @@ export function buildBudgetedToolText(options: {
   const totalOriginalChars = pages.reduce((sum, page) => sum + page.originalChars, 0);
 
   if (decision.mode === "files") {
+    if (!savedPath || !manifestPath) throw new Error("File references require a saved session and manifest");
     const header = isDeepCrawl
       ? `# Deep Crawl Results (${pages.length} pages${maxDepth !== undefined ? `, max depth: ${maxDepth}` : ""})`
       : `# Crawl Results (${pages.length} pages)`;
 
-    const savedFileLines = savedPath
-      ? [
-          "",
-          "## Saved page files",
-          `*Manifest: ${manifestPath ?? joinSavedManifestPath(savedPath)}*`,
-          "*Read crawl-manifest.json first with crawl_read, or use one of the exact page paths below. Do not invent flattened filenames.*",
-          ...(savedFiles ?? []).slice(0, 20).flatMap((saved) => [
-            `- ${saved.url} → ${saved.path}`,
-            ...(saved.sourcePath ? [`  Original: ${saved.sourcePath}`] : []),
-            ...(saved.rawHtmlPath ? [`  Raw HTML: ${saved.rawHtmlPath}`] : []),
-            ...(saved.filter ? [`  BM25 query=${JSON.stringify(saved.filter.query)}, matched ${saved.filter.matchedSectionCount}/${saved.filter.totalSections} sections, threshold=${saved.filter.threshold}`] : []),
-          ]),
-        ]
-      : [];
-    const notSavedNotice = savedPath
-      ? undefined
-      : "*Not saved to disk (save=false or persistence disabled). The page index is not recoverable via crawl_read; re-run with save=true to persist the pages.*";
+    const savedFileLines = [
+      "",
+      "## Saved page files",
+      `*Manifest: ${manifestPath}*`,
+      "*Read crawl-manifest.json first with crawl_read, or use one of the exact page paths below. Do not invent flattened filenames.*",
+      ...(savedFiles ?? []).slice(0, 20).flatMap((saved) => [
+        `- ${saved.url} → ${saved.path}`,
+        ...(saved.sourcePath ? [`  Original: ${saved.sourcePath}`] : []),
+        ...(saved.rawHtmlPath ? [`  Raw HTML: ${saved.rawHtmlPath}`] : []),
+        ...(saved.filter ? [`  BM25 query=${JSON.stringify(saved.filter.query)}, matched ${saved.filter.matchedSectionCount}/${saved.filter.totalSections} sections, threshold=${saved.filter.threshold}`] : []),
+      ]),
+    ];
     const lines = [
       executionSummary,
       "",
       header,
       `*Return mode: files (${decision.reason}) — full page bodies kept off the model context.*`,
-      savedPath ? `*Results saved to: ${savedPath}*` : notSavedNotice,
+      `*Results saved to: ${savedPath}*`,
       `*Totals: ${totalOriginalChars} chars across ${pages.length} pages.*`,
       "",
       "## Page index",
-      formatIndexSections(pages.slice(0, 20), rawResults.slice(0, 20), Math.min(200, budget.excerptChars), isDeepCrawl, maxDepth),
+      formatIndexSections(pages.slice(0, 20), 200, isDeepCrawl, maxDepth),
       pages.length > 20 ? `Only the first 20 entries are shown; see the complete manifest (${pages.length} pages).` : "",
       ...savedFileLines,
       "",
-      savedPath
-        ? "Full content is on disk. Read crawl-manifest.json first or use the exact saved page paths above with crawl_read; never invent or flatten filenames."
-        : "No crawl files exist for this result. Do not guess a path; re-crawl with save=true if progressive disk reads are needed.",
+      "Full content is on disk. Read crawl-manifest.json first or use the exact saved page paths above with crawl_read; never invent or flatten filenames.",
     ];
 
-    const text = capToolText(lines.filter((line): line is string => line !== undefined).join("\n"), manifestPath);
+    const text = capToolText(lines.join("\n"), manifestPath);
     return {
       text,
       totalOriginalChars,
@@ -455,7 +422,7 @@ export function buildBudgetedToolText(options: {
     ? `\n\n*Results saved to: ${savedPath}${manifestPath ? `. Manifest: ${manifestPath}` : ""}*${provenance ? `\n${provenance}` : ""}`
     : "\n\n*Results were not saved to disk (save=false); inline content is not recoverable via crawl_read. Use save=true to retain complete content.*";
   const truncationNote = anyTruncated
-    ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content is in the saved session; read crawl-manifest.json first or use its exact page paths with crawl_read.` : " Truncated inline text is not recoverable from disk; re-crawl with save=true or higher budgets for full text."}*`
+    ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content is in the saved session; read crawl-manifest.json first or use its exact page paths with crawl_read.` : " Truncated inline text is not recoverable from disk; re-crawl with save=true for full text."}*`
     : "";
 
   const body =
@@ -478,51 +445,4 @@ export function buildBudgetedToolText(options: {
     manifestPath,
     savedFiles,
   };
-}
-
-/**
- * Legacy (pre-budget) full inline dump used for before/after benchmarks.
- * Mirrors the old crawlTool formatting behavior as closely as practical.
- */
-export function buildLegacyFullInlineText(
-  results: CrawlResult[],
-  format: CrawlFormat,
-  executionSummary: string,
-  options?: { deepCrawlMaxDepth?: number; savedPath?: string }
-): string {
-  const pages = results.map((result) => {
-    // Legacy always preferred raw_markdown
-    const { content } = formatPageBody(result, format, false);
-    return { url: result.url, content, success: result.success };
-  });
-
-  if (options?.deepCrawlMaxDepth !== undefined && results.length > 1) {
-    const byDepth = new Map<number, typeof pages>();
-    pages.forEach((page, index) => {
-      const depth = results[index].metadata?.depth ?? 0;
-      if (!byDepth.has(depth)) byDepth.set(depth, []);
-      byDepth.get(depth)!.push(page);
-    });
-    const sections: string[] = [];
-    sections.push(`# Deep Crawl Results (${pages.length} pages, max depth: ${options.deepCrawlMaxDepth})\n`);
-    if (options.savedPath) sections.push(`*Results saved to: ${options.savedPath}*\n`);
-    for (let depth = 0; depth <= options.deepCrawlMaxDepth; depth++) {
-      const group = byDepth.get(depth);
-      if (!group?.length) continue;
-      sections.push(`\n## Depth ${depth} (${group.length} pages)\n`);
-      for (const page of group) {
-        const prefix = page.success ? "" : "❌ ";
-        sections.push(`\n### ${prefix}${page.url}\n\n${page.content}`);
-      }
-    }
-    return [executionSummary, "", sections.join("\n")].join("\n");
-  }
-
-  const saveNotice = options?.savedPath ? `\n\n*Results saved to: ${options.savedPath}*` : "";
-  const body =
-    pages.length === 1
-      ? `## ${pages[0].url}\n\n${pages[0].content}${saveNotice}`
-      : pages.map((page, i) => `---\n## Result ${i + 1}: ${page.url}\n\n${page.content}`).join("\n\n") +
-        saveNotice;
-  return [executionSummary, "", body].join("\n");
 }

@@ -1,4 +1,4 @@
-import { urlToFilePath, resolveOutputDir, getDefaultOutputDir, formatContentForSave, createSessionDirName, saveCrawlResultsDetailed, saveCrawlResults, createCrawlSession, writeCrawlArtifact, DEFAULT_OUTPUT_DIR, OUTPUT_DIR_ENV_VAR } from "./saveOutput";
+import { urlToFilePath, resolveOutputDir, getDefaultOutputDir, formatContentForSave, createSessionDirName, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, DEFAULT_OUTPUT_DIR, OUTPUT_DIR_ENV_VAR } from "./saveOutput";
 import type { CrawlResult } from "./types";
 import { existsSync, readFileSync, rmSync, readdirSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -61,11 +61,6 @@ describe("formatContentForSave", () => {
 });
 
 describe("saveCrawlResultsDetailed", () => {
-  it("should create session directory with manifest via the legacy string-returning save helper", () => {
-    const sessionPath = saveCrawlResults(ROOT, [URL], [PAGE], "markdown");
-    expect(existsSync(sessionPath)).toBe(true); expect(existsSync(join(sessionPath, "crawl-manifest.json"))).toBe(true);
-    expect(readFileSync(join(sessionPath, urlToFilePath(URL, "markdown")), "utf8")).toBe(PAGE.markdown);
-  });
   it("should save HTML format with correct extension and handle failed crawls", () => {
     const html = saveCrawlResultsDetailed(ROOT, [URL], [{ ...PAGE, html: "<html>full source</html>" }], "html");
     expect(html.pagePaths[0].path).toMatch(/\.html$/); expect(readFileSync(html.pagePaths[0].path, "utf8")).toBe("<html>full source</html>");

@@ -9,10 +9,14 @@ jest.mock("@earendil-works/pi-coding-agent", () => {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import extension from "./index";
 import { mockFetch, restoreFetch, resetEnv } from "./test-utils";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+const SESSION_COMMAND_ROOT = "./__test_crawl_sessions_command__";
 
 describe("pi-crawl4ai registration and on-demand status", () => {
   beforeEach(() => { resetEnv(); jest.restoreAllMocks(); });
-  afterEach(restoreFetch);
+  afterEach(() => { restoreFetch(); rmSync(SESSION_COMMAND_ROOT, { recursive: true, force: true }); });
 
   function createMockPi(initialActiveTools: string[] = []) {
     const activeTools = [...initialActiveTools];
@@ -53,6 +57,49 @@ describe("pi-crawl4ai registration and on-demand status", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:11235/health", expect.objectContaining({ method: "GET", headers: expect.objectContaining({ Authorization: "Bearer test-token" }) }));
     expect(notify.mock.calls[0][0]).toContain("0.9.4"); expect(pi.setActiveTools).not.toHaveBeenCalled();
+  });
+  it("enters model context with the drill-down and reports selector errors without page output", async () => {
+    const sessionDir = join(SESSION_COMMAND_ROOT, "example-com-2025-09-30T12-00-00");
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(join(sessionDir, "page.md"), "body", "utf8");
+    writeFileSync(join(sessionDir, "crawl-manifest.json"), JSON.stringify({
+      timestamp: "2025-09-30T12:00:00.000Z", totalPages: 1, format: "markdown", urls: ["https://example.com"],
+      files: ["page.md"], pages: [{ url: "https://example.com", file: "page.md", success: true }],
+    }), "utf8");
+    process.env.CRAWL4AI_OUTPUT_DIR = SESSION_COMMAND_ROOT;
+    const { pi, commands } = createMockPi(); extension(pi);
+    const notify = jest.fn();
+    const ctx = { hasUI: true, cwd: process.cwd(), ui: { notify } };
+
+    await commands["crawl-sessions"].handler("1", ctx);
+    expect(pi.sendMessage).toHaveBeenCalledTimes(1);
+    const [message, options] = (pi.sendMessage as jest.Mock).mock.calls[0];
+    expect(message.customType).toBe("crawl-sessions");
+    expect(message.display).toBe(true);
+    expect(message.content).toContain("1. https://example.com → ");
+    expect(message.content).toContain("crawl-manifest.json");
+    expect(options).toEqual({ triggerTurn: false });
+    expect(notify).not.toHaveBeenCalled();
+
+    await commands["crawl-sessions"].handler("no-such-session", ctx);
+    expect(pi.sendMessage).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0][0]).toContain("No crawl session");
+    expect(notify.mock.calls[0][0]).toContain(resolve(process.cwd(), SESSION_COMMAND_ROOT));
+    expect(notify.mock.calls[0][0]).not.toContain("→");
+
+    // Headless selector failure still reaches the model, without pages.
+    const headlessNotify = jest.fn();
+    await commands["crawl-sessions"].handler("no-such-session", { hasUI: false, cwd: process.cwd(), ui: { notify: headlessNotify } });
+    expect(pi.sendMessage).toHaveBeenCalledTimes(2);
+    const [errorMessage, errorOptions] = (pi.sendMessage as jest.Mock).mock.calls[1];
+    expect(errorMessage.customType).toBe("crawl-sessions");
+    expect(errorMessage.display).toBe(true);
+    expect(errorMessage.content).toContain("No crawl session");
+    expect(errorMessage.content).toContain(resolve(process.cwd(), SESSION_COMMAND_ROOT));
+    expect(errorMessage.content).not.toContain("→");
+    expect(errorOptions).toEqual({ triggerTurn: false });
+    expect(headlessNotify).not.toHaveBeenCalled();
   });
   it("reports bounded/redacted errors without depending on terminal UI", async () => {
     process.env.CRAWL4AI_API_TOKEN = "test-token";

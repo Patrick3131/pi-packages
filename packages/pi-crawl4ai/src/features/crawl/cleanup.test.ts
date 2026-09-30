@@ -68,6 +68,17 @@ describe("listCrawlSessions", () => {
     const sessions = listCrawlSessions(TEST_ROOT);
     expect(sessions.map((s) => s.name)).toEqual(["new-session", "old-session"]);
     expect(sessions[0].timestamp).toBe("2024-06-01T00:00:00.000Z");
+    expect(sessions[0].host).toBe("example.com");
+    expect(sessions[0].pageCount).toBe(1);
+
+    // Unusable metadata still lists the session, without host/page count.
+    const degraded = join(TEST_ROOT, "degraded-session");
+    mkdirSync(degraded, { recursive: true });
+    writeFileSync(join(degraded, "crawl-manifest.json"), JSON.stringify({ timestamp: "2023-01-01T00:00:00.000Z", totalPages: "many", urls: [42], files: [] }), "utf-8");
+    const listed = listCrawlSessions(TEST_ROOT).find((session) => session.name === "degraded-session");
+    expect(listed).toBeDefined();
+    expect(listed?.host).toBeUndefined();
+    expect(listed?.pageCount).toBeUndefined();
   });
 
   it("returns empty for missing directory", () => {

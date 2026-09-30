@@ -37,6 +37,12 @@ Default to zero to three new cases. Add more only for distinct named risks.
 <Verified repository command>
 ```
 
+## Acceptance Evidence
+
+| Check | Result | Evidence |
+|---|---|---|
+| <slice local check or integrated acceptance> | <passed/failed/skipped> | <command output, path, or manual observation> |
+
 ## Explicitly Not Testing
 
 - <Low-value, duplicate, compiler-enforced, or otherwise unjustified coverage>

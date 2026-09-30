@@ -7,7 +7,7 @@ jest.mock("@earendil-works/pi-coding-agent", () => {
   return { ...module.exports, defineTool: (tool: unknown) => tool };
 }, { virtual: true });
 
-import { mergeConfigWithEnv } from "../../configLoader";
+import { mergeConfigWithEnv } from "../../config/loader";
 import type { Crawl4AIConfig } from "../../config";
 import { registerCrawlTool } from "./crawlTool";
 import { resetRequestPacingState } from "./requestPacing";
@@ -63,6 +63,31 @@ beforeEach(() => { resetEnv(); resetRequestPacingState(); registeredTools.length
 afterEach(() => { rmSync(TEST_SAVE_DIR, { recursive: true, force: true }); restoreFetch(); jest.useRealTimers(); });
 
 describe("crawl reliability regressions", () => {
+  it("uses fixed preview and deep-page defaults despite obsolete environment settings", async () => {
+    const settings = {
+      CRAWL4AI_RETURN_MODE: "files", CRAWL4AI_MAX_CHARS_PER_PAGE: "1", CRAWL4AI_MAX_CHARS_PER_CALL: "1",
+      CRAWL4AI_PREFER_FIT_MARKDOWN: "false", CRAWL4AI_DEEP_CRAWL_DEFAULT_MAX_PAGES: "99", CRAWL4AI_EXCERPT_CHARS: "1",
+    };
+    const previous = Object.keys(settings).map(name => process.env[name]);
+    try {
+      Object.assign(process.env, settings);
+      const fetchMock = respond([{ ...PAGE, markdown: { raw_markdown: "RAW", fit_markdown: "FIT".repeat(10000), markdown_with_citations: "", references_markdown: "" } }]);
+      const result = await invoke({ save: false, deepCrawl: { maxDepth: 1 } });
+      expect(result.details.returnMode).toBe("inline");
+      expect(result.details.preview).toEqual({ maxCharsPerPage: 12000, maxCharsPerCall: 12000, returnMode: "auto", preferFitMarkdown: true });
+      expect(result.details.totalReturnedChars).toBe(12000);
+      expect(result.content[0].text).toContain("FIT"); expect(result.content[0].text).not.toContain("RAW");
+      const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(request.crawler_config.params.deep_crawl_strategy.params.max_pages).toBe(10);
+      expect(result.details).not.toHaveProperty("tokenBudget");
+      expect(existsSync(TEST_SAVE_DIR)).toBe(false);
+    } finally {
+      Object.keys(settings).forEach((name, index) => {
+        if (previous[index] === undefined) delete process.env[name];
+        else process.env[name] = previous[index];
+      });
+    }
+  });
   it("saves a tiny complete page by default and returns references", async () => {
     respond([{ ...PAGE, markdown: "# Tiny\n\nbody" }]);
     const result = await invoke();
@@ -202,7 +227,7 @@ describe("crawl public contract and transport", () => {
     expect(tool.parameters.properties.bm25Query).toBeDefined(); expect(tool.parameters.properties.extractor).toBeDefined();
     expect(tool.promptSnippet).toContain("index"); expect(tool.promptSnippet).toContain("crawl_read");
   });
-  it("should work without deepCrawl parameter (backward compatibility)", async () => {
+  it("crawls a single page without deep traversal", async () => {
     const fetchMock = respond(); const result = await invoke({ save: false });
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).crawler_config.params.deep_crawl_strategy).toBeUndefined();
     expect(result.details.deepCrawl).toBeUndefined();
@@ -284,7 +309,7 @@ describe("crawl public contract and transport", () => {
 });
 
 describe("crawl file-first output and extraction integration", () => {
-  it("inline saves the untruncated original and honors smaller legacy caps", async () => {
+  it("inline saves the untruncated original and honors smaller preview caps", async () => {
     const body = "x".repeat(30000); respond([{ ...PAGE, markdown: body }]);
     const result = await invoke({ returnMode: "inline", maxCharsPerPage: 100, maxCharsPerCall: 500 });
     expect(result.details.totalReturnedChars).toBeLessThanOrEqual(100); expect(result.details.truncated).toBe(true);
@@ -334,6 +359,33 @@ describe("crawl file-first output and extraction integration", () => {
     const empty = await invoke({ bm25Query: "no-match", bm25Threshold: 100 });
     expect(readFileSync(empty.details.savedFiles[0].path, "utf8")).toBe(""); expect(empty.details.savedFiles[0].filter.matchedSectionCount).toBe(0);
   });
+  it("records effective, secret-free request provenance and redacted failure reasons", async () => {
+    const token = "supersecret-token";
+    const tool = createTool(60000, config => { config.apiToken = token; config.baseUrl = `http://crawler:${token}@localhost:11235`; });
+    respond([
+      { ...PAGE, markdown: "# Docs\n\ndocumentation" },
+      { url: `${URL}/broken`, success: false, error_message: `Bearer ${token} rejected <script>token=${token}</script>` },
+    ]);
+    const result = await invoke({ waitFor: 1500, bypassCache: true, jsCode: `document.cookie = "token=${token}"`, deepCrawl: { maxDepth: 2, includeExternal: true, includePatterns: ["*/docs/*"], allowedDomains: ["example.com"] } }, tool);
+    const raw = readFileSync(result.details.manifestPath, "utf8");
+    const manifest = JSON.parse(raw);
+    expect(manifest.request).toEqual({
+      format: "markdown",
+      bypassCache: true,
+      preferFitMarkdown: true,
+      waitFor: 1500,
+      jsCode: true,
+      deepCrawl: { strategy: "bfs", maxDepth: 2, maxPages: 10, includeExternal: true, includePatterns: ["*/docs/*"], allowedDomains: ["example.com"] },
+    });
+    expect(manifest.deepCrawl).toEqual({ maxDepth: 2, maxPages: 10 });
+    expect(manifest.service).toEqual({ baseUrl: "http://localhost:11235" });
+    expect(manifest.pages[0]).not.toHaveProperty("error");
+    expect(manifest.pages[1].error).toContain("[redacted]");
+    expect(raw).not.toContain(token);
+    expect(raw).not.toContain("document.cookie");
+    const failedBody = readFileSync(result.details.savedFiles[1].path, "utf8");
+    expect(failedBody).toContain("[redacted]"); expect(failedBody).not.toContain(token);
+  });
   it("requires configured Python before network activity and basic crawling needs none", async () => {
     const fetchMock = respond(); await expect(invoke({ extractor: "trafilatura" })).rejects.toThrow("pythonPath"); expect(fetchMock).not.toHaveBeenCalled();
     await expect(invoke({ save: false })).resolves.toBeDefined();
@@ -357,5 +409,12 @@ describe("crawl file-first output and extraction integration", () => {
     const saved = result.details.savedFiles[0]; expect(saved.path).toMatch(/\.txt$/); expect(readFileSync(saved.path, "utf8")).not.toContain("Pricing");
     expect(readFileSync(saved.sourcePath, "utf8")).toContain("Pricing"); expect(readFileSync(saved.rawHtmlPath, "utf8")).toBe("<html>Rendered source</html>");
     expect(saved.extractor).toEqual({ name: "trafilatura", includeLinks: true });
+    expect(JSON.parse(readFileSync(result.details.manifestPath, "utf8")).request).toEqual({
+      format: "text",
+      bypassCache: false,
+      preferFitMarkdown: true,
+      bm25: { query: "documentation", threshold: 0 },
+      extractor: { name: "trafilatura", includeLinks: true },
+    });
   });
 });

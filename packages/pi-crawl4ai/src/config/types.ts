@@ -1,14 +1,3 @@
-export type ReturnModeConfig = "auto" | "inline" | "files";
-
-export interface TokenBudgetSettings {
-  maxCharsPerPage?: number;
-  maxCharsPerCall?: number;
-  returnMode?: ReturnModeConfig;
-  preferFitMarkdown?: boolean;
-  deepCrawlDefaultMaxPages?: number;
-  excerptChars?: number;
-}
-
 export interface RetentionSettings {
   /** Run cleanup automatically after saves. Default true. */
   enabled?: boolean;
@@ -30,22 +19,11 @@ export interface Crawl4AIJsonConfig {
    * Supports ${ENV_VAR} substitution.
    */
   apiToken?: string;
-  /** Token-budget defaults for tool results returned to the model. */
-  tokenBudget?: TokenBudgetSettings;
   /** Retention policy for saved crawl session directories. */
   retention?: RetentionSettings;
   /** Default directory for saved crawls (also used by auto-save / cleanup). */
   outputDir?: string;
   trafilatura?: { pythonPath?: string };
-}
-
-export interface ResolvedTokenBudget {
-  maxCharsPerPage: number;
-  maxCharsPerCall: number;
-  returnMode: ReturnModeConfig;
-  preferFitMarkdown: boolean;
-  deepCrawlDefaultMaxPages: number;
-  excerptChars: number;
 }
 
 export interface ResolvedRetention {
@@ -61,7 +39,6 @@ export interface ResolvedConfig {
   minRequestIntervalMs?: number;
   /** Resolved crawl4ai API bearer token (never log the value). */
   apiToken?: string;
-  tokenBudget: ResolvedTokenBudget;
   retention: ResolvedRetention;
   /** Default crawl output root (./output-crawl4ai or env/config override). */
   outputDir: string;

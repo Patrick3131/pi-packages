@@ -21,20 +21,6 @@ export type ReturnMode = "auto" | "inline" | "files";
 export type DeepCrawlStrategyType = "bfs" | "dfs" | "best-first";
 
 /**
- * URL filter configuration for deep crawling.
- */
-export interface URLFilterConfig {
-  /** URL patterns to include (glob patterns like "/docs/*", "*.html") */
-  includePatterns?: string[];
-  /** URL patterns to exclude */
-  excludePatterns?: string[];
-  /** Only crawl these domains (for cross-domain crawling) */
-  allowedDomains?: string[];
-  /** Content types to allow (e.g., ["text/html"]) */
-  allowedContentTypes?: string[];
-}
-
-/**
  * Deep crawl configuration.
  */
 export interface DeepCrawlConfig {

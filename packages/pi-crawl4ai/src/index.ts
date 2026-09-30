@@ -39,12 +39,13 @@ import {
   listCrawlSessions,
 } from "./features/crawl/cleanup";
 import { getDefaultOutputDir } from "./features/crawl/saveOutput";
+import { formatCrawlSessionDrillDown, resolveCrawlSession } from "./features/crawl/sessions";
 import { resolve } from "node:path";
 import { createCrawlDeadline, fetchCrawlApi, redactError } from "./features/crawl/http";
 import { extractWithTrafilatura } from "./features/crawl/trafilatura";
 
 export { loadConfig } from "./config";
-export { loadConfig as loadConfigFromFile, type Crawl4AIJsonConfig, type ResolvedConfig } from "./configLoader";
+export type { Crawl4AIJsonConfig, ResolvedConfig } from "./config";
 export { registerCrawlTool } from "./features/crawl/crawlTool";
 export { registerCrawlReadTool, executeCrawlRead } from "./features/crawl/crawlReadTool";
 export * from "./features/crawl/types";
@@ -89,18 +90,34 @@ export default function (pi: ExtensionAPI) {
   const outputRoot = (cwd: string) => resolve(cwd, getDefaultOutputDir(config.raw.outputDir));
 
   pi.registerCommand("crawl-sessions", {
-    description: "List saved crawl sessions under the output directory",
-    handler: async (_args, ctx) => {
+    description: "List saved crawl sessions with host/page count; a selector drills in (usage: /crawl-sessions [n|name|prefix])",
+    handler: async (args, ctx) => {
       const root = outputRoot(ctx.cwd);
       const sessions = listCrawlSessions(root);
       if (sessions.length === 0) {
-        ctx.ui.notify(`No crawl sessions in ${root}`, "info");
+        const empty = `No crawl sessions in ${root}`;
+        if (ctx.hasUI) ctx.ui.notify(empty, "info");
+        else pi.sendMessage({ customType: "crawl-sessions", content: empty, display: true }, { triggerTurn: false });
+        return;
+      }
+      const selector = (args ?? "").trim();
+      if (selector) {
+        const selection = resolveCrawlSession(selector, sessions, root);
+        if (!selection.session) {
+          // Selector failures carry no pages; headless runs still surface the error.
+          if (ctx.hasUI) ctx.ui.notify(selection.error, "warning");
+          else pi.sendMessage({ customType: "crawl-sessions", content: selection.error, display: true }, { triggerTurn: false });
+          return;
+        }
+        pi.sendMessage({ customType: "crawl-sessions", content: formatCrawlSessionDrillDown(selection.session, ctx.cwd), display: true }, { triggerTurn: false });
         return;
       }
       const lines = sessions.map((session, index) => {
         const mb = (session.sizeBytes / (1024 * 1024)).toFixed(2);
         const when = session.timestamp ?? new Date(session.mtimeMs).toISOString();
-        return `${index + 1}. ${session.name}  ${mb} MB  ${when}`;
+        const host = session.host ?? "unknown-host";
+        const pageCount = session.pageCount === undefined ? "?" : String(session.pageCount);
+        return `${index + 1}. ${session.name}  ${mb} MB  ${host} ×${pageCount}  ${when}`;
       });
       ctx.ui.notify(`Crawl sessions in ${root} (${sessions.length}):\n${lines.join("\n")}`, "info");
     },

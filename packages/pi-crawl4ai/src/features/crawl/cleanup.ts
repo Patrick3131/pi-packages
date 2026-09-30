@@ -39,6 +39,10 @@ export interface CrawlSessionInfo {
   mtimeMs: number;
   sizeBytes: number;
   timestamp?: string;
+  /** Host of the first requested URL, falling back to the first saved page. */
+  host?: string;
+  /** Saved page count, falling back to the manifest totalPages. */
+  pageCount?: number;
 }
 
 export interface CleanupResult {
@@ -79,14 +83,44 @@ function directorySizeBytes(dir: string): number {
   return total;
 }
 
-function readManifestTimestamp(sessionDir: string): string | undefined {
-  const manifestPath = join(sessionDir, MANIFEST_NAME);
+interface ManifestSummary {
+  timestamp?: string;
+  host?: string;
+  pageCount?: number;
+}
+
+function manifestHost(manifest: { urls?: unknown; pages?: unknown }): string | undefined {
+  const firstPage = Array.isArray(manifest.pages) && manifest.pages[0] && typeof manifest.pages[0] === "object" ? (manifest.pages[0] as Record<string, unknown>).url : undefined;
+  for (const candidate of [Array.isArray(manifest.urls) ? manifest.urls[0] : undefined, firstPage]) {
+    if (typeof candidate !== "string") continue;
+    try {
+      const host = new URL(candidate).hostname;
+      if (host) return host;
+    } catch {
+      // Unusable URL metadata degrades to no host instead of failing the listing.
+    }
+  }
+  return undefined;
+}
+
+function manifestPageCount(manifest: { pages?: unknown; totalPages?: unknown }): number | undefined {
+  if (Array.isArray(manifest.pages)) return manifest.pages.length;
+  if (typeof manifest.totalPages === "number" && Number.isFinite(manifest.totalPages)) return manifest.totalPages;
+  return undefined;
+}
+
+/** Listing metadata from a manifest; malformed or missing data degrades to undefined. */
+function readManifestSummary(sessionDir: string): ManifestSummary {
   try {
-    const raw = readFileSync(manifestPath, "utf-8");
-    const parsed = JSON.parse(raw) as { timestamp?: unknown };
-    return typeof parsed.timestamp === "string" ? parsed.timestamp : undefined;
+    const parsed = JSON.parse(readFileSync(join(sessionDir, MANIFEST_NAME), "utf-8")) as { timestamp?: unknown; urls?: unknown; pages?: unknown; totalPages?: unknown };
+    if (!parsed || typeof parsed !== "object") return {};
+    const summary: ManifestSummary = {};
+    if (typeof parsed.timestamp === "string") summary.timestamp = parsed.timestamp;
+    summary.host = manifestHost(parsed);
+    summary.pageCount = manifestPageCount(parsed);
+    return summary;
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -123,9 +157,9 @@ export function listCrawlSessions(outputDir: string): CrawlSessionInfo[] {
       if (!Array.isArray(manifest.files) || !Array.isArray(manifest.urls) || typeof manifest.timestamp !== "string") continue;
       if (manifest.files.some((file: unknown) => typeof file !== "string" || file.includes("..") || file.startsWith("/"))) continue;
     } catch { continue; }
-    const timestamp = readManifestTimestamp(sessionPath);
-    if (timestamp) {
-      const parsed = Date.parse(timestamp);
+    const summary = readManifestSummary(sessionPath);
+    if (summary.timestamp) {
+      const parsed = Date.parse(summary.timestamp);
       if (!Number.isNaN(parsed)) mtimeMs = parsed;
     }
 
@@ -134,7 +168,9 @@ export function listCrawlSessions(outputDir: string): CrawlSessionInfo[] {
       name: entry.name,
       mtimeMs,
       sizeBytes: directorySizeBytes(sessionPath),
-      timestamp,
+      timestamp: summary.timestamp,
+      host: summary.host,
+      pageCount: summary.pageCount,
     });
   }
 

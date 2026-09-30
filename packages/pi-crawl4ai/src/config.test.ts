@@ -65,7 +65,7 @@ describe("loadConfig", () => {
     expect(config.apiToken).toBe("secret-token");
   });
 
-  it("should ignore legacy client proxy env vars", () => {
+  it("does not accept client-side proxy settings", () => {
     process.env.OXYLABS_USER = "testuser";
     process.env.OXYLABS_PASS = "testpass";
     process.env.CRAWL4AI_PROXY_URL = "http://user:pass@proxy.example.com:8080";

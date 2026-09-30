@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync, readFileSync
 import { join, resolve } from "node:path";
 import { loadConfig } from "../../config";
 import { registerCrawlReadTool, executeCrawlRead } from "./crawlReadTool";
-import { saveCrawlResults, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath } from "./saveOutput";
+import { saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath } from "./saveOutput";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const TEST_DIR = "./__test_crawl_read__";
@@ -51,7 +51,7 @@ describe("executeCrawlRead", () => {
   afterEach(cleanup);
 
   function seedSession() {
-    const sessionDir = saveCrawlResults(
+    const { sessionDir } = saveCrawlResultsDetailed(
       TEST_DIR,
       ["https://docs.example.com/install"],
       [
@@ -95,12 +95,36 @@ describe("executeCrawlRead", () => {
     expect(result.details.error).toMatch(/missing/);
   });
 
-  it("reads a legacy custom session and resolves relative paths from supplied cwd", () => {
-    const dir = resolve(TEST_DIR, "custom", "legacy"); mkdirSync(join(dir, "nested"), { recursive: true });
+  it("resolves a modern nested custom session relative to supplied cwd", () => {
+    const dir = resolve(TEST_DIR, "custom", "session"); mkdirSync(join(dir, "nested"), { recursive: true });
     writeFileSync(join(dir, "nested", "page.md"), PAGE);
-    writeFileSync(join(dir, "crawl-manifest.json"), JSON.stringify({ timestamp: "2020-01-01T00:00:00Z", files: ["nested/page.md"], urls: ["https://legacy.example/"] }));
-    const result = executeCrawlRead({ path: "legacy", url: "https://legacy.example/", mode: "full" }, { outputRoot: "other", cwd: resolve(TEST_DIR, "custom") });
+    writeFileSync(join(dir, "crawl-manifest.json"), JSON.stringify({ timestamp: new Date().toISOString(), pages: [{ url: "https://custom.example/", file: "nested/page.md", success: true }], files: ["nested/page.md"], urls: ["https://custom.example/"] }));
+    const result = executeCrawlRead({ path: "session", url: "https://custom.example/", mode: "full" }, { outputRoot: "other", cwd: resolve(TEST_DIR, "custom") });
     expect(result.text).toContain("Installation"); expect(result.details.path).toBe(join(dir, "nested", "page.md"));
+  });
+
+  it("rejects files-only manifests instead of inferring page records", () => {
+    const dir = resolve(TEST_DIR, "files-only"); mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "page.md"), PAGE);
+    const manifestPath = join(dir, "crawl-manifest.json");
+    writeFileSync(manifestPath, JSON.stringify({ timestamp: new Date().toISOString(), files: ["page.md"], urls: ["https://example.com/"] }));
+    for (const params of [{ path: manifestPath }, { path: dir, url: "https://example.com/" }, { url: "https://example.com/" }]) {
+      const result = executeCrawlRead(params, { outputRoot: TEST_DIR });
+      expect(result.details.error).toMatch(/Invalid crawl manifest/);
+      expect(result.text).not.toContain("Installation");
+    }
+  });
+
+  it("does not select index.md or the first Markdown file from a directory", () => {
+    const dir = resolve(TEST_DIR, "unpublished"); mkdirSync(dir, { recursive: true });
+    for (const file of ["index.md", "page.md"]) writeFileSync(join(dir, file), PAGE);
+    for (const path of [dir, "unpublished"]) {
+      const directory = executeCrawlRead({ path, mode: "full" }, { outputRoot: TEST_DIR });
+      expect(directory.details.error).toMatch(/no crawl-manifest/);
+    }
+    const exact = executeCrawlRead({ path: join(dir, "page.md"), mode: "full" }, { outputRoot: TEST_DIR });
+    expect(exact.details.error).toBeUndefined(); expect(exact.text).toContain("Installation");
+    expect(exact.details.savedAt).toBeUndefined();
   });
 
   it("rejects manifest traversal and symlink escapes for URL and direct reads", () => {
@@ -109,7 +133,7 @@ describe("executeCrawlRead", () => {
     symlinkSync(outside, join(sessionDir, "escape.md"));
     const manifestPath = join(sessionDir, "crawl-manifest.json");
     for (const file of ["../outside.md", "escape.md"]) {
-      writeFileSync(manifestPath, JSON.stringify({ timestamp: new Date().toISOString(), files: [file], urls: ["https://escape.example/"] }));
+      writeFileSync(manifestPath, JSON.stringify({ timestamp: new Date().toISOString(), pages: [{ url: "https://escape.example/", file, success: true }], files: [file], urls: ["https://escape.example/"] }));
       const result = executeCrawlRead({ path: sessionDir, url: "https://escape.example/" }, { outputRoot: TEST_DIR });
       expect(result.details.error).toMatch(/escapes/); expect(result.text).not.toContain("outside secret");
     }
@@ -172,8 +196,8 @@ describe("executeCrawlRead", () => {
   it("keeps a relevant excerpt under a small cap when the saved source URL is very long", () => {
     const url = `https://httpbin.org/base64/${"a".repeat(4000)}`;
     const body = "# Actual article\n\nInstallation instructions provide source recovery and browser rendering. ".repeat(6);
-    const session = saveCrawlResults(TEST_DIR, [url], [{ url, success: true, markdown: body }], "markdown");
-    const path = join(session, urlToFilePath(url, "markdown"));
+    const saved = saveCrawlResultsDetailed(TEST_DIR, [url], [{ url, success: true, markdown: body }], "markdown");
+    const path = saved.pagePaths[0].path;
     const result = executeCrawlRead({ path, mode: "chunks", query: "source recovery", maxChars: 1000 }, { outputRoot: TEST_DIR });
     expect(result.text).toContain("Installation instructions");
     expect(result.text).toContain(path);
@@ -228,6 +252,8 @@ describe("executeCrawlRead", () => {
   it("reads the manifest first and resolves a page URL to its nested path", () => {
     const { sessionDir, pagePath } = seedSession();
     const manifestPath = join(sessionDir, "crawl-manifest.json");
+    const relativeSession = executeCrawlRead({ path: sessionDir.split("/").at(-1) }, { outputRoot: TEST_DIR });
+    expect(relativeSession.details.manifestPath).toBe(manifestPath);
 
     const manifest = executeCrawlRead(
       { path: manifestPath },

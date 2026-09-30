@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   formatSkillBlock,
   loadAllPackageSkills,
+  loadSkillFromFile,
   loadPackageSkill,
   PACKAGE_SKILL_NAMES,
   packageRootFromModuleUrl,
@@ -40,7 +41,7 @@ test("packageRootFromModuleUrl resolves package root", () => {
   assert.equal(packageRootFromModuleUrl(import.meta.url), packageRoot);
 });
 
-test("all three package skills load without missing files", () => {
+test("all three core workflow skills load without missing files", () => {
   const skills = loadAllPackageSkills(packageRoot);
   assert.equal(skills.length, 3);
   for (const name of PACKAGE_SKILL_NAMES) {
@@ -168,4 +169,30 @@ test("skillFilePath points at SKILL.md", () => {
   const p = skillFilePath("task-and-plan-routing", packageRoot);
   assert.equal(path.basename(p), "SKILL.md");
   assert.equal(fs.existsSync(p), true);
+});
+
+test("auxiliary cleanup is discoverable and operator-only on both hosts", () => {
+  const skill = loadSkillFromFile(skillFilePath("work-note-cleanup", packageRoot));
+  assert.equal(skill.name, "work-note-cleanup");
+  assert.equal(skill.disableModelInvocation, true);
+  assert.ok(skill.description);
+  const policy = fs.readFileSync(path.join(skill.baseDir, "agents/openai.yaml"), "utf8");
+  assert.match(policy, /allow_implicit_invocation:\s*false/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
+  assert.ok(manifest.pi.skills.includes("./skills"));
+  assert.ok(manifest.files.includes("skills"));
+});
+
+test("distributed skill references resolve within the canonical resources", () => {
+  const dirs = [...PACKAGE_SKILL_NAMES, "work-note-cleanup"];
+  for (const name of dirs) {
+    const skill = loadSkillFromFile(skillFilePath(name, packageRoot));
+    // Relative file references are the distribution boundary, not a prose snapshot.
+    const references = [...skill.body.matchAll(/`(\.\.\/[^`\n]+\.md)`/g)];
+    for (const [, relative] of references) {
+      assert.equal(fs.existsSync(path.resolve(skill.baseDir, relative)), true,
+        `${name}: missing bundled reference ${relative}`);
+    }
+  }
+  assert.ok(fs.existsSync(path.join(packageRoot, "skills/_shared/capability-recovery.md")));
 });

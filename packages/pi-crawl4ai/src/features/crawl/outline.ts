@@ -121,11 +121,6 @@ export function splitIntoSections(markdown: string): ContentChunk[] {
   return splitMarkdownSections(markdown);
 }
 
-/** Compatibility helper for a single chunk; page ranking uses the complete corpus. */
-export function scoreChunk(chunk: ContentChunk, query: string): number {
-  return rankSections([chunk], query)[0].score;
-}
-
 /**
  * Select chunks for context. With query: ranked matches. Without: first sections under budget.
  */
@@ -182,12 +177,4 @@ export function windowLines(
   const end = Math.min(totalLines, start + Math.max(1, limit) - 1);
   const text = lines.slice(start - 1, end).join("\n");
   return { text, startLine: start, endLine: end, totalLines };
-}
-
-export function truncateToBudget(text: string, maxChars: number): { text: string; truncated: boolean } {
-  const cap = Number.isFinite(maxChars) ? Math.max(0, Math.floor(maxChars)) : 0;
-  if (text.length <= cap) return { text, truncated: false };
-  const marker = `\n\n… [truncated ${text.length} → ${cap} chars]`;
-  if (cap < marker.length) return { text: marker.slice(0, cap), truncated: true };
-  return { text: `${text.slice(0, cap - marker.length)}${marker}`, truncated: true };
 }

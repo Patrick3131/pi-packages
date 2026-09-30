@@ -2,13 +2,15 @@ import { Type } from "typebox";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { resolve } from "node:path";
 import type { Crawl4AIConfig } from "../../config";
-import type { CrawlToolParams, Crawl4AIResponse, DeepCrawlConfig } from "./types";
+import type { CrawlFormat, CrawlToolParams, Crawl4AIResponse, DeepCrawlConfig } from "./types";
 import { applyRequestPacing } from "./requestPacing";
 import { createCrawlDeadline, fetchCrawlApi, redactError } from "./http";
-import { resolveOutputDir, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath, formatContentForSave, type SaveCrawlOptions } from "./saveOutput";
-import { DEFAULT_TOKEN_BUDGET, buildBudgetedToolText, decideReturnMode, slimResultDetails, toFormattedPages, capToolText, type TokenBudgetConfig } from "./tokenBudget";
+import { credentialFreeBaseUrl, resolveOutputDir, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath, formatContentForSave, type CrawlManifestRequest, type SaveCrawlOptions } from "./saveOutput";
+import { DEFAULT_PREVIEW_SETTINGS, buildBudgetedToolText, decideReturnMode, slimResultDetails, toFormattedPages, capToolText, type PreviewSettings } from "./presentation";
 import { filterMarkdownBm25 } from "./bm25";
 import { extractWithTrafilatura } from "./trafilatura";
+
+const DEFAULT_DEEP_MAX_PAGES = 10;
 
 export function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages: number): Record<string, unknown> {
   const names = { bfs: "BFSDeepCrawlStrategy", dfs: "DFSDeepCrawlStrategy", "best-first": "BestFirstCrawlingStrategy" };
@@ -26,6 +28,37 @@ export function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages:
       ...(filters.length ? { filter_chain: { type: "FilterChain", params: { filters } } } : {}),
       ...(config.scoreThreshold !== undefined ? { score_threshold: config.scoreThreshold } : {}),
     },
+  };
+}
+
+/**
+ * Effective deep-crawl values for the manifest: strategy, depth and page cap resolved,
+ * filters recorded as given.
+ */
+function effectiveDeepCrawlRequest(config: DeepCrawlConfig): NonNullable<CrawlManifestRequest["deepCrawl"]> {
+  return {
+    strategy: config.strategy ?? "bfs",
+    maxDepth: config.maxDepth,
+    maxPages: config.maxPages ?? DEFAULT_DEEP_MAX_PAGES,
+    ...(config.includeExternal !== undefined ? { includeExternal: config.includeExternal } : {}),
+    ...(config.includePatterns ? { includePatterns: config.includePatterns } : {}),
+    ...(config.excludePatterns ? { excludePatterns: config.excludePatterns } : {}),
+    ...(config.allowedDomains ? { allowedDomains: config.allowedDomains } : {}),
+    ...(config.scoreThreshold !== undefined ? { scoreThreshold: config.scoreThreshold } : {}),
+  };
+}
+
+/** Effective request values for the manifest; jsCode is a boolean and no secret is included. */
+function effectiveCrawlRequest(params: CrawlToolParams, format: CrawlFormat, preferFitMarkdown: boolean): CrawlManifestRequest {
+  return {
+    format,
+    bypassCache: params.bypassCache ?? false,
+    preferFitMarkdown,
+    ...(params.waitFor !== undefined ? { waitFor: params.waitFor } : {}),
+    ...(params.jsCode ? { jsCode: true } : {}),
+    ...(params.deepCrawl ? { deepCrawl: effectiveDeepCrawlRequest(params.deepCrawl) } : {}),
+    ...(params.bm25Query !== undefined ? { bm25: { query: params.bm25Query, threshold: params.bm25Threshold ?? 1 } } : {}),
+    ...(params.extractor ? { extractor: { name: params.extractor, includeLinks: params.includeLinks ?? false } } : {}),
   };
 }
 
@@ -51,7 +84,7 @@ function validateParams(params: CrawlToolParams, config: Crawl4AIConfig): void {
   const format = params.format ?? "markdown";
   if (!["markdown", "html", "links", "text"].includes(format)) throw new Error("Unsupported format");
   if (params.returnMode && !["auto", "inline", "files"].includes(params.returnMode)) throw new Error("Unsupported returnMode");
-  if (params.save === false && (params.returnMode ?? config.raw.tokenBudget.returnMode) === "files") throw new Error("returnMode=files is incompatible with save=false");
+  if (params.save === false && params.returnMode === "files") throw new Error("returnMode=files is incompatible with save=false");
   if (typeof params.save === "string" && !params.save.trim()) throw new Error("Save directory must not be blank");
   if (params.bm25Query !== undefined && (!params.bm25Query.trim() || params.urls.length !== 1 || params.deepCrawl || !["markdown", "text"].includes(format))) throw new Error("BM25 requires a nonblank query, one URL, Markdown/text and no deep crawl");
   if (params.bm25Threshold !== undefined && (!params.bm25Query?.trim() || !Number.isFinite(params.bm25Threshold) || params.bm25Threshold < 0)) throw new Error("bm25Threshold requires a query and a finite nonnegative value");
@@ -76,7 +109,7 @@ function validateResponse(data: unknown): asserts data is Crawl4AIResponse {
     if (result.markdown === null) result.markdown = undefined;
     if (result.metadata === null) result.metadata = undefined;
     if (result.links === null) result.links = undefined;
-    // Cached 0.9.4 results use null for absent optional fields; internal consumers use undefined.
+    // The upstream API uses null for absent optional fields; internal consumers use undefined.
     if (result.error_message === null) result.error_message = undefined;
     if (result.status_code === null) result.status_code = undefined;
     if (result.response_headers === null) result.response_headers = undefined;
@@ -103,8 +136,8 @@ function validateResponse(data: unknown): asserts data is Crawl4AIResponse {
   }
 }
 
-function resolveBudget(config: Crawl4AIConfig, params: CrawlToolParams): TokenBudgetConfig {
-  const defaults = config.raw.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
+function resolvePreviewSettings(params: CrawlToolParams): PreviewSettings {
+  const defaults = DEFAULT_PREVIEW_SETTINGS;
   return {
     ...defaults,
     maxCharsPerPage: Math.min(12000, params.maxCharsPerPage ?? defaults.maxCharsPerPage),
@@ -118,44 +151,46 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
   pi.registerTool(defineTool({
     name: "crawl",
     label: "Crawl Website",
-    description: "Crawl known HTTP(S) URLs through the configured browser service; egress is server-managed. Saves complete bodies by default and returns a compact index with exact paths for crawl_read. Explicit inline previews are capped at 12,000 total body characters; save=false opts out. Optional single-page BM25 and configured local Trafilatura cleanup retain originals.",
+    description: "Crawl known HTTP(S) URLs through the configured browser service; egress is server-managed. Saves complete bodies by default and returns a compact index with exact paths for crawl_read. Examples: {\"urls\":[\"https://example.com/docs\"]}; \"deepCrawl\":{\"maxDepth\":2,\"maxPages\":20,\"allowedDomains\":[\"example.com\"]} for bounded discovery. Inline previews are capped at 12,000 characters; save=false opts out.",
     promptSnippet: "Crawl known URLs; complete files, manifest/index and exact paths by default—then use crawl_read.",
     promptGuidelines: [
+      "Pass only urls by default.",
       "Read the crawl-manifest.json or an exact printed page path with crawl_read; never invent flattened filenames.",
-      "Use inline for bounded previews; save=false forfeits recovery of omitted content.",
-      "Use deepCrawl only when needed, with low maxDepth/maxPages; unsupported servers return an actionable error.",
+      "Use deepCrawl only for cross-page discovery with low maxDepth/maxPages.",
+      "Use bm25Query only to narrow one large Markdown page.",
     ],
     parameters: Type.Object({
-      urls: Type.Array(Type.String(), { minItems: 1, description: "HTTP(S) URLs; one seed for deep crawl" }),
-      format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links"), Type.Literal("text")])),
+      urls: Type.Array(Type.String(), { minItems: 1, description: "HTTP(S) URLs; exactly one seed for deepCrawl" }),
+      format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links"), Type.Literal("text")], { description: "Default markdown; text requires extractor" })),
       waitFor: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Milliseconds to wait after rendering before extraction" })),
-      jsCode: Type.Optional(Type.String()),
+      jsCode: Type.Optional(Type.String({ description: "Remote-browser JavaScript; trusted use only" })),
       bypassCache: Type.Optional(Type.Boolean()),
       deepCrawl: Type.Optional(Type.Object({
-        strategy: Type.Optional(Type.Union([Type.Literal("bfs"), Type.Literal("dfs"), Type.Literal("best-first")])),
-        maxDepth: Type.Integer({ minimum: 1, description: "1 = seed only" }),
-        maxPages: Type.Optional(Type.Integer({ minimum: 1 })),
-        includeExternal: Type.Optional(Type.Boolean()),
-        includePatterns: Type.Optional(Type.Array(Type.String())),
-        excludePatterns: Type.Optional(Type.Array(Type.String())),
-        allowedDomains: Type.Optional(Type.Array(Type.String())),
-        scoreThreshold: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+        strategy: Type.Optional(Type.Union([Type.Literal("bfs"), Type.Literal("dfs"), Type.Literal("best-first")], { description: "Traversal order; default bfs" })),
+        maxDepth: Type.Integer({ minimum: 1, description: "Link hops from the seed; 1 = seed only" }),
+        maxPages: Type.Optional(Type.Integer({ minimum: 1, description: "Attempted fetches including failures; default 10" })),
+        includeExternal: Type.Optional(Type.Boolean({ description: "Follow links outside the seed domain; default false" })),
+        includePatterns: Type.Optional(Type.Array(Type.String(), { description: "Glob URL patterns to include; not regex" })),
+        excludePatterns: Type.Optional(Type.Array(Type.String(), { description: "Glob URL patterns to exclude; not regex" })),
+        allowedDomains: Type.Optional(Type.Array(Type.String(), { description: "Restrict traversal to these domains" })),
+        scoreThreshold: Type.Optional(Type.Number({ minimum: 0, maximum: 1, description: "best-first only" })),
       })),
-      save: Type.Optional(Type.Union([Type.Boolean(), Type.String()], { description: "Default saves; false opts out; string selects a custom directory" })),
+      save: Type.Optional(Type.Union([Type.Boolean(), Type.String()], { description: "Default saves; false opts out; string = custom directory" })),
       returnMode: Type.Optional(Type.Union([Type.Literal("auto"), Type.Literal("inline"), Type.Literal("files")], { description: "auto returns file references; inline previews; files requires saving" })),
-      maxCharsPerPage: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Legacy smaller preview cap" })),
-      maxCharsPerCall: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Legacy smaller total preview cap (at most 12000)" })),
+      maxCharsPerPage: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Body preview characters per page (at most 12000)" })),
+      maxCharsPerCall: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Total body preview characters (at most 12000)" })),
       preferFitMarkdown: Type.Optional(Type.Boolean()),
-      bm25Query: Type.Optional(Type.String()),
+      bm25Query: Type.Optional(Type.String({ description: "Keep only matching sections; one URL, Markdown/text only; not with deepCrawl" })),
       bm25Threshold: Type.Optional(Type.Number({ minimum: 0, description: "Default 1; requires bm25Query" })),
-      extractor: Type.Optional(Type.Literal("trafilatura")),
+      extractor: Type.Optional(Type.Literal("trafilatura", { description: "Local Trafilatura extraction; requires saving" })),
       includeLinks: Type.Optional(Type.Boolean({ description: "Trafilatura links (default false)" })),
     }),
     async execute(_id, params, signal, onUpdate, ctx) {
       validateParams(params, config);
       const operation = createCrawlDeadline(config.timeout, signal);
-      const budget = resolveBudget(config, params);
+      const budget = resolvePreviewSettings(params);
       const format = params.format ?? "markdown";
+      const effectiveRequest = effectiveCrawlRequest(params, format, budget.preferFitMarkdown);
       const cwd = ctx?.cwd ?? process.cwd();
       const selectedDir = resolveOutputDir(params.save, config.raw.outputDir);
       const outputDir = selectedDir ? resolve(cwd, selectedDir) : undefined;
@@ -171,7 +206,7 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         };
         if (params.waitFor !== undefined) crawlerParams.delay_before_return_html = params.waitFor / 1000;
         if (params.jsCode) crawlerParams.js_code = [params.jsCode];
-        if (params.deepCrawl) crawlerParams.deep_crawl_strategy = buildDeepCrawlStrategy(params.deepCrawl, budget.deepCrawlDefaultMaxPages);
+        if (params.deepCrawl) crawlerParams.deep_crawl_strategy = buildDeepCrawlStrategy(params.deepCrawl, DEFAULT_DEEP_MAX_PAGES);
         const raw = await fetchCrawlApi(config, "/crawl", {
           method: "POST",
           body: JSON.stringify({ urls: params.urls, crawler_config: { type: "CrawlerRunConfig", params: crawlerParams } }),
@@ -209,13 +244,13 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
         }
         if (operation.signal.aborted) throw operation.signal.reason;
         const pages = toFormattedPages(data.results, format, budget);
-        const decision = decideReturnMode({ requestedMode: budget.returnMode, pages, isDeepCrawl: !!params.deepCrawl, urlCount: params.urls.length, maxCharsPerCall: budget.maxCharsPerCall, saveRequested: params.save });
-        const saved = outputDir ? saveCrawlResultsDetailed(outputDir, params.urls, data.results, format, params.deepCrawl ? { maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? budget.deepCrawlDefaultMaxPages } : undefined, { preferFitMarkdown: budget.preferFitMarkdown, retention: config.raw.retention, sessionDir, artifacts }) : undefined;
+        const decision = decideReturnMode({ requestedMode: budget.returnMode, saveRequested: params.save });
+        const saved = outputDir ? saveCrawlResultsDetailed(outputDir, params.urls, data.results, format, params.deepCrawl ? { maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? DEFAULT_DEEP_MAX_PAGES } : undefined, { preferFitMarkdown: budget.preferFitMarkdown, retention: config.raw.retention, sessionDir, artifacts, request: effectiveRequest, service: { baseUrl: credentialFreeBaseUrl(config.baseUrl) } }) : undefined;
         const savedFiles = saved?.pagePaths.map(page => ({ ...page, relativePath: page.file }));
         const warnings = pages.filter((page, index) => page.success && !page.content.trim() && !artifacts[index]?.filter).map(page => `Empty page content: ${page.url}`);
         const bm25 = artifacts[0]?.filter;
         const filterSummary = bm25 ? `\nBM25 query=${JSON.stringify(bm25.query)}, matched ${bm25.matchedSectionCount}/${bm25.totalSections} sections, threshold=${bm25.threshold}${bm25.matchedSectionCount === 0 ? " (valid empty selection)" : ""}` : "";
-        const built = buildBudgetedToolText({ pages, rawResults: data.results, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=server-managed${partial ? " — Partial results (some pages failed)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}` });
+        const built = buildBudgetedToolText({ pages, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=server-managed${partial ? " — Partial results (some pages failed)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}` });
         return {
           content: [{ type: "text", text: capToolText(built.text, saved?.manifestPath) }],
           details: {
@@ -223,8 +258,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
             minRequestIntervalMs: pacing?.minRequestIntervalMs, rateLimitWaitedMs: pacing?.waitedMs,
             savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles,
             returnMode: built.mode, returnModeReason: decision.reason, truncated: built.truncated,
-            totalOriginalChars: built.totalOriginalChars, totalReturnedChars: built.totalReturnedChars, tokenBudget: budget, cleanup: saved?.cleanup,
-            ...(params.deepCrawl ? { deepCrawl: { totalPages: data.results.length, maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? budget.deepCrawlDefaultMaxPages } } : {}),
+            totalOriginalChars: built.totalOriginalChars, totalReturnedChars: built.totalReturnedChars, preview: budget, cleanup: saved?.cleanup,
+            ...(params.deepCrawl ? { deepCrawl: { totalPages: data.results.length, maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? DEFAULT_DEEP_MAX_PAGES } } : {}),
           },
         };
       } catch (error) {

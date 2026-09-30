@@ -101,7 +101,17 @@ On `COMPLETE`, the implementation skill marks all three `done` and moves them to
 - repositories own scope, commands, permissions, architecture, specialist skills, and feature-specific work locations; supplied package paths and `PI_WORK_*` overrides are preserved;
 - execution is direct by default. Only operator/instruction-authorized delegation uses bounded fresh-context builtin worker/reviewer handoffs; no scripts, phase agents, chains, registry, or new runtime are required. The parent verifies concise evidence and recovers from actual state rather than restarting completed phases.
 
-This division keeps the skills concise without making the resulting work vague. The agent still exercises judgment, but it must express that judgment through acceptance criteria, explicit assumptions, and a coverage decision.
+The shared skills preserve operational detail without imposing a phase fleet. Small work stays direct; substantial independent slices can be implemented concurrently when authorised, then integrated and validated as one result. Detail is proportional to uncertainty and risk, not a fixed checklist of model calls.
+
+### Direct or parallel sliced execution
+
+Planning records independently observable outcomes, exclusive writable paths, shared-contract ownership, real prerequisite artifacts, per-slice validation and integrated acceptance. A table alone grants no delegation authority. With authority, the parent launches ready slices concurrently using existing builtin workers and separate writable checkouts, starts dependent slices only after their required contract/patch is available, and remains the single owner of package documents and integration.
+
+Integration protects unrelated dirty/staged changes, accounts for each exact patch and stops on semantic conflicts. Validate the combined tree; successful child exit or isolated tests are insufficient. After interruption, inspect actual files and checkpoints, preserve successful work and resume only outstanding scope. Do not restart an entire phase fleet.
+
+Optional procedures under `skills/_shared/procedures/` provide native composition examples, validation briefs and specialised review lenses. These are instructions, not a runtime or required panels. Workers receive relevant guidance explicitly; builtin roles do not automatically inherit parent skills. Validation checks execute without automatic source/test-expectation fixes, and reviewers inspect a stable tree. Choose readiness, correctness, test-quality or conventions lenses only for relevant risks.
+
+The source-backed [capability disposition](skills/_shared/capability-recovery.md) records what was retained, recovered and retired. Functional checks establish contracts, not comparative speed or quality superiority; its benchmark guidance specifies how to make that comparison honestly.
 
 ## Templates and testing policy
 
@@ -183,12 +193,15 @@ export PI_WORK_ROOT=docs/work
 
 ## Skills (operator-only)
 
-All three skills set `disable-model-invocation: true` so they are not auto-injected into the system prompt. Direct skill commands remain available:
+The three core workflow skills and the auxiliary cleanup skill set `disable-model-invocation: true` so they are not auto-injected into the system prompt. Direct skill commands remain available:
 
 - `/skill:task-and-plan-routing`
 - `/skill:implement-tdd-review-runner`
 - `/skill:plan-and-implement-runner`
-- or `/work` handoffs
+- `/skill:work-note-cleanup` (auxiliary; no `/work` cleanup wizard)
+- or `/work` handoffs for the three core workflows
+
+Cleanup is retain-first and dry-run by default: protect canonical packages, unresolved decisions, source references and unique research. Offer promotion/linking first, obtain explicit approval for exact deletion paths, then recheck hashes/references/state before acting. Invoking cleanup is not deletion approval.
 
 `/work` handoffs embed the full skill body because extension-injected messages do not expand `/skill:` commands. Both entry points use these exact canonical files. Available subagent tools alone never authorize delegation.
 
@@ -201,12 +214,12 @@ installed_skills="$HOME/.pi/agent/git/github.com/Patrick3131/pi-packages/package
 # Adjust for the verified installation / PI_CODING_AGENT_DIR.
 # Check existing targets first; do not overwrite same-name skills or links.
 mkdir -p "$HOME/.codex/skills"
-for name in task-and-plan-routing implement-tdd-review-runner plan-and-implement-runner _shared; do
+for name in task-and-plan-routing implement-tdd-review-runner plan-and-implement-runner work-note-cleanup _shared; do
   ln -s "$installed_skills/$name" "$HOME/.codex/skills/$name"
 done
 ```
 
-`_shared` is a sibling resource link, not another skill. Keep all four links together so relative templates/testing-policy and composite references resolve. Each public skill ships `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex, alongside Pi's frontmatter flag. Invoke explicitly with `$task-and-plan-routing`, `$implement-tdd-review-runner`, or `$plan-and-implement-runner`. For other hosts, verify supported operator-only metadata and actual discovery before deleting their old copies; do not assume they honor Pi or Codex flags.
+`_shared` is a sibling resource link, not another skill. Keep all five links together so relative templates/testing-policy and composite references resolve. Each public skill ships `agents/openai.yaml` with `policy.allow_implicit_invocation: false` for Codex, alongside Pi's frontmatter flag. Invoke explicitly with `$task-and-plan-routing`, `$implement-tdd-review-runner`, `$plan-and-implement-runner`, or `$work-note-cleanup`. For other hosts, verify supported operator-only metadata and actual discovery before deleting their old copies; do not assume they honor Pi or Codex flags.
 
 When container homes are not mutually visible, the installed checkout must be
 on an existing shared mount before creating links. Retain Pi's managed install
@@ -215,7 +228,7 @@ visible location; verify a real `pi update` still follows the alias. Move code
 only, never the agent directory, credentials, trust, or sessions. Do not create
 a second maintained checkout or a synchronization service.
 
-Do not put these links in `.agents/skills` or another directory Pi also scans: the Git package already exposes them to Pi. Do not commit machine-specific absolute links or introduce copying/syncing. After updates, restart/reload the host and verify all three names resolve once, explicit invocation works, and sibling resources load. These checks are cutover gates on every affected local/remote installation; source tests cannot prove live discovery. If a gate fails, retain old consumers and roll back only the targeted setting/link changes from backups.
+Do not put these links in `.agents/skills` or another directory Pi also scans: the Git package already exposes them to Pi. Do not commit machine-specific absolute links or introduce copying/syncing. After updates, restart/reload the host and verify all four skill names resolve once, explicit invocation works, and sibling resources load. These checks are cutover gates on every affected local/remote installation; source tests cannot prove live discovery. If a gate fails, retain old consumers and roll back only the targeted setting/link changes from backups.
 
 ## Development
 

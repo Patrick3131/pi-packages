@@ -7,10 +7,8 @@ import {
   buildOutlineMarkdown,
   buildPageMeta,
   extractHeadings,
-  scoreChunk,
   selectChunks,
   splitIntoSections,
-  truncateToBudget,
   windowLines,
 } from "./outline";
 
@@ -128,32 +126,13 @@ describe("splitIntoSections / selectChunks", () => {
     expect(selected[0].text).not.toContain("Ordinary prose");
   });
 
-  it("scores term matches higher than unrelated content", () => {
-    const sections = splitIntoSections(SAMPLE);
-    const docker = sections.find((s) => s.heading === "Docker setup")!;
-    const blog = sections.find((s) => s.heading === "Unrelated blog")!;
-    expect(scoreChunk(docker, "docker")).toBeGreaterThan(scoreChunk(blog, "docker"));
-  });
 });
 
-describe("windowLines / truncateToBudget", () => {
+describe("windowLines", () => {
   it("returns a line window", () => {
     const win = windowLines(SAMPLE, 1, 3);
     expect(win.startLine).toBe(1);
     expect(win.endLine).toBe(3);
     expect(win.text.split("\n")).toHaveLength(3);
-  });
-
-  it("truncates over budget", () => {
-    const { text, truncated } = truncateToBudget("a".repeat(200), 80);
-    expect(truncated).toBe(true);
-    expect(text).toContain("truncated");
-    expect(text.length).toBeLessThanOrEqual(80);
-  });
-
-  it("treats zero/negative/tiny budgets as hard caps", () => {
-    expect(truncateToBudget("body", 0)).toEqual({ text: "", truncated: true });
-    expect(truncateToBudget("body", -1).text).toBe("");
-    expect(truncateToBudget("a".repeat(200), 8).text.length).toBeLessThanOrEqual(8);
   });
 });
