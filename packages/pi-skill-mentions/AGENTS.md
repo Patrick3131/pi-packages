@@ -33,6 +33,11 @@ complete those mentions in the editor.
   `/skill:<name>` spelling and for read failures.
 - **Match Pi's block format exactly** (`formatSkillBlock`): a divergence silently
   changes skill semantics, and the format is the contract with Pi core.
+- **Resolve the block's base directory from the SKILL.md path**, never from
+  `command.sourceInfo.baseDir`. That field is the *resource root* — the package
+  root, the skills root, or the agent dir — so emitting it sends every relative
+  reference in the skill body outside the skill. Pi's own `/skill:` expansion
+  uses `dirname(SKILL.md)`; do the same.
 - Use Pi's own `stripFrontmatter` export rather than reimplementing frontmatter
   parsing.
 - Prefer mentions over rewriting the whole message: text outside a mention must

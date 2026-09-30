@@ -16,14 +16,14 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
+- `packages/pi-delegation` - Capability-gated delegation instructions
 - `packages/pi-presets` - Global `/preset` engine; job lists stay in JSON files
 - `packages/pi-tools` - Official `/tools` command, installed as a package
-- `packages/pi-keepalive` - Delayed provider-error retries and generic keepalive messages
 - `packages/pi-skill-mentions` - Reference several skills from anywhere in one message (`$<name>`)
 - `packages/pi-recap` - Session recap HTML: user questions with short, expandable answers (`/recap`, `/user-messages`)
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
 - `paseo-melon/` - Paseo workspace panel for Melon worktrees and previews (installed with `paseo plugin add`)
-- `configs/global` - Sanitized machine restore snapshot (not a published package)
+- `configs/global` - Sanitized machine restore snapshot, native MCP preset/write policy, and subagent worktree setup hook (not a published package)
 - Future extensions added to `packages/`
 
 ## Commands
@@ -38,11 +38,11 @@ npm run build
 # Type check all packages
 npm run typecheck
 
-# Lint all packages
-npm run lint
-
 # Run all tests
 npm run test
+
+# Test the restore-snapshot hook (configs/global, not a workspace)
+npm run test:configs
 
 # Run tests with coverage
 npm run test:coverage
@@ -97,7 +97,8 @@ packages/<name>/
 ### Testing
 
 - Colocate tests with implementation: `*.test.ts`
-- Use Jest with ts-jest
+- Use Jest with ts-jest for crawl4ai; other workspaces use Node tests with tsx.
+- Root `npm test` runs every workspace plus the restore-snapshot tests.
 - Mock external services (APIs, fetch)
 - Run tests before committing: `npm run test`
 - Aim for meaningful coverage on core logic
@@ -124,4 +125,4 @@ packages/<name>/
 
 ## References
 
-- Pi extension docs: https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md
+- Pi extension docs: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md

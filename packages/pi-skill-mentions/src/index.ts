@@ -54,7 +54,11 @@ function loadedSkills(pi: ExtensionAPI): Map<string, LoadedSkill> {
 		skills.set(name, {
 			name,
 			filePath,
-			baseDir: command.sourceInfo.baseDir ?? dirname(filePath),
+			// `sourceInfo.baseDir` is the *resource root* (package root, skills
+			// root, agent dir), not the skill directory, so relative references
+			// inside SKILL.md would resolve outside the skill. Pi's own `/skill:`
+			// expansion prints `dirname(SKILL.md)`; match that.
+			baseDir: dirname(filePath),
 			description: command.description,
 		});
 	}

@@ -27,3 +27,5 @@ Thin SearXNG search tool for the discovery-services instance.
 npm test --workspace=packages/pi-searxng
 npm run typecheck --workspace=packages/pi-searxng
 ```
+
+`typebox` is supplied by Pi; declare it as a peer, not a runtime dependency.

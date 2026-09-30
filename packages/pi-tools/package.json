@@ -4,9 +4,7 @@
   "description": "Pi package that registers the official /tools command to enable and disable session tools",
   "type": "module",
   "scripts": {
-    "build": "node -e \"process.exit(0)\"",
     "typecheck": "tsc --noEmit",
-    "lint": "node -e \"process.exit(0)\"",
     "test": "node --import tsx --test --test-force-exit test/**/*.test.ts",
     "clean": "rm -rf coverage"
   },

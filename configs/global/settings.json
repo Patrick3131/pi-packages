@@ -5,13 +5,14 @@
   "packages": [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
-    "npm:pi-mcp-adapter",
     "npm:pi-open-tui",
-    "git:github.com/StanleyOneG/pi-compact",
     {
       "source": "git:github.com/Patrick3131/pi-packages",
       "skills": [
         "!packages/pi-work/skills/**"
+      ],
+      "extensions": [
+        "!packages/pi-keepalive/**"
       ]
     }
   ],
@@ -26,5 +27,9 @@
   "doubleEscapeAction": "none",
   "compaction": {
     "enabled": true
-  }
+  },
+  "defaultTools": [
+    "+codemode",
+    "+tool_search"
+  ]
 }

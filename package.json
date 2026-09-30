@@ -7,13 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces",
-    "lint": "npm run lint --workspaces",
-    "test": "jest",
+    "test": "npm run test --workspaces && npm run test:configs",
+    "test:configs": "node --test configs/global/*.test.mjs",
     "test:coverage": "jest --coverage",
     "clean": "npm run clean --workspaces && rm -rf node_modules coverage",
-    "test:configs": "node --test configs/global/*.test.mjs"
+    "typecheck:configs": "tsc --noEmit --strict --skipLibCheck --module nodenext --target ES2022 configs/global/mcp-policy.ts"
   },
   "pi": {
     "extensions": [
@@ -22,7 +22,6 @@
       "packages/pi-presets/src/preset.ts",
       "packages/pi-searxng/src/index.ts",
       "packages/pi-tools/src/tools.ts",
-      "packages/pi-keepalive/src/index.ts",
       "packages/pi-skill-mentions/src/index.ts",
       "packages/pi-recap/src/index.ts",
       "packages/pi-work/src/index.ts"
@@ -32,6 +31,9 @@
     ]
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.99.1",
+    "@earendil-works/pi-coding-agent": "^0.99.1",
+    "@earendil-works/pi-tui": "^0.99.1",
     "jest": "^29.7.0"
   },
   "keywords": [
@@ -42,6 +44,6 @@
   "author": "",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.19"
   }
 }

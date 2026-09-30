@@ -4,9 +4,7 @@
   "description": "Pi package that loads named job presets from global and project presets.json files",
   "type": "module",
   "scripts": {
-    "build": "node -e \"process.exit(0)\"",
     "typecheck": "tsc --noEmit",
-    "lint": "node -e \"process.exit(0)\"",
     "test": "node --import tsx --test test/**/*.test.ts",
     "clean": "rm -rf coverage"
   },

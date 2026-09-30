@@ -32,6 +32,36 @@ When implementation begins, set all three artifacts to `status: in_progress` and
 7. Keep the to-do list current and map acceptance criteria to validation evidence.
 8. Review the final diff for scope drift, run the documented commands, and perform required manual checks.
 
+## Keep the cost per step low
+
+Delegated phases pay one model round trip per step, so step count decides how
+long a package takes far more than task size does.
+
+- Change files with the host's file-edit tool. Never rewrite a file by piping a
+  script (`sed`, `perl`, a shell heredoc) into it.
+- Batch independent inspection into one step: read several paths together, or run
+  one pattern search over the paths that matter, instead of one call per file.
+- Inspect exact paths. Repeated directory listings or status checks to re-derive
+  what you already read are pure cost.
+- Run each focused check once per change. Do not repeat a check that is already
+  green without a new change, a failure, or an unresolved concern.
+- Never wait on a sleep or a polling loop. Run the real command once and read its
+  output; a polling loop blocks the step and hides the result you are waiting for.
+- Write the companion documents once, in the finishing pass. A parallel run has
+  one document owner so two workers never rewrite the same checklist.
+
+## Parallel packages
+
+Independent packages can run at the same time when the host supports isolated
+writers. The precondition is a plan, not a flag: the companion to-do list names
+path slices, one slice owns each path, and a slice lists a dependency only when
+it needs another slice's code to compile or behave correctly. Independent slices
+may run concurrently; a chain of dependent slices is one writer's work in order.
+
+Isolation also requires a clean source checkout, and a worker in a fresh checkout
+needs its dependencies present before it can run a check. When either is missing,
+keep the serial order and say so instead of dropping isolation silently.
+
 Prefer the project chain `.pi/agents/implement-tdd-review.chain.md` when available. Otherwise perform the same phases with subagents or in-process. Continue internally while required in-scope work remains and there is no concrete blocker.
 
 ## Completion

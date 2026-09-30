@@ -123,7 +123,19 @@ test("input rewrites a mention using the loaded SKILL.md", () => {
 	assert.ok(text.startsWith("Please ") && text.endsWith(" now."));
 });
 
-test("baseDir falls back to the SKILL.md directory", () => {
+test("references resolve against the SKILL.md directory", () => {
+	const { dir, file } = writeSkill("alpha", "body");
+	// `pi.getCommands().sourceInfo.baseDir` is the resource root (here: the
+	// package root), not the skill directory. Emitting it would send relative
+	// references in the skill body outside the skill.
+	const { input } = harness([skillCommand("alpha", file, "/some/package/root")]);
+	const result = input("$alpha");
+	const text = result.action === "transform" ? result.text : "";
+	assert.ok(text.includes(`References are relative to ${dir}.`));
+	assert.ok(!text.includes("/some/package/root"), "must not leak the resource root");
+});
+
+test("a missing sourceInfo.baseDir changes nothing", () => {
 	const { dir, file } = writeSkill("alpha", "body");
 	const { input } = harness([skillCommand("alpha", file)]);
 	const result = input("$alpha");

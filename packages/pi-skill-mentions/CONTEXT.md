@@ -95,6 +95,14 @@ uses. The editor resets the wrapper list per session, so registering on
   skills and survives `/reload`, project-trust changes, and package updates.
   Caching would need invalidation hooks for no measurable gain — the index is
   only built when the text contains a `$` or a `skill:`.
+- **The block's base directory comes from the SKILL.md path, not `sourceInfo`.**
+  `pi.getCommands()` exposes `sourceInfo.baseDir` as the resource *root*: for a
+  skill under a package manifest it is the package root, under `.agents/skills`
+  it is the `.agents` directory, and under `~/.pi/agent/skills` it is the agent
+  dir. Emitting that made `../_shared/testing-policy.md` inside a skill resolve
+  to a path outside the skill tree, so the model could not follow the skill's own
+  references. Pi's `/skill:` expansion prints `skill.baseDir`, which the loader
+  sets to `dirname(SKILL.md)`; `loadedSkills()` now does the same.
 - **Deduplicate by name.** A skill body is large; expanding it twice in one
   message burns context for no signal, so later mentions degrade to the bare
   name.

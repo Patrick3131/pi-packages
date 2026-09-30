@@ -40,17 +40,13 @@ pi-packages/
 │   │   ├── src/
 │   │   └── package.json
 │   │
-│   ├── pi-keepalive/         # Delayed provider-error retries
-│   │   ├── src/
-│   │   └── package.json
-│   │
 │   ├── pi-searxng/           # SearXNG web_search_searxng
 │   │   ├── src/
 │   │   └── package.json
 │   │
 │   └── [future packages]/    # Additional extensions
 │
-├── configs/global/           # Restore snapshot for ~/.pi/agent
+├── configs/global/           # Restore snapshot, native MCP call policy, worktree hook
 ├── package.json              # Workspace root
 ├── AGENTS.md                 # Working agreements
 └── CONTEXT.md                # This file

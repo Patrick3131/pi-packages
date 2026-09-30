@@ -1,6 +1,6 @@
 # pi-packages
 
-A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed as a Git package.
+A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed as a Git package.
 
 ## Packages
 
@@ -11,7 +11,6 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 | [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate | Git package |
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
 | [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
-| [pi-keepalive](./packages/pi-keepalive) | Delayed provider-error retries and configurable periodic keepalive messages | Git package |
 | [pi-skill-mentions](./packages/pi-skill-mentions) | Reference several skills from anywhere in one message (`$<name>`) | Git package |
 | [pi-recap](./packages/pi-recap) | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`) | Git package |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
@@ -21,9 +20,9 @@ A monorepo of [Pi](https://github.com/badlogic/pi-mono) extensions distributed a
 
 ### Install the complete Melon package repository
 
-Pi can manage this monorepo as one unpinned Git package. This installs every
-Melon extension, the Paseo workspace plugin, and the `pi-work` skills declared
-by the root manifest:
+Pi can manage this monorepo as one unpinned Git package. This installs the Melon extensions and the `pi-work` skills declared
+by the root manifest. The Paseo plugin is installed separately with
+`paseo plugin add Patrick3131/pi-packages:paseo-melon`:
 
 ```bash
 pi install git:github.com/Patrick3131/pi-packages
@@ -40,16 +39,16 @@ pi update --extensions
 This is the deployment and normal workstation setup. Local paths are reserved
 for development of an extension before it is pushed.
 
-### Temporary compaction workaround
+### Native MCP and compaction
 
-The global setup also installs [`pi-compact`](https://github.com/StanleyOneG/pi-compact)
-as a workaround for Pi's current auto-compaction gap during long assistant/tool
-loops. It compacts at completed turn boundaries and coordinates continuation
-ownership with `pi-goal`.
+Requires Pi 0.99.0 or newer. Pi owns MCP connections, codemode, tool discovery,
+and between-turn compaction. The old MCP adapter, compaction workaround,
+keepalive retries, and Pi Web workspace plugin have been removed.
 
-This is not a replacement for native Pi behavior. The guard should eventually
-be handled by Pi core before the next provider request; remove `pi-compact` from
-the global package configuration once that native fix is available.
+`configs/global/mcp-policy.ts` is restored as a personal extension. Project
+`.pi/mcp-policy.json` explicitly grants MCP access by preset; nested codemode
+calls use the same permission checks. Reads are free, writes require an
+interactive confirmation, and unlisted presets cannot call MCP.
 
 ### UI extension
 
@@ -103,8 +102,12 @@ npm run build
 # Build single package
 npm run build --workspace=packages/pi-crawl4ai
 
+# Test every workspace and the restore snapshot
+npm test
+
 # Type check all
 npm run typecheck
+npm run typecheck:configs
 ```
 
 ## Restore a machine
@@ -113,7 +116,11 @@ npm run typecheck
 ./configs/global/restore.sh
 ```
 
-That copies sanitized global settings, personal job presets, and `/tools`. It does not copy `auth.json` or sessions.
+That copies sanitized global settings, personal job presets, `/tools`, and the
+`pi-subagents` worktree config plus its setup hook. It does not copy `auth.json`
+or sessions. The hook is what lets subagent lanes run tests inside an isolated
+worktree; see [configs/global/README.md](./configs/global/README.md) and test it
+with `npm run test:configs`.
 
 ## Adding a New Package
 

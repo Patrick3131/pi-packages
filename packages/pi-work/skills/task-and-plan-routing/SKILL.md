@@ -51,7 +51,7 @@ Choose the narrowest label that describes the work; it affects filenames and UI 
    - `../_shared/templates/to-do-list.md`
    - `../_shared/templates/test-plan.md`
 2. Inspect the repository before filling `Files` or `Commands`; include verified paths and commands only.
-3. Keep tasks meaningful and tied to acceptance criteria; do not turn every edit into a checkbox.
+3. Keep tasks meaningful and tied to acceptance criteria; do not turn every edit into a checkbox. When the work splits across independent paths, add the `## Slices` table from the to-do-list template: one slice owns each path, and a slice lists a dependency only when it needs another slice's code to compile or behave correctly. Independent slices can then run at the same time; dependent slices stay in order.
 4. Read `../_shared/testing-policy.md` while writing the test plan.
 5. Remove unused placeholders and keep `## Open Questions` as `None` when the package is ready.
 6. Name the files with one dated, lowercase, kebab-case base:
@@ -70,6 +70,7 @@ Before reporting success, verify that the three files exist, share a basename, a
 
 Return:
 
+- whether the package is parallelizable, and the slice ownership that makes it so;
 - the type and placement rationale when non-obvious;
 - absolute paths created or updated;
 - `ready`, `intake`, or `not_ready` with reasons;

@@ -22,6 +22,7 @@ This directory contains dated planning specs, active implementation notes, and h
 - A package is implementation-ready only when companions exist, Open Questions are non-blocking, and type is not pure `idea` intake.
 - Do not add backlog, active, archive, temporary, resource, framework, or type-specific subfolders without updating this guidance.
 - Create a work spec before substantial implementation.
+- When a package spans independent paths, its companion to-do list carries a path-slice table so independent slices can be implemented in parallel. The table shape and ownership rules live in the `task-and-plan-routing` skill.
 - Keep each spec clear about scope, skipped work, acceptance criteria, and open questions.
 - Test plans must name the material production risk protected by each proposed automated test and use the cheapest stable layer that proves it.
 - Default to zero to three new automated cases; exceed that only for distinct named risks.

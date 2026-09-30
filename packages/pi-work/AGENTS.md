@@ -44,3 +44,5 @@ npm run typecheck --workspace=packages/pi-work
 
 - Update `README.md` when commands or env vars change.
 - Update scaffold templates carefully; init never overwrites existing files, but new projects get the new text.
+
+Host imports use `@earendil-works/pi-coding-agent`, declared as a host-provided peer.

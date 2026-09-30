@@ -51,6 +51,14 @@ copy_file() {
 need pi
 need python3
 
+# The retired adapter is replaced by native MCP, first available in 0.99.0.
+python3 - "$(pi --version)" <<'PYVERSION'
+import sys
+version = tuple(int(part) for part in sys.argv[1].split('.')[:3])
+if version < (0, 99, 0):
+    raise SystemExit("Native MCP requires Pi >=0.99.0. Run pi update first.")
+PYVERSION
+
 mkdir -p "$AGENT_DIR/extensions"
 
 # pi-subagents expands a ~/ hook path against $HOME, but a container can keep
@@ -66,7 +74,8 @@ fi
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
-copy_file "$ROOT/mcp-adapter.json" "$AGENT_DIR/mcp-adapter.json"
+copy_file "$ROOT/mcp-policy.ts" "$AGENT_DIR/extensions/mcp-policy.ts"
+copy_file "$ROOT/mcp.json" "$AGENT_DIR/mcp.json"
 copy_file "$ROOT/subagent.json" "$AGENT_DIR/extensions/subagent/config.json"
 copy_file "$ROOT/worktree-setup.mjs" "$AGENT_DIR/extensions/subagent/worktree-setup.mjs"
 # The worktree setup hook is executed directly, so the exec bit has to survive the copy.
@@ -107,9 +116,7 @@ def source_of(entry):
 wanted = [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
-    "npm:pi-mcp-adapter",
     "npm:pi-open-tui",
-    "git:github.com/StanleyOneG/pi-compact",
     "git:github.com/Patrick3131/pi-packages",
 ]
 
@@ -117,6 +124,9 @@ wanted = [
 # superseded extensions on the next `pi update --extensions`.
 retired = {
     "npm:pi-xai-oauth",
+    "npm:pi-mcp-adapter",
+    "git:github.com/StanleyOneG/pi-compact",
+    "npm:@jmfederico/pi-web",
 }
 
 # Older restores installed Melon packages from machine-specific local paths.
@@ -128,6 +138,8 @@ legacy_package_names = {
     "pi-tools",
     "pi-work",
     "pi-xai-defaults",
+    "pi-keepalive",
+    "pi-mcp-gate",
 }
 
 def is_retired(entry):
@@ -145,7 +157,21 @@ packages = filtered_packages
 existing = {source_of(entry) for entry in packages}
 for item in wanted:
     if item not in existing:
-        packages.append(item)
+        packages.append({"source": item, "skills": ["!packages/pi-work/skills/**"], "extensions": ["!packages/pi-keepalive/**"]} if item.endswith("/pi-packages") else item)
+        changed = True
+for index, entry in enumerate(packages):
+    if source_of(entry) != "git:github.com/Patrick3131/pi-packages":
+        continue
+    if isinstance(entry, str):
+        entry = {"source": entry, "skills": ["!packages/pi-work/skills/**"]}
+        packages[index] = entry
+        changed = True
+    exclusions = entry.get("extensions")
+    if exclusions is None:
+        entry["extensions"] = ["!packages/pi-keepalive/**"]
+        changed = True
+    elif exclusions and "!packages/pi-keepalive/**" not in exclusions:
+        exclusions.append("!packages/pi-keepalive/**")
         changed = True
 if changed:
     settings["packages"] = packages
@@ -160,15 +186,17 @@ PY
 echo "Installing Pi packages (safe if already present)..."
 pi install npm:pi-subagents
 pi install npm:@narumitw/pi-goal
-pi install git:github.com/StanleyOneG/pi-compact
 pi install git:github.com/Patrick3131/pi-packages
 pi install npm:pi-open-tui
 
-# Best-effort cleanup of the retired xAI package itself.
-pi remove npm:pi-xai-oauth || true
+# Retire superseded installations, not only their settings declarations.
+for source in npm:pi-xai-oauth npm:pi-mcp-adapter git:github.com/StanleyOneG/pi-compact npm:@jmfederico/pi-web; do
+	pi remove "$source" || true
+done
+rm -f "$AGENT_DIR/mcp-adapter.json" "$AGENT_DIR/mcp-cache.json" "$AGENT_DIR/mcp-project-approvals.json" "$AGENT_DIR/extensions/minimal-mode.ts"
 
 echo
 echo "Restore finished."
 echo "Not copied (on purpose): auth.json, sessions/, trust.json, npm/, git/"
-echo "Also removed if present: xai-defaults.json, npm:pi-xai-oauth"
+echo "Removed retired xAI, MCP adapter, compaction workaround, Pi Web, and minimal-mode overrides."
 echo "Reload Pi or restart, then run /preset and /tools."

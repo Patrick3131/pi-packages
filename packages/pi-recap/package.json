@@ -4,9 +4,7 @@
   "description": "Recap a Pi session as user questions with short, expandable answers in the browser",
   "type": "module",
   "scripts": {
-    "build": "node -e \"process.exit(0)\"",
     "typecheck": "tsc --noEmit",
-    "lint": "node -e \"process.exit(0)\"",
     "test": "node --import tsx --test --test-force-exit test/*.test.ts",
     "clean": "rm -rf coverage"
   },

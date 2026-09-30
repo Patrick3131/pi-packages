@@ -121,6 +121,7 @@ export function buildPlanUserArgs(args?: string): string {
     "- Place all open packages under the same open work directory (default `docs/work/work/`).",
     "- Type is metadata only — do not create type-based subfolders.",
     "- Instantiate the bundled work-item, to-do-list, and test-plan templates; do not invent alternate headings.",
+    "- When the work spans independent paths, fill the to-do list Slice table so independent slices can run in parallel.",
     "- Read the bundled testing policy before proposing automated coverage.",
     "- Create primary + `-to-do-list.md` + `-test.md` for implementation-bound work.",
     "- For pure intake (`idea` / early `triage`), you may create a lighter capture; do not claim implementation-ready.",

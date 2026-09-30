@@ -9,21 +9,30 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | `settings.json` | `~/.pi/agent/settings.json` |
 | `presets.json` | `~/.pi/agent/presets.json` |
 | `APPEND_SYSTEM.md` | `~/.pi/agent/APPEND_SYSTEM.md` |
-| `mcp-adapter.json` | `~/.pi/agent/mcp-adapter.json` |
+| `mcp.json` | `~/.pi/agent/mcp.json` |
+| `mcp-policy.ts` | `~/.pi/agent/extensions/mcp-policy.ts` |
 | `subagent.json` | `~/.pi/agent/extensions/subagent/config.json` |
 | `worktree-setup.mjs` | `~/.pi/agent/extensions/subagent/worktree-setup.mjs` |
 
 `settings.json` includes the default provider/model (`opencode-go` /
 `deepseek-v4.1-flash`), theme, and thinking level, plus the npm packages
-`pi-subagents`, `pi-goal`, `pi-compact`, `pi-mcp-adapter`, and `pi-open-tui`. It
+`pi-subagents`, `pi-goal`, and `pi-open-tui`. It
 does **not** include secrets.
 
-`mcp-adapter.json` holds adapter policy only: generic `settings` such as
-`projectServers`, `approveTools`, and `outputGuard` limits. It declares no
-servers and no secrets; a repository that needs MCP servers adds them in its
-own project config, where Pi's project layer takes precedence. Package manifests
-cannot carry adapter `settings`, which is why these policy defaults live in
-this snapshot rather than in a Pi package.
+`mcp.json` configures native MCP with no global servers and disables automatic
+codemode activation. Server endpoints belong in the trusted project's `.pi/mcp.json`.
+`mcp-policy.ts` is copied to `~/.pi/agent/extensions/mcp-policy.ts`; it gates
+all native MCP calls, including codemode's nested calls, by the active branch's
+preset. A project opts in with `.pi/mcp-policy.json`:
+
+```json
+{ "presets": { "implement": "write", "ops": "write", "agency-research": "read" } }
+```
+
+Missing/malformed policy and unlisted presets block MCP. Unknown tool annotations
+are treated as writes. Writes require interactive approval; headless sessions
+fail closed. MCP resource calls are read-only. Native OAuth credentials remain
+in `mcp-auth.json` and are never part of the snapshot.
 
 `subagent.json` holds the `pi-subagents` extension config that is not secret:
 the worktree setup hook path and its timeout. `pi-subagents` reads this file
@@ -66,15 +75,14 @@ locations would produce skill-name collisions. The package still provides:
 - `packages/pi-presets` — `/preset` engine
 - `packages/pi-tools` — `/tools` command
 - `packages/pi-searxng` — `web_search_searxng` (off by default)
-- `packages/pi-keepalive` — delayed provider-error retries
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read`
 - `packages/pi-skill-mentions` — `$<name>` mentions with `$` autocomplete, so one message can load several skills
 - `packages/pi-delegation` — standing delegation policy, appended to the
   system prompt only when the `subagent` tool is active in the session
-- `pi-compact` — proactive context compaction at completed turn boundaries
+- Native Pi — MCP, codemode, deferred tool search, and between-turn compaction
 
 Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is
-not registered twice. On managed remote hosts, `pi-init` uses `--force` so the
+not registered twice. On managed remote hosts, `paseo-init` uses `--force` so the
 sanitized package policy remains authoritative without touching auth or
 session state.
 
@@ -104,12 +112,17 @@ Restore strips these from `~/.pi/agent/settings.json` if an older snapshot
 installed them, and deletes `~/.pi/agent/xai-defaults.json`:
 
 - `npm:pi-xai-oauth` — xAI/Grok provider credentials and `xai_*` tools
+- `npm:pi-mcp-adapter` — superseded by native MCP
+- `git:github.com/StanleyOneG/pi-compact` — superseded by native between-turn compaction
+- `npm:@jmfederico/pi-web` — superseded by Paseo
+- `packages/pi-keepalive` and `packages/pi-mcp-gate` — removed retry/adapter layers
 - `packages/pi-xai-defaults` — the removed default-on xAI extras extension
 
-The machine's default provider is now `opencode-go`. Nothing in this snapshot
-references xAI, Grok, or OpenRouter.
+The machine's default provider is now `opencode-go`. No active package or tool configuration enables xAI, Grok, or OpenRouter.
 
 ## Restore
+
+Requires Pi 0.99.0 or newer (`pi update` upgrades Pi itself).
 
 ```bash
 ./configs/global/restore.sh
@@ -119,7 +132,8 @@ references xAI, Grok, or OpenRouter.
 
 The script never copies `auth.json`, sessions, `trust.json`, or npm/git caches. Log in again with `/login` on a new machine.
 
-Orca-only extensions (`orca-*.ts`, `minimal-mode.ts`) are not part of this snapshot.
+Orca-only extensions (`orca-*.ts`) are not part of this snapshot. Restore removes
+the obsolete `minimal-mode.ts` tool overrides.
 
 ## After restore
 
