@@ -12,6 +12,7 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | `mcp.json` | `~/.pi/agent/mcp.json` |
 | `mcp-policy.ts` | `~/.pi/agent/extensions/mcp-policy.ts` |
 | `subagent.json` | `~/.pi/agent/extensions/subagent/config.json` |
+| `agents/*.md` | `~/.pi/agent/agents/*.md` |
 | `worktree-setup.mjs` | `~/.pi/agent/extensions/subagent/worktree-setup.mjs` |
 
 `settings.json` includes the default provider/model (`opencode-go` /
@@ -91,9 +92,37 @@ new syncing are needed. The package provides:
 - Native Pi — MCP, codemode, deferred tool search, and between-turn compaction
 
 Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is
-not registered twice. On managed remote hosts, `paseo-init` uses `--force` so the
-sanitized package policy remains authoritative without touching auth or
-session state.
+not registered twice. On managed remote hosts, `paseo-init` uses `--force` only for fresh settings;
+persisted settings use narrow migration. Neither path copies auth or session
+state. Agents-only restore is available independently for persisted hosts.
+
+## Custom agent definitions
+
+`agents/` is the canonical backup for reusable custom Pi subagents, currently
+`web-researcher`. Install these in user scope so every repository can use them.
+Keep business/project-specific specialists in the owning repository’s `.pi/agents/`.
+Do not copy bundled worker/reviewer/researcher agents or revive retired work-phase
+agents; use builtin settings overrides for simple builtin customizations.
+
+Update only these definitions, without touching personal settings, credentials,
+subagent configuration or package installations:
+
+```bash
+./configs/global/restore.sh --agents-only
+# Replace a differing installed definition only after review; backup is automatic:
+./configs/global/restore.sh --agents-only --force
+```
+
+Fresh/full restore includes the same definitions. Existing differing files are
+retained unless `--force` is explicit; unrelated custom agents are never deleted.
+`pi update --extensions` updates this source checkout, **not** the installed agent
+files: run the agents-only restore from that checkout, then `/reload` or start a
+fresh Pi session. On remote hosts, set `PI_CODING_AGENT_DIR=/data/pi-agent`.
+Verify user-scope discovery before deleting an identical project copy; retain
+intentional project-specific variants rather than replacing them by name alone.
+The researcher uses the host’s enabled search/crawl extensions; its `tools` list
+is an allowlist, not a provider installer. This is a Pi subagent definition, not
+a Codex skill or a cross-host agent registration.
 
 ## Delegation policy
 

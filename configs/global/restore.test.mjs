@@ -85,8 +85,11 @@ test('fresh restore enables canonical skills once and remains stable', t => {
   assert.equal(shared.length, 1);
   assert.equal(shared[0].skills, undefined);
   assert.deepEqual(shared[0].extensions, ['!packages/pi-keepalive/**']);
+  const researcher = readFileSync(new URL('./agents/web-researcher.md', import.meta.url), 'utf8');
+  assert.equal(readFileSync(join(f.agent, 'agents/web-researcher.md'), 'utf8'), researcher);
   assert.equal(f.run().status, 0);
   assert.equal(readFileSync(join(f.agent, 'settings.json'), 'utf8'), first);
+  assert.equal(readFileSync(join(f.agent, 'agents/web-researcher.md'), 'utf8'), researcher);
 });
 
 test('migration-only mode backs up settings and leaves personal configuration and installs untouched', t => {
@@ -136,6 +139,45 @@ test('migration-only mode backs up settings and leaves personal configuration an
   assert.equal(readFileSync(join(malformed.agent, 'settings.json'), 'utf8'), '{invalid');
   assert.equal(readdirSync(malformed.agent).some(name => name.startsWith('settings.json.bak.')), false);
   assert.equal(malformed.calls(), '');
+});
+
+test('agents-only restore preserves personal state and custom agents, backing up explicit replacements', t => {
+  const f = fixture(t, '0.87.1'); // No Pi runtime/version/package dependency for definition-only installs.
+  const personal = {
+    'settings.json': 'personal-settings',
+    'auth.json': 'private-auth',
+    'presets.json': 'personal-presets',
+    'extensions/subagent/config.json': 'personal-subagent-config',
+    'agents/project-specialist.md': 'personal-specialist',
+  };
+  for (const [path, text] of Object.entries(personal)) {
+    mkdirSync(join(f.agent, path, '..'), { recursive: true });
+    writeFileSync(join(f.agent, path), text);
+  }
+  const installed = join(f.agent, 'agents/web-researcher.md');
+  const canonical = readFileSync(new URL('./agents/web-researcher.md', import.meta.url), 'utf8');
+  assert.equal(f.run(['--agents-only']).status, 0);
+  assert.equal(readFileSync(installed, 'utf8'), canonical);
+  assert.equal(f.run(['--agents-only']).status, 0);
+  assert.deepEqual(readdirSync(join(f.agent, 'agents')).sort(), ['project-specialist.md', 'web-researcher.md']);
+  writeFileSync(installed, 'personal-researcher');
+  const retained = f.run(['--agents-only']);
+  assert.equal(retained.status, 0, retained.stderr);
+  assert.match(retained.stdout, /Skip existing/);
+  assert.equal(readFileSync(installed, 'utf8'), 'personal-researcher');
+  const replaced = f.run(['--agents-only', '--force']);
+  assert.equal(replaced.status, 0, replaced.stderr);
+  assert.equal(readFileSync(installed, 'utf8'), canonical);
+  const backups = readdirSync(join(f.agent, 'agents')).filter(name => name.startsWith('web-researcher.md.bak.'));
+  assert.equal(backups.length, 1);
+  assert.equal(readFileSync(join(f.agent, 'agents', backups[0]), 'utf8'), 'personal-researcher');
+  assert.equal(f.run(['--force', '--agents-only']).status, 0);
+  assert.deepEqual(readdirSync(join(f.agent, 'agents')).filter(name => name.startsWith('web-researcher.md.bak.')), backups);
+  for (const [path, text] of Object.entries(personal)) assert.equal(readFileSync(join(f.agent, path), 'utf8'), text);
+  assert.equal(f.calls(), '');
+  assert.equal(existsSync(join(f.agent, 'extensions/mcp-policy.ts')), false);
+  assert.notEqual(f.run(['--agents-only', '--migrate-work-skills']).status, 0);
+  assert.notEqual(f.run(['--unknown']).status, 0);
 });
 
 test('restore refuses a pre-native-MCP runtime before altering its configuration', t => {

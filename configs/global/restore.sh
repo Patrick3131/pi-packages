@@ -6,17 +6,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 FORCE=0
+AGENTS_ONLY=0
 
 for arg in "$@"; do
+	case "$arg" in
+		--force) FORCE=1 ;;
+		--agents-only) AGENTS_ONLY=1 ;;
+		--migrate-work-skills) ;;
+		*) echo "Usage: $0 [--force] | --agents-only [--force] | --migrate-work-skills" >&2; exit 1 ;;
+	esac
 	if [[ "$arg" == "--migrate-work-skills" && "$#" -ne 1 ]]; then
 		echo "Use --migrate-work-skills alone; it cannot be combined with --force." >&2
 		exit 1
 	fi
 done
-
-if [[ "${1:-}" == "--force" ]]; then
-	FORCE=1
-fi
 
 need() {
 	command -v "$1" >/dev/null 2>&1 || {
@@ -54,6 +57,21 @@ copy_file() {
 	cp "$src" "$dest"
 	echo "Wrote $dest"
 }
+
+restore_agents() {
+	local src
+	for src in "$ROOT"/agents/*.md; do
+		[[ -f "$src" ]] || continue
+		copy_file "$src" "$AGENT_DIR/agents/$(basename "$src")"
+	done
+}
+
+# Install only reviewed custom agent definitions; never replace settings,
+# credentials, subagent preferences, or packages just to install an agent.
+if [[ "$AGENTS_ONLY" -eq 1 ]]; then
+	restore_agents
+	exit 0
+fi
 
 need python3
 
@@ -130,6 +148,7 @@ copy_file "$ROOT/subagent.json" "$AGENT_DIR/extensions/subagent/config.json"
 copy_file "$ROOT/worktree-setup.mjs" "$AGENT_DIR/extensions/subagent/worktree-setup.mjs"
 # The worktree setup hook is executed directly, so the exec bit has to survive the copy.
 chmod +x "$AGENT_DIR/extensions/subagent/worktree-setup.mjs"
+restore_agents
 
 # xAI/Grok support is retired. Remove the leftover config if an older restore
 # installed it; pi-xai-defaults no longer reads it.

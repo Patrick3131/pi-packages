@@ -23,7 +23,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-recap` - Session recap HTML: user questions with short, expandable answers (`/recap`, `/user-messages`)
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
 - `paseo-melon/` - Paseo workspace panel for Melon worktrees and previews (installed with `paseo plugin add`)
-- `configs/global` - Sanitized machine restore snapshot, native MCP preset/write policy, and subagent worktree setup hook (not a published package)
+- `configs/global` - Sanitized machine restore snapshot, reusable custom agent definitions, native MCP preset/write policy, and subagent worktree setup hook (not a published package)
 - Future extensions added to `packages/`
 
 ## Commands
