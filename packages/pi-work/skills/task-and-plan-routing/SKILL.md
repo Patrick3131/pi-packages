@@ -144,7 +144,7 @@ Implementation is responsible for setting all three files to `done`, updating `l
 
 ## Host notes
 
-Use the current host's tools. Delegation requires authorization in the request or applicable user/project instructions, not merely available tools. If authorized research or review materially improves the plan, use a bounded fresh-context child with exact paths, relevant local guidance, acceptance questions, and concise evidence. Keep decisions and document ownership with the parent; Pi may use existing builtin roles, never required project agents. Verify any package returned by a workflow or child against the repository before reporting readiness; its status line is not readiness evidence. Implementation host notes cover execution controls and recovery.
+Use the current host's tools. Delegation requires authorization in the request or applicable user/project instructions, not merely available tools. If authorized research or review materially improves the plan, use a bounded child with exact paths, relevant local guidance, acceptance questions, and concise evidence. Choose research/worker context per task: fork to reuse relevant current investigation and decisions; fresh for a self-contained brief or to avoid noisy/stale inherited history. Neither is the blanket worker preference. Independent reviewers remain fresh and read-only. Keep decisions and document ownership with the parent; Pi may use existing builtin roles, never required project agents. Verify any package returned by a workflow or child against the repository before reporting readiness; its status line is not readiness evidence. Implementation host notes cover execution controls and recovery.
 
 ## References
 

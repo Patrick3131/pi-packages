@@ -37,19 +37,26 @@ no maintained repository script is required. Older `workflowScript` and
 hosts. Verify the installed host's accepted form before dispatch.
 
 Supply bounded plain-data `args.slices`, each with a stable key, verb/behaviour
-label, verified source cwd, cold-start-complete task and artifact output path.
+label, verified source cwd, explicitly chosen `context` (`fresh` or `fork`),
+appropriately scoped task and artifact output path. Choose worker context using
+`delegated-execution.md`; do not hardcode fresh for the whole writer wave.
 Do not include secrets in persisted workflow args. `runs.all` returns an ordered
 array. The following is the reply's workflow block, after the parent verifies
 disjoint ownership/readiness:
 
 ```js workflow
 // Workflow body: parent-verified independent slices.
+for (const slice of args.slices) {
+  if (slice.context !== "fresh" && slice.context !== "fork") {
+    throw new Error("Choose fresh or fork explicitly for each worker slice.");
+  }
+}
 const results = await runs.all(args.slices.map((slice) => ({
   key: slice.key,
   label: slice.label,
   agent: "worker",
   cwd: slice.cwd,
-  context: "fresh",
+  context: slice.context,
   worktree: true,
   task: slice.task,
   output: slice.output

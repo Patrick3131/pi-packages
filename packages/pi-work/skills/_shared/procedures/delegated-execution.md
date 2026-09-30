@@ -13,11 +13,34 @@ publication, and ownership of the package documents. Children do not delegate.
 ## Children do not inherit skills
 
 Builtin `worker` and `reviewer` do not automatically inherit the parent's skills.
-Do not assume "follow implement-tdd-review-runner" loads its body. A worker brief
-must be cold-start complete: a fresh child cannot rely on the parent conversation
-or unstated package paths. Include relevant repository guidance even if the host
+Do not assume "follow implement-tdd-review-runner" loads its body. A fresh worker brief
+must be cold-start complete; a forked worker can use inherited investigation and
+needs the task delta rather than a duplicate background dump. Both need explicit
+package paths, ownership and acceptance boundaries. Include relevant repository guidance even if the host
 injects some project context. Pass the method it needs, or use an explicitly
 supported skill-loading mechanism.
+
+## Choose context per task
+
+There is no blanket fresh/fork preference for workers or research slices.
+Choose explicitly where supported; omitting the field can select a host/agent
+default rather than making a deliberate decision.
+
+- **Fork** when the parent already holds substantial relevant, current
+  investigation, decisions or state that the child can reuse, avoiding repeated
+  reads and reconstruction. It is useful even when inheritance is an efficiency
+  benefit rather than a strict dependency.
+- **Fresh** when a small self-contained brief is enough, the slice is unrelated
+  to most parent history, or inherited assumptions/history would introduce noise,
+  stale context or bias.
+- **Independent review** always uses fresh context and read-only tools; it must
+  not inherit the author's conclusions as its starting point.
+
+Weigh saved investigation against the amount of history carried: fork is not
+automatically faster or cheaper. Neither mode replaces checks of current files,
+exclusive ownership, permission boundaries or acceptance evidence. Verify host
+fork support and any context-pruning behaviour; if the selected mode is unavailable,
+report it and choose a supported alternative explicitly, not a silent fallback.
 
 ## Concise worker brief
 
@@ -39,8 +62,8 @@ Ask for pointers and concise evidence, never a copied transcript. Do not put per
 unless the operator explicitly requests a per-run model or applicable settings
 provide it; discover the exact supported provider/id before overriding. Reserve
 a max or extra-high thinking level for work that genuinely needs it or an
-explicit request, not as a default. Fork context only for a documented dependency
-on inherited state.
+explicit request, not as a default. Apply the context criteria above; do not
+require an inherited-state dependency merely to justify a useful fork.
 
 ## One writer per working directory
 

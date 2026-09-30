@@ -19,10 +19,15 @@ examines adequacy of evidence; a validation lane produces evidence.
 - Execute only the allowed checks. Do not add, delete, skip, or weaken a test,
   change or relax an expectation, refresh a snapshot, or reformat protected
   sources to make a check pass.
-- Do not make even a trivial source fix inside a validation-only task. Report the
-  failing check to the parent, which may authorise a separate bounded writer fix,
-  then rerun only affected checks. Never alter expected behaviour to turn red
-  evidence green.
+- Evidence lanes do not repair. A lane that edits what it is validating can no
+  longer prove an independent result, so a validation-only task makes no source
+  fix, however trivial. That separation is a deliberate, accepted tradeoff: a
+  trivial failure costs one round-trip instead of a silently self-certified run.
+  Keep the round-trip cheap by reporting the exact failing command, the failing
+  assertion or error, the smallest candidate fix with its path, and the single
+  command to rerun afterwards. The parent then authorises a separate bounded
+  writer and reruns only the affected checks. Never alter expected behaviour,
+  weaken an assertion, or refresh a snapshot to turn red evidence green.
 - Read/run commands can write caches, generated files, databases or snapshots.
   Identify allowed artifact paths and side effects before execution; use a
   disposable copy for unsafe checks or stop if their effects are unknown. Compare

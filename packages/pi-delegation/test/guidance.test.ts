@@ -57,6 +57,10 @@ test("keeps the parent-owned limits in the policy text", () => {
   assert.ok(DELEGATION_GUIDANCE.includes("Keep with the parent"));
   assert.ok(DELEGATION_GUIDANCE.includes("fresh-context"));
   assert.ok(DELEGATION_GUIDANCE.includes("read-only"));
+  assert.match(DELEGATION_GUIDANCE, /Choose worker\/research context per task/);
+  assert.match(DELEGATION_GUIDANCE, /Fork\nwhen relevant current parent investigation/);
+  assert.match(DELEGATION_GUIDANCE, /Independent reviewers remain\nfresh and read-only/);
+  assert.doesNotMatch(DELEGATION_GUIDANCE, /Use fresh context|Fork only for/);
   assert.ok(DELEGATION_GUIDANCE.includes("publication authority"));
   assert.doesNotMatch(DELEGATION_GUIDANCE, /work-item-(?:router|researcher|writer|reviewer)|test-validator|implement-tdd-review-\*/);
 });

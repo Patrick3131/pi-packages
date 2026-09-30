@@ -61,8 +61,12 @@ The check order is deliberate:
   builtin roles, subject to actual resolution and capability restrictions.
 - **No agent definitions or workflow engine.** This package carries policy only.
   Bounded worker/reviewer handoffs need no project phase agents or scripted
-  stages. Fresh-context concise evidence is the default; fork only for a
-  documented inherited-state dependency. Per-run deadline/checkpoint controls
+  stages. Worker/research context is chosen per task: fork can reuse relevant
+  current investigation and decisions to avoid repeated reading; fresh fits a
+  bounded brief or avoids noisy/stale inherited history. Neither is the blanket
+  worker preference. Independent reviewers remain fresh and read-only. Select
+  context explicitly where supported; inheritance does not widen authority or
+  replace current-file checks. Per-run deadline/checkpoint controls
   remain the installed host's responsibility, not global timeout changes.
 - **No phase restart recovery.** Inspect actual worktree, validation, and handoff
   state after failure, preserve completed work, and distinguish infrastructure

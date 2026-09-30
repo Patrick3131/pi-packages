@@ -10,7 +10,7 @@ agent loop, giving extensions the chance to replace it. This extension appends a
 short policy to that prompt when the `subagent` tool is active:
 
 - direct execution by default; delegation only when authorized by the current request or applicable user/project instructions, never tool availability alone;
-- bounded handoffs to existing builtin worker/reviewer/scout/researcher roles, with fresh concise context and evidence rather than required project phases;
+- bounded handoffs to existing builtin worker/reviewer/scout/researcher roles, with task-selected fresh or forked context and concise evidence rather than required project phases; fork may reuse current investigation to avoid repeated reads, while independent reviewers remain fresh and read-only;
 - parent-owned decisions, verification, acceptance, publication, and actual-state recovery after interruption.
 
 It returns `undefined` when the policy does not apply, which leaves the prompt

@@ -33,7 +33,9 @@ Delegate only when the current request or applicable user/project instructions a
 
 Use one bounded worker slice when it improves execution or isolation, and a fresh read-only reviewer when it adds independent evidence. Extra review lenses or parallel writers must earn their overhead through named risks and exclusive paths; keep one writer per working directory and one owner for the package documents. The parent retains decisions, integration, verification, final acceptance, and publication authority. Children do not delegate unless explicitly authorized.
 
-Give fresh children concise, cold-start-complete briefs: goal; repo/cwd/ref; exact owned paths and prohibited actions; relevant guidance and package paths; acceptance criteria; validation and its allowed scope; expected evidence; stop/escalation conditions. Builtin worker/reviewer children do not inherit these skills, so the brief must carry the method it needs. Ask for changed paths, commands and outcomes, findings, remaining work, and artifact pointers, not copied transcripts. Fork only for a documented dependency on inherited state.
+Choose worker context per task; neither fresh nor fork is the blanket preference. Fork when useful, current parent investigation and decisions would otherwise need to be reread or reconstructed; use fresh when a concise bounded brief is sufficient or inherited history is noisy, stale, or biasing. Independent reviewers remain fresh and read-only. Set the chosen context explicitly where supported rather than letting an omitted value select a host default.
+
+Give every child a concise brief: goal; repo/cwd/ref; exact owned paths and prohibited actions; relevant guidance and package paths; acceptance criteria; validation and its allowed scope; expected evidence; stop/escalation conditions. Fresh children need cold-start-complete context; forked workers need the delta and explicit slice boundaries, not a replay of already inherited investigation. Do not assume builtin roles load these skills automatically; pass relevant guidance or supported skill-loading inputs. Inherited context does not grant broader authority or prove current file state. Ask for changed paths, commands and outcomes, findings, remaining work, and artifact pointers, not copied transcripts.
 
 Details: `../_shared/procedures/delegated-execution.md`, `../_shared/procedures/scoped-validation.md`, `../_shared/procedures/review-lenses.md`, `../_shared/procedures/parallel-slices.md`, and `../_shared/procedures/integration.md`.
 
@@ -49,7 +51,7 @@ After interruption or failure, inspect the actual worktree/diff against the reco
 
 ## Host notes
 
-- Pi: use existing builtin `worker` / `reviewer` from pi-subagents; inspect installed role resolution and controls before launching. Direct `{ agent, task }` is sufficient for one child; prefer async and `context: "fresh"`. No project workflow files are needed.
+- Pi: use existing builtin `worker` / `reviewer` from pi-subagents; inspect installed role resolution and controls before launching. Direct `{ agent, task }` is sufficient for one child; prefer async. Choose `context: "fresh"` or `context: "fork"` deliberately for each worker using the criteria above; independent reviewers use `context: "fresh"`. Verify fork support and report an unavailable context instead of silently falling back. No project workflow files are needed.
 - On launches or resumes, explicitly set supported per-run elapsed deadline/checkpoint controls with finishing margin; consult the installed tool reference. Current Pi single-agent async launches support `timeoutMs` (alias `maxRuntimeMs`) and `checkpointBeforeDeadlineMs`; other run shapes or resumes may require an explicit steer after active tools return. Checkpoints report changed files, test state, remaining work, and publication state. Avoid hard tool-call caps for mutation work. Checkpoint delivery is best-effort; a timeout is not a mutation-safe boundary.
 - Optional: when the host supports a scripted multi-lane workflow, one launch can drive the same sequence. It is never required and the parent still verifies the result. Recipes: `../_shared/procedures/native-workflows.md`.
 - Non-Pi: execute directly or use the host's authorized worker/reviewer equivalents and supported controls. Do not claim unsupported Pi mechanics or successful delegation.
@@ -58,5 +60,6 @@ After interruption or failure, inspect the actual worktree/diff against the reco
 
 - Testing policy: `../_shared/testing-policy.md`
 - Procedures: `../_shared/procedures/`
+- Provenance and retirement rationale: `../_shared/capability-recovery.md`
 - Planning: `../task-and-plan-routing/SKILL.md`
 - Composition: `../plan-and-implement-runner/SKILL.md`

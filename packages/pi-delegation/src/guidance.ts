@@ -28,9 +28,17 @@ read-only. A single child is valid; additional review lenses or isolated paralle
 writers must earn their overhead through named risks and exclusive path ownership.
 Keep one writer per worktree; children do not delegate without explicit authority.
 
-Use fresh context with exact repo/cwd/ref, owned paths, relevant guidance,
-approved scope, acceptance criteria, validation, expected evidence, and stop rules.
-Fork only for a documented inherited-state dependency. Request concise changed
+Choose worker/research context per task, not a blanket fresh/fork default. Fork
+when relevant current parent investigation and decisions save repeated reading
+or reconstruction; use fresh when a bounded brief is sufficient or inherited
+history would add noise, stale assumptions, or bias. Independent reviewers remain
+fresh and read-only. Set the chosen context explicitly where supported; verify
+fork support rather than silently falling back. Every handoff includes exact
+repo/cwd/ref, owned paths, approved scope, acceptance criteria, validation,
+expected evidence, and stop rules. Fresh children need cold-start-complete
+guidance; forked workers need the delta and explicit boundaries. Inheritance
+grants no wider authority and does not replace checking current files.
+Request concise changed
 paths, commands/outcomes, findings, remaining work, and artifact references.
 Use supported per-run deadline/checkpoint controls explicitly on launches or
 resumes, with finishing margin; checkpoints after active tools return are

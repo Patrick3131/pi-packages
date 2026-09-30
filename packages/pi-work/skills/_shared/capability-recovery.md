@@ -6,7 +6,12 @@ This is a capability comparison, not proof that custom roles outperform builtins
 
 - Original Melon Labs planning, implementation and composite skills inspected at `bc30974b6` (`.shared-agents/skills/*/SKILL.md` plus planning `references/resume-invocation.md`). Repository-local policies in those originals are not portable defaults.
 - Original canonical simplified producer skills inspected at Pi Packages `0a558df` (`packages/pi-work/skills/`).
-- Historical source audit: 60 unique Markdown agent snapshots (18 filenames), six workflow variants. Reports and hashed originals were retained in `/tmp/shared-work-migration/agent-value-audit/`; these are local investigation evidence, not runtime dependencies. The matrix identifies the specific source seams below.
+- Historical inventory is reproducible from the repositories rather than from a retained report; the matrix below identifies the specific source seams. In `melon-labs`, `bc30974b6` is the last commit holding the complete pre-retirement set — `.pi/agents/*.md`, `.pi/workflows/*.js`, and `.shared-agents/skills/{task-and-plan-routing,implement-tdd-review-runner,plan-and-implement-runner}` — and `720633492` retires it. Distinct blob versions over that history are 76 `.pi/agents/*.md` across 20 filenames and 11 `.pi/workflows/*.js` across 3 filenames. Regenerate with:
+
+  ```bash
+  for p in .pi/agents .pi/workflows; do git log --format=%H -- "$p" | while read c; do git ls-tree -r "$c" -- "$p"; done | awk '{print $3}' | sort -u | wc -l; done
+  ```
+
 - Actual installed builtin worker/reviewer definitions: execution roles are sufficient when given explicit contracts; they do not automatically inherit parent skills. Tool availability and successful execution do not prove authority, readiness or acceptance.
 
 ## Old → simplified → recovered / retired

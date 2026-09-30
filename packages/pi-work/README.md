@@ -99,7 +99,7 @@ On `COMPLETE`, the implementation skill marks all three `done` and moves them to
 - the test plan records material risks, the cheapest proof for each risk, and what is intentionally not tested;
 - skills provide one host-neutral method, while templates provide a stable shape and the extension enforces readiness before handoff;
 - repositories own scope, commands, permissions, architecture, specialist skills, and feature-specific work locations; supplied package paths and `PI_WORK_*` overrides are preserved;
-- execution is direct by default. Only operator/instruction-authorized delegation uses bounded fresh-context builtin worker/reviewer handoffs; no scripts, phase agents, chains, registry, or new runtime are required. The parent verifies concise evidence and recovers from actual state rather than restarting completed phases.
+- execution is direct by default. Only operator/instruction-authorized delegation uses bounded builtin handoffs with task-selected worker context (fork to reuse useful current investigation, fresh for a self-contained brief or to avoid noisy history) and fresh read-only independent reviewers; no scripts, phase agents, chains, registry, or new runtime are required. The parent verifies concise evidence and recovers from actual state rather than restarting completed phases.
 
 The shared skills preserve operational detail without imposing a phase fleet. Small work stays direct; substantial independent slices can be implemented concurrently when authorised, then integrated and validated as one result. Detail is proportional to uncertainty and risk, not a fixed checklist of model calls.
 
