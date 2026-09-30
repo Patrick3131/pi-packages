@@ -2,7 +2,7 @@
  * Tests for crawl session retention / cleanup.
  */
 
-import { mkdirSync, writeFileSync, existsSync, rmSync, utimesSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import {
   cleanupCrawlSessions,
@@ -152,6 +152,23 @@ describe("cleanupCrawlSessions", () => {
 
     expect(result.deleted).toEqual(["old"]);
     expect(existsSync(join(TEST_ROOT, "old"))).toBe(true);
+  });
+
+  it("protects the returned session even when it alone exceeds the soft size cap", () => {
+    const returned = writeSession("returned", { timestamp: "2020-01-01T00:00:00Z", bodyBytes: 600000 });
+    writeSession("old", { timestamp: "2019-01-01T00:00:00Z", bodyBytes: 600000 });
+    const result = cleanupCrawlSessions(TEST_ROOT, { ...basePolicy, maxSessions: 1, maxAgeDays: 1, maxTotalMb: 0.1 }, { protectedPaths: [returned] });
+    expect(result.deleted).toEqual(["old"]); expect(existsSync(returned)).toBe(true);
+  });
+
+  it("never traverses escaped session symlinks or deletes malformed/unrelated directories", () => {
+    const owned = writeSession("owned", { timestamp: "2020-01-01T00:00:00Z" });
+    const outside = join(TEST_ROOT, "unrelated"); mkdirSync(outside);
+    writeFileSync(join(outside, "crawl-manifest.json"), "{}"); writeFileSync(join(outside, "keep.txt"), "keep");
+    symlinkSync(require("node:path").resolve(outside), join(TEST_ROOT, "escaped-session"));
+    symlinkSync(require("node:path").resolve(outside), join(owned, "escaped-data"));
+    cleanupCrawlSessions(TEST_ROOT, { ...basePolicy, maxAgeDays: 1 });
+    expect(existsSync(join(outside, "keep.txt"))).toBe(true); expect(existsSync(join(TEST_ROOT, "escaped-session"))).toBe(true);
   });
 
   it("ignores non-session directories", () => {

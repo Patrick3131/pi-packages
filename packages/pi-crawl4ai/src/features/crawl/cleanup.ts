@@ -11,8 +11,9 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  lstatSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export interface RetentionPolicy {
   /** Run cleanup automatically after saves. Default true. */
@@ -116,6 +117,12 @@ export function listCrawlSessions(outputDir: string): CrawlSessionInfo[] {
       continue;
     }
 
+    try {
+      if (!lstatSync(manifestPath).isFile()) continue;
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      if (!Array.isArray(manifest.files) || !Array.isArray(manifest.urls) || typeof manifest.timestamp !== "string") continue;
+      if (manifest.files.some((file: unknown) => typeof file !== "string" || file.includes("..") || file.startsWith("/"))) continue;
+    } catch { continue; }
     const timestamp = readManifestTimestamp(sessionPath);
     if (timestamp) {
       const parsed = Date.parse(timestamp);
@@ -150,18 +157,20 @@ function formatBytes(bytes: number): string {
 export function cleanupCrawlSessions(
   outputDir: string,
   policy: RetentionPolicy,
-  options?: { now?: Date; dryRun?: boolean }
+  options?: { now?: Date; dryRun?: boolean; protectedPaths?: string[] }
 ): CleanupResult {
   const now = options?.now ?? new Date();
   const dryRun = options?.dryRun === true;
   const sessions = listCrawlSessions(outputDir);
   const toDelete = new Map<string, string>(); // path -> reason
+  const protectedPaths = new Set(options?.protectedPaths?.map(path => resolve(path)) ?? []);
+  const canDelete = (session: CrawlSessionInfo) => !protectedPaths.has(resolve(session.path));
 
   // Age-based
   if (policy.maxAgeDays > 0) {
     const cutoff = now.getTime() - policy.maxAgeDays * 24 * 60 * 60 * 1000;
     for (const session of sessions) {
-      if (session.mtimeMs < cutoff) {
+      if (canDelete(session) && session.mtimeMs < cutoff) {
         toDelete.set(session.path, `older than ${policy.maxAgeDays}d`);
       }
     }
@@ -172,7 +181,7 @@ export function cleanupCrawlSessions(
     const remaining = sessions.filter((s) => !toDelete.has(s.path));
     if (remaining.length > policy.maxSessions) {
       for (const session of remaining.slice(policy.maxSessions)) {
-        toDelete.set(session.path, `exceeded maxSessions=${policy.maxSessions}`);
+        if (canDelete(session)) toDelete.set(session.path, `exceeded maxSessions=${policy.maxSessions}`);
       }
     }
   }
@@ -187,6 +196,7 @@ export function cleanupCrawlSessions(
     // Delete from oldest
     for (let i = remaining.length - 1; i >= 0 && total > maxBytes; i--) {
       const session = remaining[i];
+      if (!canDelete(session)) continue;
       toDelete.set(session.path, `exceeded maxTotalMb=${policy.maxTotalMb}`);
       total -= session.sizeBytes;
     }

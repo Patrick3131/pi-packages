@@ -6,7 +6,7 @@ A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed 
 
 | Package | Description | Distribution |
 |---------|-------------|--------------|
-| [pi-crawl4ai](./packages/pi-crawl4ai) | Web crawling with crawl4ai and proxy support | Git package |
+| [pi-crawl4ai](./packages/pi-crawl4ai) | Remote browser crawling, file-first reads, BM25 and optional Trafilatura/agents; server-managed egress | Git package |
 | [pi-work](./packages/pi-work) | Docs-as-work skills, `docs/work` scaffold, and `/work` browse-and-act wizard | Git package |
 | [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate | Git package |
 | [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
@@ -21,7 +21,12 @@ A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed 
 ### Install the complete Melon package repository
 
 Pi can manage this monorepo as one unpinned Git package. This installs the Melon extensions and the `pi-work` skills declared
-by the root manifest. The Paseo plugin is installed separately with
+by the root manifest. With pi-subagents installed, `pi.subagents.agents` also exposes
+`crawl4ai.scrape`, `crawl4ai.crawl` and `crawl4ai.extract`: inherited model,
+strict `crawl`/`crawl_read` tools, no bash or nested delegation. Discovery does not
+automatically load a foreground child's tool provider; see the
+[child setup and migration guide](./packages/pi-crawl4ai/README.md#optional-agents).
+The Paseo plugin is installed separately with
 `paseo plugin add Patrick3131/pi-packages:paseo-melon`:
 
 ```bash
@@ -49,6 +54,24 @@ keepalive retries, and Pi Web workspace plugin have been removed.
 `.pi/mcp-policy.json` explicitly grants MCP access by preset; nested codemode
 calls use the same permission checks. Reads are free, writes require an
 interactive confirmation, and unlisted presets cannot call MCP.
+
+### Crawling migration and runtime limits
+
+Crawls now save complete bodies by default, including small pages, and return
+exact paths for `crawl_read`. Explicit inline previews are bounded; `save: false`
+is the no-write opt-out and forfeits omitted-content recovery. BM25 retains
+pre-filter source, including valid empty selections. Optional Trafilatura uses
+configured local Python (`CRAWL4AI_TRAFILATURA_PYTHON`, trafilatura>=2,<3) on
+remote-rendered HTML and preserves raw HTML; native structure may be lost.
+
+`/crawl-on` and `/crawl-off` were removed: `/tools`, presets and explicit
+CLI/child allowlists own activation. `/crawl-status` checks health on demand,
+not at startup. HTTP abort may not stop remote browser work. Stock Crawl4AI 0.9.4 rejects untrusted deep strategies. The operator-managed
+`discovery-services` deployment now constructs a narrow bounded subset server-side;
+non-streaming depth/page/filter behavior passed the real Pi live suite. Other
+unmodified deployments can still return actionable unsupported errors. See the
+[package guide](./packages/pi-crawl4ai/README.md) for fixed caps, setup,
+unsupported-error guidance and source recovery.
 
 ### UI extension
 

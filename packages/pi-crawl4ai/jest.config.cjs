@@ -1,12 +1,11 @@
 /** @type {import('jest').Config} */
-const { join } = require('path');
-
 module.exports = {
   displayName: 'pi-crawl4ai',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/*.test.ts'],
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'js', 'mjs', 'json'],
+  transformIgnorePatterns: ['/node_modules/(?!typebox/)'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -14,8 +13,9 @@ module.exports = {
   ],
   coverageDirectory: '<rootDir>/coverage',
   transform: {
+    '^.+\\.mjs$': '<rootDir>/jest-esm-transform.cjs',
     '^.+\\.ts$': ['ts-jest', {
-      tsconfig: join(__dirname, 'tsconfig.json'),
+      tsconfig: require('path').join(__dirname, 'tsconfig.json'),
     }],
   },
   moduleNameMapper: {

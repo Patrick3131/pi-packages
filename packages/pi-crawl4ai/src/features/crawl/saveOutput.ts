@@ -2,8 +2,9 @@
  * Save crawl results to disk.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { mkdirSync, mkdtempSync, writeFileSync, renameSync, realpathSync } from "node:fs";
+import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
+import { createHash } from "node:crypto";
 import type { CrawlResult, CrawlFormat, MarkdownGenerationResult } from "./types";
 import {
   cleanupCrawlSessions,
@@ -33,7 +34,7 @@ export function getDefaultOutputDir(configDefault?: string): string {
 
 /**
  * Resolve the output directory from the save parameter.
- * - undefined/null → null (don't save)
+ * - undefined → default directory (file-first)
  * - true → use default directory
  * - string → use as custom path
  */
@@ -41,59 +42,59 @@ export function resolveOutputDir(
   save: boolean | string | undefined,
   configDefault?: string
 ): string | null {
-  if (save === undefined || save === false) {
-    return null;
-  }
-  if (save === true) {
+  if (save === false) return null;
+  if (save === true || save === undefined) {
     return getDefaultOutputDir(configDefault);
   }
   return save;
 }
 
 /**
- * Sanitize a URL to a safe filesystem path component.
- * 
- * Examples:
- * - https://example.com → example.com/index.md
- * - https://example.com/docs/api → example.com/docs/api.md
- * - https://example.com/search?q=test&page=1 → example.com/search_q_test_page_1.md
+ * A bounded readable slug plus the full-URL SHA-256 identifies queries, ports and protocols.
  */
 export function urlToFilePath(url: string, format: CrawlFormat): string {
+  const hash = createHash("sha256").update(url).digest("hex");
+  let slug = "unknown";
   try {
     const parsed = new URL(url);
-    
-    // Get path, remove leading slash, handle empty path
-    let path = parsed.pathname.slice(1);
-    if (!path || path === "/") {
-      path = "index";
+    slug = `${parsed.hostname}-${parsed.pathname === "/" ? "index" : parsed.pathname}`;
+  } catch { /* Invalid response URLs still get a safe unique filename. */ }
+  slug = slug.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 100);
+  const ext = format === "html" ? "html" : format === "text" ? "txt" : "md";
+  return `${slug}-${hash}.${ext}`;
+}
+
+export function createCrawlSession(outputDir: string, urls: string[]): string {
+  mkdirSync(outputDir, { recursive: true });
+  return mkdtempSync(join(resolve(outputDir), `${createSessionDirName(urls[0], new Date())}-`));
+}
+
+/** Generated and manifest paths must remain inside their real session, including symlinks. */
+export function containedArtifactPath(sessionDir: string, file: string): string {
+  const root = realpathSync(sessionDir);
+  const target = resolve(sessionDir, file);
+  const rel = relative(resolve(sessionDir), target);
+  if (isAbsolute(file) || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`Artifact path escapes session: ${file}`);
+  let existing = target;
+  while (true) {
+    try {
+      const real = realpathSync(existing);
+      const realRel = relative(root, real);
+      if (realRel === ".." || realRel.startsWith(`..${sep}`) || isAbsolute(realRel)) throw new Error(`Artifact symlink escapes session: ${file}`);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      existing = dirname(existing);
     }
-    
-    // Remove trailing slash
-    path = path.replace(/\/$/, "");
-    
-    // Add query string if present (sanitized)
-    if (parsed.search && parsed.search.length > 1) {
-      // Convert ?q=test&page=1 to _q_test_page_1
-      const sanitizedQuery = parsed.search
-        .slice(1) // Remove leading ?
-        .replace(/[=&?]/g, "_") // Replace special chars with underscore
-        .replace(/[^a-zA-Z0-9_\-./]/g, ""); // Remove other unsafe chars
-      path = `${path}_${sanitizedQuery}`;
-    }
-    
-    // Determine file extension
-    const ext = format === "html" ? "html" : "md";
-    
-    // Combine domain and path
-    const domain = parsed.hostname;
-    
-    return `${domain}/${path}.${ext}`;
-  } catch {
-    // Fallback for invalid URLs: hash-based filename
-    const hash = Buffer.from(url).toString("base64url").slice(0, 16);
-    const ext = format === "html" ? "html" : "md";
-    return `unknown/${hash}.${ext}`;
   }
+  return target;
+}
+
+export function writeCrawlArtifact(sessionDir: string, file: string, content: string): string {
+  const path = containedArtifactPath(sessionDir, file);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, content, { encoding: "utf8", flag: "wx" });
+  return path;
 }
 
 /**
@@ -110,7 +111,7 @@ export function formatContentForSave(
 
   switch (format) {
     case "html":
-      return result.html || "<!-- No HTML content -->";
+      return result.html ?? "";
     case "links": {
       const internal = result.links?.internal || [];
       const external = result.links?.external || [];
@@ -133,9 +134,9 @@ export function formatContentForSave(
         if (options?.preferFitMarkdown !== false && md.fit_markdown?.trim()) {
           return md.fit_markdown;
         }
-        return md.raw_markdown || "*No markdown content*";
+        return md.raw_markdown ?? "";
       }
-      return result.markdown || "*No markdown content*";
+      return result.markdown ?? "";
   }
 }
 
@@ -147,6 +148,10 @@ export interface CrawlManifestPage {
   file: string;
   outlineFile?: string;
   metaFile?: string;
+  sourceFile?: string;
+  rawHtmlFile?: string;
+  filter?: { query: string; threshold: number; matchedSectionCount: number; totalSections: number };
+  extractor?: { name: "trafilatura"; includeLinks: boolean };
   title?: string;
   charCount?: number;
   headingCount?: number;
@@ -188,7 +193,7 @@ export function createSessionDirName(startUrl: string, timestamp: Date): string 
   // Format timestamp as YYYY-MM-DDTHHMMSS (filesystem-safe ISO-ish)
   const ts = timestamp.toISOString().replace(/[:.]/g, "-").slice(0, 19);
   
-  return `${domain}-${ts}`;
+  return `${domain.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80)}-${ts}`;
 }
 
 /**
@@ -197,16 +202,17 @@ export function createSessionDirName(startUrl: string, timestamp: Date): string 
  * Creates a directory structure:
  * ```
  * outputDir/
- *   └── {domain}-{timestamp}/
- *       ├── crawl-manifest.json
- *       └── {domain}/
- *           └── {path}.md
+ *   └── {domain}-{timestamp}-{exclusive-suffix}/
+ *       ├── crawl-manifest.json (published last)
+ *       └── {bounded-slug}-{full-url-hash}.md
  * ```
  * 
  * @returns Path to the session directory, or null if save is disabled
  */
 export interface SaveCrawlOptions {
   preferFitMarkdown?: boolean;
+  sessionDir?: string;
+  artifacts?: Array<{ sourceContent?: string; rawHtmlFile?: string; filter?: CrawlManifestPage["filter"]; extractor?: CrawlManifestPage["extractor"] }>;
   /** When set and enabled, prune old sessions under outputDir after save. */
   retention?: RetentionPolicy;
 }
@@ -222,6 +228,12 @@ export interface SavedCrawlPage {
   metaFile?: string;
   outlinePath?: string;
   metaPath?: string;
+  sourceFile?: string;
+  sourcePath?: string;
+  rawHtmlFile?: string;
+  rawHtmlPath?: string;
+  filter?: CrawlManifestPage["filter"];
+  extractor?: CrawlManifestPage["extractor"];
 }
 
 export interface SaveCrawlResult {
@@ -264,11 +276,7 @@ export function saveCrawlResultsDetailed(
   options?: SaveCrawlOptions
 ): SaveCrawlResult {
   const timestamp = new Date();
-  const sessionDirName = createSessionDirName(urls[0], timestamp);
-  const sessionDir = join(outputDir, sessionDirName);
-  
-  // Create session directory
-  mkdirSync(sessionDir, { recursive: true });
+  const sessionDir = options?.sessionDir ?? createCrawlSession(outputDir, urls);
   
   const savedFiles: string[] = [];
   const pagePaths: SavedCrawlPage[] = [];
@@ -276,9 +284,10 @@ export function saveCrawlResultsDetailed(
   const savedAt = timestamp.toISOString();
   
   // Save each result (+ outline/meta sidecars for markdown)
-  for (const result of results) {
-    const relativePath = urlToFilePath(result.url, format);
-    const fullPath = join(sessionDir, relativePath);
+  for (const [index, result] of results.entries()) {
+    const basePath = urlToFilePath(result.url, format);
+    const relativePath = savedFiles.includes(basePath) ? `${index}-${basePath}` : basePath;
+    const fullPath = containedArtifactPath(sessionDir, relativePath);
     
     // Ensure parent directory exists
     const parentDir = dirname(fullPath);
@@ -288,7 +297,7 @@ export function saveCrawlResultsDetailed(
     const content = formatContentForSave(result, format, {
       preferFitMarkdown: options?.preferFitMarkdown !== false,
     });
-    writeFileSync(fullPath, content, "utf-8");
+    writeCrawlArtifact(sessionDir, relativePath, content);
     savedFiles.push(relativePath);
 
     const pageEntry: CrawlManifestPage = {
@@ -298,6 +307,18 @@ export function saveCrawlResultsDetailed(
       title: result.metadata?.title,
       charCount: content.length,
     };
+
+    const artifact = options?.artifacts?.[index];
+    if (artifact?.sourceContent !== undefined) {
+      pageEntry.sourceFile = `${relativePath}.source.${format === "text" ? "txt" : "md"}`;
+      writeCrawlArtifact(sessionDir, pageEntry.sourceFile, artifact.sourceContent);
+    }
+    if (artifact?.rawHtmlFile) {
+      containedArtifactPath(sessionDir, artifact.rawHtmlFile);
+      pageEntry.rawHtmlFile = artifact.rawHtmlFile;
+    }
+    pageEntry.filter = artifact?.filter;
+    pageEntry.extractor = artifact?.extractor;
 
     // Sidecars only for markdown-like saved content
     if (format === "markdown" || format === "links" || relativePath.endsWith(".md")) {
@@ -318,8 +339,8 @@ export function saveCrawlResultsDetailed(
         title: meta.title,
         content,
       });
-      writeFileSync(outlinePath, outline, "utf-8");
-      writeFileSync(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+      writeCrawlArtifact(sessionDir, outlineRelative, outline);
+      writeCrawlArtifact(sessionDir, metaRelative, JSON.stringify(meta, null, 2));
 
       pageEntry.outlineFile = outlineRelative;
       pageEntry.metaFile = metaRelative;
@@ -332,6 +353,12 @@ export function saveCrawlResultsDetailed(
       url: result.url,
       file: relativePath,
       path: fullPath,
+      sourceFile: pageEntry.sourceFile,
+      sourcePath: pageEntry.sourceFile ? join(sessionDir, pageEntry.sourceFile) : undefined,
+      rawHtmlFile: pageEntry.rawHtmlFile,
+      rawHtmlPath: pageEntry.rawHtmlFile ? join(sessionDir, pageEntry.rawHtmlFile) : undefined,
+      filter: pageEntry.filter,
+      extractor: pageEntry.extractor,
       outlineFile: pageEntry.outlineFile,
       metaFile: pageEntry.metaFile,
       outlinePath: pageEntry.outlineFile ? join(sessionDir, pageEntry.outlineFile) : undefined,
@@ -357,13 +384,14 @@ export function saveCrawlResultsDetailed(
   }
   
   const manifestPath = join(sessionDir, "crawl-manifest.json");
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+  const pendingManifest = writeCrawlArtifact(sessionDir, ".crawl-manifest.pending", JSON.stringify(manifest, null, 2));
+  renameSync(pendingManifest, manifestPath);
 
   let cleanup: CleanupResult | undefined;
   // Only run when caller passes retention (crawl tool always does from config).
   // Tests that only save fixtures can omit it to avoid policy side effects.
   if (options?.retention?.enabled) {
-    cleanup = cleanupCrawlSessions(outputDir, options.retention);
+    cleanup = cleanupCrawlSessions(outputDir, options.retention, { protectedPaths: [sessionDir] });
   }
   
   return {

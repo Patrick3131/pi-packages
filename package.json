@@ -28,7 +28,12 @@
     ],
     "skills": [
       "packages/pi-work/skills"
-    ]
+    ],
+    "subagents": {
+      "agents": [
+        "packages/pi-crawl4ai/agents"
+      ]
+    }
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^0.99.1",

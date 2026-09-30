@@ -4,14 +4,15 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { Type } from "@sinclair/typebox";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { Type } from "typebox";
+import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Crawl4AIConfig } from "../../config";
-import { getDefaultOutputDir } from "./saveOutput";
+import { getDefaultOutputDir, containedArtifactPath } from "./saveOutput";
+import { listCrawlSessions } from "./cleanup";
+import { capToolText } from "./tokenBudget";
 import {
   buildOutlineMarkdown,
   selectChunks,
-  truncateToBudget,
   windowLines,
   type PageMeta,
 } from "./outline";
@@ -88,7 +89,7 @@ export function resolveReadablePath(
 
 function findSessionRoot(filePath: string): string | undefined {
   let current = dirname(filePath);
-  for (let i = 0; i < 8; i++) {
+  while (true) {
     if (existsSync(join(current, MANIFEST_NAME))) return current;
     const parent = dirname(current);
     if (parent === current) break;
@@ -137,6 +138,7 @@ function readManifest(manifestPath: string): {
   error?: string;
 } {
   try {
+    containedArtifactPath(dirname(manifestPath), basename(manifestPath));
     const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf-8"));
     if (!parsed || typeof parsed !== "object") {
       return { error: `Invalid crawl manifest: ${manifestPath}` };
@@ -222,10 +224,7 @@ function listManifestPaths(outputRoot: string, cwd: string): string[] {
     }
     const directManifest = join(root, MANIFEST_NAME);
     if (existsSync(directManifest)) return [directManifest];
-    return readdirSync(root, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => join(root, entry.name, MANIFEST_NAME))
-      .filter((path) => existsSync(path));
+    return listCrawlSessions(root).map(session => join(session.path, MANIFEST_NAME));
   } catch {
     return [];
   }
@@ -257,7 +256,9 @@ function resolveManifestPage(
   }
 
   const sessionRoot = dirname(manifestPath);
-  const absolutePath = resolve(sessionRoot, page.file);
+  let absolutePath: string;
+  try { absolutePath = containedArtifactPath(sessionRoot, page.file); }
+  catch (error) { return { absolutePath: "", error: String(error) }; }
   if (!isPathInside(sessionRoot, absolutePath)) {
     return {
       absolutePath: "",
@@ -289,6 +290,7 @@ function formatValidArtifacts(outputRoot: string, cwd: string): string {
     for (const page of manifestPages(loaded.manifest)) {
       if (!page.file) continue;
       const pagePath = resolve(dirname(manifestPath), page.file);
+      try { containedArtifactPath(dirname(manifestPath), page.file); } catch { continue; }
       if (isPathInside(dirname(manifestPath), pagePath) && existsSync(pagePath)) {
         artifacts.push(displayPath(pagePath, cwd));
       }
@@ -296,7 +298,7 @@ function formatValidArtifacts(outputRoot: string, cwd: string): string {
   }
 
   if (artifacts.length === 0) {
-    return `No saved crawl-manifest.json or page files were found under ${displayPath(resolve(cwd, outputRoot), cwd)}. Inline results with save omitted or false are not recoverable from disk.`;
+    return `No saved crawl-manifest.json or page files were found under ${displayPath(resolve(cwd, outputRoot), cwd)}. Results explicitly requested with save=false are not recoverable from disk.`;
   }
 
   const shown = artifacts.slice(0, 50).map((path) => `- ${path}`);
@@ -327,7 +329,9 @@ function buildManifestOverview(
   for (const page of pages) {
     if (!page.file) continue;
     const pagePath = resolve(dirname(manifestPath), page.file);
-    lines.push(`- ${page.url ?? "(unknown URL)"} → ${displayPath(pagePath, cwd)}`);
+    try { containedArtifactPath(dirname(manifestPath), page.file); }
+    catch { continue; }
+    lines.push(`- ${page.url ?? "(unknown URL)"} → ${pagePath}`);
   }
 
   return lines.join("\n");
@@ -338,23 +342,29 @@ function loadSidecars(contentPath: string): {
   meta?: PageMeta;
   sessionManifest?: Record<string, unknown>;
 } {
-  const outlinePath = contentPath.replace(/\.md$/i, ".outline.md").replace(/\.html$/i, ".outline.md");
-  const metaPath = contentPath.replace(/\.md$/i, ".meta.json").replace(/\.html$/i, ".meta.json");
+  // Unsupported extensions (including native text) have no sidecar naming convention.
+  const sidecarBase = /\.(?:md|html)$/i.test(contentPath) ? contentPath.replace(/\.(?:md|html)$/i, "") : undefined;
+  const outlinePath = sidecarBase ? `${sidecarBase}.outline.md` : undefined;
+  const metaPath = sidecarBase ? `${sidecarBase}.meta.json` : undefined;
   const result: {
     outline?: string;
     meta?: PageMeta;
     sessionManifest?: Record<string, unknown>;
   } = {};
 
-  if (existsSync(outlinePath)) {
+  if (outlinePath && existsSync(outlinePath)) {
     try {
+      const root = findSessionRoot(contentPath) ?? dirname(contentPath);
+      containedArtifactPath(root, relative(root, outlinePath));
       result.outline = readFileSync(outlinePath, "utf-8");
     } catch {
       // ignore
     }
   }
-  if (existsSync(metaPath)) {
+  if (metaPath && existsSync(metaPath)) {
     try {
+      const root = findSessionRoot(contentPath) ?? dirname(contentPath);
+      containedArtifactPath(root, relative(root, metaPath));
       result.meta = JSON.parse(readFileSync(metaPath, "utf-8")) as PageMeta;
     } catch {
       // ignore
@@ -394,10 +404,11 @@ function formatChunksResult(options: {
       .join("\n");
   }
 
+  // Keep the exact path once in the footer; long source URLs must not consume the reading budget.
+  const shownUrl = url && url.length > 160 ? `${url.slice(0, 120)}… [abbreviated; full URL in saved metadata/manifest]` : url;
   const parts = [
     `# crawl_read chunks`,
-    `File: ${path}`,
-    url ? `URL: ${url}` : undefined,
+    shownUrl ? `URL: ${shownUrl}` : undefined,
     query ? `Query: ${query}` : undefined,
     `Showing ${chunks.length} section(s); file ${totalChars} chars; budget ${maxChars}.`,
     "",
@@ -434,6 +445,7 @@ function resolveCrawlReadReference(
     const contextManifest = requestedPath && !isUrlReference(requestedPath)
       ? manifestPathForReference(requestedPath, outputRoot, cwd)
       : undefined;
+    if (requestedPath && !isUrlReference(requestedPath) && !contextManifest) return { absolutePath: "", error: `Explicit crawl context not found: ${requestedPath}` };
     const manifestPaths = contextManifest
       ? [contextManifest]
       : listManifestPaths(outputRoot, cwd);
@@ -460,6 +472,8 @@ function resolveCrawlReadReference(
           manifest: loaded.manifest,
         };
       }
+      // A broken newest matching artifact must not silently become stale content.
+      if (manifestPages(loaded.manifest).some(record => record.url && urlsMatch(record.url, requestedUrl))) return { absolutePath: "", manifestPath, error: page.error };
       lastError = page.error;
     }
 
@@ -503,6 +517,23 @@ export function executeCrawlRead(
   params: CrawlReadParams,
   options: { outputRoot: string; cwd?: string }
 ): { text: string; details: Record<string, unknown> } {
+  for (const [name, value] of Object.entries({ maxChars: params.maxChars, offset: params.offset, limit: params.limit })) {
+    if (value !== undefined && (!Number.isFinite(value) || value < (name === "maxChars" ? 0 : 1))) throw new Error(`${name} must be finite and nonnegative (line ranges start at 1)`);
+  }
+  const result = executeCrawlReadContent(params, options);
+  const path = typeof result.details.path === "string" ? result.details.path : "";
+  const root = path && existsSync(path) ? findSessionRoot(path) : undefined;
+  const timestamp = root ? readManifest(join(root, MANIFEST_NAME)).manifest?.timestamp : undefined;
+  const rendered = (params.url || (params.path && isUrlReference(params.path))) && !result.details.error
+    ? `Chosen file: ${path}\nSaved at: ${typeof timestamp === "string" ? timestamp : "unknown (legacy)"}\n${result.text}` : result.text;
+  const text = capToolText(rendered, path, params.maxChars ?? DEFAULT_MAX_CHARS);
+  return { text, details: { ...result.details, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } };
+}
+
+function executeCrawlReadContent(
+  params: CrawlReadParams,
+  options: { outputRoot: string; cwd?: string }
+): { text: string; details: Record<string, unknown> } {
   const mode: CrawlReadMode = params.mode ?? (params.query ? "chunks" : "outline");
   const maxChars = params.maxChars ?? DEFAULT_MAX_CHARS;
   const cwd = options.cwd ?? process.cwd();
@@ -519,6 +550,9 @@ export function executeCrawlRead(
   const absolutePath = resolved.absolutePath;
   let content: string;
   try {
+    const root = findSessionRoot(absolutePath);
+    if (root) containedArtifactPath(root, relative(root, absolutePath));
+    else if (isPathInside(resolve(cwd, outputRoot), absolutePath)) containedArtifactPath(resolve(cwd, outputRoot), relative(resolve(cwd, outputRoot), absolutePath));
     content = readFileSync(absolutePath, "utf-8");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -535,11 +569,11 @@ export function executeCrawlRead(
     : loadSidecars(absolutePath);
   const url = sidecars.meta?.url;
   const title = sidecars.meta?.title;
-  const relDisplay = displayPath(absolutePath, cwd);
+  const relDisplay = absolutePath;
 
   if (isManifest && resolved.manifest && mode === "outline") {
     const overview = buildManifestOverview(absolutePath, resolved.manifest, cwd);
-    const capped = truncateToBudget(overview, maxChars);
+    const capped = { text: overview, truncated: false };
     return {
       text: capped.text,
       details: {
@@ -559,7 +593,7 @@ export function executeCrawlRead(
     const outline =
       sidecars.outline?.trim() ||
       buildOutlineMarkdown({ url, title, content });
-    const capped = truncateToBudget(outline, maxChars);
+    const capped = { text: outline, truncated: false };
     return {
       text: capped.text,
       details: {
@@ -590,7 +624,7 @@ export function executeCrawlRead(
       maxChars,
       totalChars: content.length,
     });
-    const capped = truncateToBudget(text, maxChars + 800); // allow small header overhead
+    const capped = { text, truncated: false };
     return {
       text: capped.text,
       details: {
@@ -629,7 +663,7 @@ export function executeCrawlRead(
     ]
       .filter(Boolean)
       .join("\n");
-    const capped = truncateToBudget(`${header}${windowed.text}`, maxChars);
+    const capped = { text: `${header}${windowed.text}`, truncated: false };
     return {
       text: capped.text,
       details: {
@@ -657,7 +691,7 @@ export function executeCrawlRead(
   ]
     .filter(Boolean)
     .join("\n");
-  const capped = truncateToBudget(`${header}${content}`, maxChars);
+  const capped = { text: `${header}${content}`, truncated: false };
   return {
     text: capped.text,
     details: {
@@ -675,7 +709,7 @@ export function executeCrawlRead(
 }
 
 export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig): void {
-  pi.registerTool({
+  pi.registerTool(defineTool({
     name: "crawl_read",
     label: "Read Crawl Output",
     description:
@@ -689,7 +723,7 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
     promptGuidelines: [
       "After a crawl that saved files, read crawl-manifest.json first or use an exact printed page path; never invent flattened filenames.",
       "You can pass a page URL in path, or pass url with a manifest/session path; missing paths are errors and list valid saved paths.",
-      "Start with mode=outline, then mode=chunks with a query for the specific question.",
+      "Use chunks with a query for focused reading; outline is optional, and window/full expose exact saved text.",
       "Use mode=window or mode=full only when you need exact text; full is hard-capped by maxChars.",
     ],
     parameters: Type.Object({
@@ -727,7 +761,7 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
       maxChars: Type.Optional(
         Type.Number({
           description: `Max characters returned (default ${DEFAULT_MAX_CHARS})`,
-          minimum: 500,
+          minimum: 0,
         })
       ),
       offset: Type.Optional(
@@ -744,10 +778,11 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
       ),
     }),
 
-    async execute(_toolCallId: string, params: CrawlReadParams) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      if (signal?.aborted) throw new Error("Crawl read cancelled");
       const result = executeCrawlRead(params, {
         outputRoot: config.raw.outputDir,
-        cwd: process.cwd(),
+        cwd: ctx?.cwd ?? process.cwd(),
       });
       if (result.details.error) {
         // Throw so Pi records missing paths as tool errors rather than successful
@@ -759,5 +794,5 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
         details: result.details,
       };
     },
-  } as any);
+  }));
 }

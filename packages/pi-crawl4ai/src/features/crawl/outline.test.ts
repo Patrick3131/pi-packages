@@ -2,6 +2,7 @@
  * Tests for outline / chunk helpers.
  */
 
+import { rankSections, splitMarkdownSections } from "./bm25";
 import {
   buildOutlineMarkdown,
   buildPageMeta,
@@ -33,6 +34,10 @@ Launch party photos and marketing fluff.
 `;
 
 describe("extractHeadings", () => {
+  it("ignores headings inside fenced code", () => {
+    expect(extractHeadings("# Real\n```md\n# Code\n```\n## Next").map((h) => h.title)).toEqual(["Real", "Next"]);
+  });
+
   it("finds ATX headings with line numbers", () => {
     const headings = extractHeadings(SAMPLE);
     expect(headings.map((h) => h.title)).toEqual([
@@ -88,6 +93,15 @@ describe("splitIntoSections / selectChunks", () => {
     expect(text.toLowerCase()).toContain("docker");
   });
 
+  it("returns no content for an exhausted budget and labels partial source ranges", () => {
+    expect(selectChunks({ markdown: SAMPLE, query: "docker", maxChars: 0 })).toEqual([]);
+    const excerpt = selectChunks({ markdown: "# Docker\n" + "docker ".repeat(200), query: "docker", maxChars: 120 });
+    expect(excerpt).toHaveLength(1);
+    expect(excerpt[0].text).toContain("excerpt");
+    expect(excerpt[0].text).toContain("L1–2");
+    expect(excerpt[0].text.length + 80).toBeLessThanOrEqual(120);
+  });
+
   it("returns early sections without query under budget", () => {
     const selected = selectChunks({
       markdown: SAMPLE,
@@ -97,7 +111,24 @@ describe("splitIntoSections / selectChunks", () => {
     expect(selected[0].startLine).toBeLessThanOrEqual(5);
   });
 
-  it("scores heading matches higher", () => {
+  it("uses the shared page corpus scores, positive Unicode matches and source ordering", () => {
+    const markdown = "café café\n\nunrelated paragraph\n\ncafé";
+    const selected = selectChunks({ markdown, query: "CAFÉ", maxChars: 2000 });
+    const expected = rankSections(splitMarkdownSections(markdown), "CAFÉ")
+      .filter((section) => section.score > 0).sort((a, b) => a.startLine - b.startLine);
+    expect(selected).toEqual(expected);
+    expect(selectChunks({ markdown, query: "absent", maxChars: 2000 })).toEqual([]);
+  });
+
+  it("selects the complete indented code block and original range for a headingless read query", () => {
+    const code = "    docker start\n\n    finish operation\n";
+    const selected = selectChunks({ markdown: `${code}\nOrdinary prose`, query: "docker", maxChars: 1000 });
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toMatchObject({ text: code, startLine: 1, endLine: 3 });
+    expect(selected[0].text).not.toContain("Ordinary prose");
+  });
+
+  it("scores term matches higher than unrelated content", () => {
     const sections = splitIntoSections(SAMPLE);
     const docker = sections.find((s) => s.heading === "Docker setup")!;
     const blog = sections.find((s) => s.heading === "Unrelated blog")!;
@@ -114,8 +145,15 @@ describe("windowLines / truncateToBudget", () => {
   });
 
   it("truncates over budget", () => {
-    const { text, truncated } = truncateToBudget("abcdefghij", 8);
+    const { text, truncated } = truncateToBudget("a".repeat(200), 80);
     expect(truncated).toBe(true);
     expect(text).toContain("truncated");
+    expect(text.length).toBeLessThanOrEqual(80);
+  });
+
+  it("treats zero/negative/tiny budgets as hard caps", () => {
+    expect(truncateToBudget("body", 0)).toEqual({ text: "", truncated: true });
+    expect(truncateToBudget("body", -1).text).toBe("");
+    expect(truncateToBudget("a".repeat(200), 8).text.length).toBeLessThanOrEqual(8);
   });
 });

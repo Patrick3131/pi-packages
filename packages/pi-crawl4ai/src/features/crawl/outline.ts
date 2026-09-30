@@ -2,6 +2,8 @@
  * Outline / chunk helpers for progressive crawl reads.
  */
 
+import { markdownHeadings, rankSections, splitMarkdownSections } from "./bm25";
+
 export interface Heading {
   level: number;
   title: string;
@@ -32,18 +34,7 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/;
 
 /** Extract markdown ATX headings with line numbers. */
 export function extractHeadings(markdown: string): Heading[] {
-  const lines = markdown.split(/\r?\n/);
-  const headings: Heading[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].match(HEADING_RE);
-    if (!match) continue;
-    headings.push({
-      level: match[1].length,
-      title: match[2].replace(/#+\s*$/, "").trim(),
-      line: i + 1,
-    });
-  }
-  return headings;
+  return markdownHeadings(markdown);
 }
 
 /** First non-empty, non-heading line after a heading (for outline previews). */
@@ -127,84 +118,12 @@ export function buildPageMeta(options: {
  * Content before the first heading becomes a preamble chunk.
  */
 export function splitIntoSections(markdown: string): ContentChunk[] {
-  const lines = markdown.split(/\r?\n/);
-  const headings = extractHeadings(markdown);
-  const chunks: ContentChunk[] = [];
-
-  if (headings.length === 0) {
-    const text = markdown.trim();
-    if (text) {
-      chunks.push({
-        id: "chunk-0",
-        startLine: 1,
-        endLine: lines.length,
-        text,
-        score: 0,
-      });
-    }
-    return chunks;
-  }
-
-  // Preamble before first heading
-  if (headings[0].line > 1) {
-    const preamble = lines.slice(0, headings[0].line - 1).join("\n").trim();
-    if (preamble) {
-      chunks.push({
-        id: "chunk-0",
-        heading: "(preamble)",
-        level: 0,
-        startLine: 1,
-        endLine: headings[0].line - 1,
-        text: preamble,
-        score: 0,
-      });
-    }
-  }
-
-  for (let i = 0; i < headings.length; i++) {
-    const start = headings[i].line; // 1-based
-    const end = i + 1 < headings.length ? headings[i + 1].line - 1 : lines.length;
-    const text = lines.slice(start - 1, end).join("\n").trim();
-    if (!text) continue;
-    chunks.push({
-      id: `chunk-${chunks.length}`,
-      heading: headings[i].title,
-      level: headings[i].level,
-      startLine: start,
-      endLine: end,
-      text,
-      score: 0,
-    });
-  }
-
-  return chunks;
+  return splitMarkdownSections(markdown);
 }
 
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^a-z0-9_./-]+/)
-    .filter((t) => t.length > 1);
-}
-
-/** Simple query relevance score for a chunk (keyword overlap + heading boost). */
+/** Compatibility helper for a single chunk; page ranking uses the complete corpus. */
 export function scoreChunk(chunk: ContentChunk, query: string): number {
-  const qTokens = [...new Set(tokenize(query))];
-  if (qTokens.length === 0) return 0;
-
-  const headingTokens = new Set(tokenize(chunk.heading ?? ""));
-  const bodyTokens = tokenize(chunk.text);
-  const bodySet = new Set(bodyTokens);
-
-  let score = 0;
-  for (const token of qTokens) {
-    if (headingTokens.has(token)) score += 3;
-    if (bodySet.has(token)) score += 1;
-    // light frequency signal
-    const freq = bodyTokens.filter((t) => t === token).length;
-    if (freq > 1) score += Math.min(freq - 1, 3) * 0.25;
-  }
-  return score;
+  return rankSections([chunk], query)[0].score;
 }
 
 /**
@@ -217,13 +136,11 @@ export function selectChunks(options: {
   maxChunks?: number;
 }): ContentChunk[] {
   const { markdown, query, maxChars, maxChunks = 8 } = options;
+  if (!Number.isFinite(maxChars) || maxChars <= 0 || maxChunks <= 0) return [];
   let chunks = splitIntoSections(markdown);
 
   if (query?.trim()) {
-    chunks = chunks
-      .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, query) }))
-      .filter((chunk) => chunk.score > 0)
-      .sort((a, b) => b.score - a.score || a.startLine - b.startLine);
+    chunks = rankSections(chunks, query).filter((chunk) => chunk.score > 0);
   }
 
   const selected: ContentChunk[] = [];
@@ -233,10 +150,12 @@ export function selectChunks(options: {
     const cost = chunk.text.length + 80; // heading overhead
     if (selected.length > 0 && used + cost > maxChars) break;
     if (selected.length === 0 && cost > maxChars) {
-      // always return something: truncated first chunk
+      const marker = `\n… [excerpt L${chunk.startLine}–${chunk.endLine}]`;
+      const available = Math.floor(maxChars) - 80;
+      if (available <= marker.length) break;
       selected.push({
         ...chunk,
-        text: `${chunk.text.slice(0, Math.max(0, maxChars - 20))}\n… [truncated]`,
+        text: `${chunk.text.slice(0, available - marker.length)}${marker}`,
       });
       break;
     }
@@ -266,10 +185,9 @@ export function windowLines(
 }
 
 export function truncateToBudget(text: string, maxChars: number): { text: string; truncated: boolean } {
-  if (maxChars <= 0 || text.length <= maxChars) {
-    return { text, truncated: false };
-  }
-  const marker = `\n\n… [truncated ${text.length} → ${maxChars} chars]`;
-  const bodyBudget = Math.max(0, maxChars - marker.length);
-  return { text: `${text.slice(0, bodyBudget)}${marker}`, truncated: true };
+  const cap = Number.isFinite(maxChars) ? Math.max(0, Math.floor(maxChars)) : 0;
+  if (text.length <= cap) return { text, truncated: false };
+  const marker = `\n\n… [truncated ${text.length} → ${cap} chars]`;
+  if (cap < marker.length) return { text: marker.slice(0, cap), truncated: true };
+  return { text: `${text.slice(0, cap - marker.length)}${marker}`, truncated: true };
 }

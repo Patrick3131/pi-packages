@@ -5,13 +5,13 @@
 /**
  * Output format for crawl results.
  */
-export type CrawlFormat = "markdown" | "html" | "links";
+export type CrawlFormat = "markdown" | "html" | "links" | "text";
 
 /**
  * How crawl bodies are returned to the model.
- * - auto: inline when small; files/index when large or multi-page deep crawl
- * - inline: always return page bodies (still subject to char budgets)
- * - files: save (unless save=false) and return a compact page index only
+ * - auto: complete files with compact references (inline only for save=false)
+ * - inline: bounded preview, still saved unless save=false
+ * - files: complete files and compact references (requires saving)
  */
 export type ReturnMode = "auto" | "inline" | "files";
 
@@ -60,6 +60,10 @@ export interface DeepCrawlConfig {
  * Parameters for the crawl tool.
  */
 export interface CrawlToolParams {
+  bm25Query?: string;
+  bm25Threshold?: number;
+  extractor?: "trafilatura";
+  includeLinks?: boolean;
   /** URLs to crawl (single or multiple) */
   urls: string[];
   /** Output format (default: markdown) */
@@ -74,7 +78,7 @@ export interface CrawlToolParams {
   deepCrawl?: DeepCrawlConfig;
   /**
    * Save results to disk.
-   * - undefined: don't save inline results; auto files mode may save when over budget
+   * - undefined: save complete results to the configured default root
    * - false: never save (including files mode)
    * - true: save to default directory (./output-crawl4ai or CRAWL4AI_OUTPUT_DIR)
    * - string: save to custom directory path
@@ -82,7 +86,7 @@ export interface CrawlToolParams {
   save?: boolean | string;
   /**
    * Control how page bodies are returned to the model.
-   * Default: auto (inline small results; files/index for large or deep crawls).
+   * Default: auto (files/index; inline when save=false).
    */
   returnMode?: ReturnMode;
   /** Override max characters of body content per page in the tool result. */

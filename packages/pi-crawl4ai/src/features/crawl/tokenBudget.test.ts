@@ -3,6 +3,15 @@
  */
 
 import type { CrawlResult } from "./types";
+jest.mock("@earendil-works/pi-coding-agent", () => {
+  const path = require("node:path");
+  const source = require("node:fs").readFileSync(path.resolve(__dirname, "../../../../../node_modules/@earendil-works/pi-coding-agent/dist/core/tools/truncate.js"), "utf8");
+  const module = { exports: {} };
+  new Function("module", "exports", require("esbuild").transformSync(source, { format: "cjs" }).code)(module, module.exports);
+  const truncate = module.exports;
+  return { ...truncate, defineTool: (tool: unknown) => tool };
+}, { virtual: true });
+
 import {
   DEFAULT_TOKEN_BUDGET,
   applyInlineBudgets,
@@ -15,6 +24,7 @@ import {
   slimResultDetails,
   toFormattedPages,
   truncateContent,
+  capToolText,
 } from "./tokenBudget";
 
 function makePage(url: string, content: string, depth = 0): CrawlResult {
@@ -75,8 +85,7 @@ describe("truncateContent / normalizeContent", () => {
     const { content, truncated, originalChars } = truncateContent("abcdefghij", 8);
     expect(truncated).toBe(true);
     expect(originalChars).toBe(10);
-    expect(content).toContain("truncated 10 → 8 chars");
-    expect(content.length).toBeLessThanOrEqual(8 + 40); // marker may slightly exceed tight cap
+    expect(content.length).toBeLessThanOrEqual(8);
   });
 
   it("collapses blank lines and strips images", () => {
@@ -125,10 +134,10 @@ describe("decideReturnMode", () => {
       saveRequested: undefined,
     });
     expect(decision.mode).toBe("files");
-    expect(decision.reason).toContain("maxCharsPerCall");
+    expect(decision.reason).toContain("file-first");
   });
 
-  it("stays inline for small single pages", () => {
+  it("saves even small single pages in auto mode", () => {
     const small = toFormattedPages(
       [makePage("https://a.com", "hello world")],
       "markdown",
@@ -142,11 +151,29 @@ describe("decideReturnMode", () => {
       maxCharsPerCall: 40_000,
       saveRequested: undefined,
     });
-    expect(decision.mode).toBe("inline");
+    expect(decision.mode).toBe("files");
+    expect(decision.autoSave).toBe(true);
   });
 });
 
 describe("applyInlineBudgets", () => {
+  it("zero, negative, tiny and exhausted budgets never become unlimited", () => {
+    for (const cap of [0, -1, 1, 10]) expect(truncateContent("x".repeat(100), cap).content.length).toBeLessThanOrEqual(Math.max(0, cap));
+    const pages = toFormattedPages([makePage("https://a.com", "x".repeat(100)), makePage("https://b.com", "y".repeat(100))], "markdown", DEFAULT_TOKEN_BUDGET);
+    expect(applyInlineBudgets(pages, 50, 50)[1].content).toBe("");
+  });
+
+  it("host byte/line caps retain an exact recovery pointer for multibyte/long output", () => {
+    const pointer = "/saved/session/crawl-manifest.json";
+    for (const content of ["文".repeat(100000), "line\n".repeat(5000)]) {
+      const capped = capToolText(content, pointer);
+      expect(Buffer.byteLength(capped)).toBeLessThanOrEqual(50 * 1024);
+      expect(capped.split("\n").length).toBeLessThanOrEqual(2000);
+      expect(capped).toContain(pointer);
+    }
+    expect(capToolText("content", pointer, 0)).toBe("");
+  });
+
   it("caps per page and total call budget", () => {
     const pages = toFormattedPages(
       [

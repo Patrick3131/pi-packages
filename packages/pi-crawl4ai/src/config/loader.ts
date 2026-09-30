@@ -23,7 +23,7 @@ export type {
 
 const DEFAULT_TOKEN_BUDGET: ResolvedTokenBudget = {
   maxCharsPerPage: 12_000,
-  maxCharsPerCall: 40_000,
+  maxCharsPerCall: 12_000,
   returnMode: "auto",
   preferFitMarkdown: true,
   deepCrawlDefaultMaxPages: 10,
@@ -121,11 +121,11 @@ function resolveApiToken(jsonConfig: Crawl4AIJsonConfig | null): string | undefi
 }
 
 export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): ResolvedConfig {
-  return {
+  const config: ResolvedConfig = {
     baseUrl: jsonConfig?.url
       ? resolveEnvVars(jsonConfig.url)
       : process.env.CRAWL4AI_BASE_URL || "http://localhost:11235",
-    timeout: jsonConfig?.timeoutMs || parseInt(process.env.CRAWL4AI_TIMEOUT || "60000", 10),
+    timeout: jsonConfig?.timeoutMs ?? resolveNumber(process.env.CRAWL4AI_TIMEOUT) ?? 60000,
     minRequestIntervalMs:
       jsonConfig?.minRequestIntervalMs !== undefined
         ? resolveNumber(jsonConfig.minRequestIntervalMs)
@@ -134,15 +134,25 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
     tokenBudget: resolveTokenBudget(jsonConfig),
     retention: resolveRetention(jsonConfig),
     outputDir: resolveOutputDir(jsonConfig),
+    trafilatura: { pythonPath: resolveEnvVars(jsonConfig?.trafilatura?.pythonPath ?? process.env.CRAWL4AI_TRAFILATURA_PYTHON ?? "") || undefined },
   };
+  const url = new URL(config.baseUrl);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("crawl4ai url must be HTTP(S) without embedded credentials");
+  config.baseUrl = config.baseUrl.replace(/\/+$/, "");
+  for (const [name, value] of Object.entries({ timeout: config.timeout, ...config.tokenBudget })) {
+    if (typeof value === "number" && (!Number.isFinite(value) || value <= 0)) throw new Error(`${name} must be positive and finite`);
+  }
+  if (!["auto", "inline", "files"].includes(config.tokenBudget.returnMode)) throw new Error("Invalid returnMode");
+  for (const [name, value] of Object.entries({ minRequestIntervalMs: config.minRequestIntervalMs, maxSessions: config.retention.maxSessions, maxAgeDays: config.retention.maxAgeDays, maxTotalMb: config.retention.maxTotalMb })) {
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error(`${name} must be nonnegative and finite`);
+  }
+  if (!Number.isInteger(config.tokenBudget.deepCrawlDefaultMaxPages) || !Number.isInteger(config.retention.maxSessions)) throw new Error("Page/session counts must be integers");
+  return config;
 }
 
 export function loadConfig(cwd?: string): ResolvedConfig {
   loadEnvFile(cwd);
   const configPath = findConfigFile(cwd);
   const jsonConfig = configPath ? loadJsonConfig(configPath) : null;
-  if (configPath && jsonConfig) {
-    console.log(`[pi-crawl4ai] Loaded config from ${configPath}`);
-  }
   return mergeConfigWithEnv(jsonConfig);
 }

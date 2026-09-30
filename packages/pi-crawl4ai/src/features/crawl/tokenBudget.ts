@@ -6,6 +6,22 @@
  */
 
 import { join } from "node:path";
+import { truncateHead, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
+
+/** Apply host byte/line limits after reserving an exact recovery reference. */
+export function capToolText(text: string, pointer = "", maxChars = Number.MAX_SAFE_INTEGER): string {
+  if (maxChars <= 0) return "";
+  const footer = pointer ? `\n\n[Output may be omitted. Full artifact: ${pointer}]` : "\n\n[Output omitted; save=true to recover complete content.]";
+  const capped = truncateHead(text.slice(0, maxChars), { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES });
+  if (!capped.truncated && text.length <= maxChars) return text;
+  const safeFooter = truncateHead(footer.slice(0, maxChars), { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES }).content;
+  const availableChars = Math.max(0, maxChars - safeFooter.length);
+  const body = truncateHead(text.slice(0, availableChars), {
+    maxBytes: Math.max(0, DEFAULT_MAX_BYTES - Buffer.byteLength(safeFooter)),
+    maxLines: Math.max(0, DEFAULT_MAX_LINES - safeFooter.split("\n").length),
+  }).content;
+  return body + safeFooter;
+}
 import type { CrawlFormat, CrawlResult, MarkdownGenerationResult } from "./types";
 
 export type ReturnMode = "auto" | "inline" | "files";
@@ -27,7 +43,7 @@ export interface TokenBudgetConfig {
 
 export const DEFAULT_TOKEN_BUDGET: TokenBudgetConfig = {
   maxCharsPerPage: 12_000,
-  maxCharsPerCall: 40_000,
+  maxCharsPerCall: 12_000,
   returnMode: "auto",
   preferFitMarkdown: true,
   deepCrawlDefaultMaxPages: 10,
@@ -56,6 +72,10 @@ export interface SavedPagePath {
   path: string;
   outlinePath?: string;
   metaPath?: string;
+  sourcePath?: string;
+  rawHtmlPath?: string;
+  filter?: { query: string; threshold: number; matchedSectionCount: number; totalSections: number };
+  extractor?: { name: "trafilatura"; includeLinks: boolean };
 }
 
 export interface SlimResultDetail {
@@ -114,13 +134,13 @@ export function extractMarkdownContent(
       return { content: md.fit_markdown, usedFitMarkdown: true };
     }
     return {
-      content: md.raw_markdown || "*No markdown content extracted*",
+      content: md.raw_markdown ?? "",
       usedFitMarkdown: false,
     };
   }
 
   return {
-    content: result.markdown || "*No markdown content extracted*",
+    content: result.markdown ?? "",
     usedFitMarkdown: false,
   };
 }
@@ -141,7 +161,7 @@ export function formatPageBody(
   switch (format) {
     case "html":
       return {
-        content: result.html || "*No HTML content extracted*",
+        content: result.html ?? "",
         usedFitMarkdown: false,
       };
     case "links": {
@@ -149,12 +169,10 @@ export function formatPageBody(
       const external = result.links?.external || [];
       const content = [
         `### Internal Links (${internal.length})`,
-        ...internal.slice(0, 50).map((l) => `- [${l.text}](${l.href})`),
-        internal.length > 50 ? `... and ${internal.length - 50} more` : "",
+        ...internal.map((l) => `- [${l.text}](${l.href})`),
         "",
         `### External Links (${external.length})`,
-        ...external.slice(0, 50).map((l) => `- [${l.text}](${l.href})`),
-        external.length > 50 ? `... and ${external.length - 50} more` : "",
+        ...external.map((l) => `- [${l.text}](${l.href})`),
       ]
         .filter(Boolean)
         .join("\n");
@@ -187,14 +205,13 @@ export function truncateContent(
   maxChars: number
 ): { content: string; truncated: boolean; originalChars: number } {
   const originalChars = content.length;
-  if (maxChars <= 0 || originalChars <= maxChars) {
-    return { content, truncated: false, originalChars };
-  }
+  if (maxChars <= 0) return { content: "", truncated: originalChars > 0, originalChars };
+  if (originalChars <= maxChars) return { content, truncated: false, originalChars };
 
   const marker = `\n\n… [truncated ${originalChars} → ${maxChars} chars]`;
   const bodyBudget = Math.max(0, maxChars - marker.length);
   return {
-    content: `${content.slice(0, bodyBudget)}${marker}`,
+    content: `${content.slice(0, bodyBudget)}${marker.slice(0, maxChars)}`,
     truncated: true,
     originalChars,
   };
@@ -239,54 +256,12 @@ export function decideReturnMode(options: {
   maxCharsPerCall: number;
   saveRequested: boolean | string | undefined;
 }): BudgetDecision {
-  const { requestedMode, pages, isDeepCrawl, urlCount, maxCharsPerCall, saveRequested } = options;
-  const totalChars = pages.reduce((sum, page) => sum + page.originalChars, 0);
-  const multiPage = pages.length > 1;
-  const manyUrls = urlCount > 3;
-
-  if (requestedMode === "files") {
-    return {
-      mode: "files",
-      reason: "returnMode=files",
-      autoSave: saveRequested !== false,
-    };
-  }
-
-  if (requestedMode === "inline") {
-    return {
-      mode: "inline",
-      reason: "returnMode=inline",
-      autoSave: Boolean(saveRequested),
-    };
-  }
-
-  // auto
-  if (isDeepCrawl && multiPage) {
-    return {
-      mode: "files",
-      reason: "deep crawl multi-page",
-      autoSave: saveRequested !== false,
-    };
-  }
-  if (manyUrls) {
-    return {
-      mode: "files",
-      reason: "more than 3 URLs",
-      autoSave: saveRequested !== false,
-    };
-  }
-  if (totalChars > maxCharsPerCall) {
-    return {
-      mode: "files",
-      reason: `total content ${totalChars} chars exceeds maxCharsPerCall ${maxCharsPerCall}`,
-      autoSave: saveRequested !== false,
-    };
-  }
-
+  const { requestedMode, saveRequested } = options;
+  if (requestedMode === "files" && saveRequested === false) throw new Error("returnMode=files requires saving; save=false is incompatible");
   return {
-    mode: "inline",
-    reason: "within budget",
-    autoSave: Boolean(saveRequested),
+    mode: requestedMode === "inline" || saveRequested === false ? "inline" : "files",
+    reason: saveRequested === false ? "save=false" : `returnMode=${requestedMode} (file-first)`,
+    autoSave: saveRequested !== false,
   };
 }
 
@@ -427,7 +402,12 @@ export function buildBudgetedToolText(options: {
           "## Saved page files",
           `*Manifest: ${manifestPath ?? joinSavedManifestPath(savedPath)}*`,
           "*Read crawl-manifest.json first with crawl_read, or use one of the exact page paths below. Do not invent flattened filenames.*",
-          ...(savedFiles ?? []).map((saved) => `- ${saved.url} → ${saved.path}`),
+          ...(savedFiles ?? []).slice(0, 20).flatMap((saved) => [
+            `- ${saved.url} → ${saved.path}`,
+            ...(saved.sourcePath ? [`  Original: ${saved.sourcePath}`] : []),
+            ...(saved.rawHtmlPath ? [`  Raw HTML: ${saved.rawHtmlPath}`] : []),
+            ...(saved.filter ? [`  BM25 query=${JSON.stringify(saved.filter.query)}, matched ${saved.filter.matchedSectionCount}/${saved.filter.totalSections} sections, threshold=${saved.filter.threshold}`] : []),
+          ]),
         ]
       : [];
     const notSavedNotice = savedPath
@@ -442,7 +422,8 @@ export function buildBudgetedToolText(options: {
       `*Totals: ${totalOriginalChars} chars across ${pages.length} pages.*`,
       "",
       "## Page index",
-      formatIndexSections(pages, rawResults, budget.excerptChars, isDeepCrawl, maxDepth),
+      formatIndexSections(pages.slice(0, 20), rawResults.slice(0, 20), Math.min(200, budget.excerptChars), isDeepCrawl, maxDepth),
+      pages.length > 20 ? `Only the first 20 entries are shown; see the complete manifest (${pages.length} pages).` : "",
       ...savedFileLines,
       "",
       savedPath
@@ -450,7 +431,7 @@ export function buildBudgetedToolText(options: {
         : "No crawl files exist for this result. Do not guess a path; re-crawl with save=true if progressive disk reads are needed.",
     ];
 
-    const text = lines.filter((line): line is string => line !== undefined).join("\n");
+    const text = capToolText(lines.filter((line): line is string => line !== undefined).join("\n"), manifestPath);
     return {
       text,
       totalOriginalChars,
@@ -466,9 +447,13 @@ export function buildBudgetedToolText(options: {
   // inline mode with budgets
   const budgeted = applyInlineBudgets(pages, budget.maxCharsPerPage, budget.maxCharsPerCall);
   const anyTruncated = budgeted.some((page) => page.truncated);
+  const provenance = (savedFiles ?? []).slice(0, 20).flatMap(saved => [
+    ...(saved.sourcePath ? [`Original: ${saved.sourcePath}`] : []),
+    ...(saved.rawHtmlPath ? [`Raw HTML: ${saved.rawHtmlPath}`] : []),
+  ]).join("\n");
   const saveNotice = savedPath
-    ? `\n\n*Results saved to: ${savedPath}${manifestPath ? `. Manifest: ${manifestPath}` : ""}*`
-    : "\n\n*Results were not saved to disk (save was omitted or false); inline content is not recoverable via crawl_read.*";
+    ? `\n\n*Results saved to: ${savedPath}${manifestPath ? `. Manifest: ${manifestPath}` : ""}*${provenance ? `\n${provenance}` : ""}`
+    : "\n\n*Results were not saved to disk (save=false); inline content is not recoverable via crawl_read. Use save=true to retain complete content.*";
   const truncationNote = anyTruncated
     ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content is in the saved session; read crawl-manifest.json first or use its exact page paths with crawl_read.` : " Truncated inline text is not recoverable from disk; re-crawl with save=true or higher budgets for full text."}*`
     : "";
@@ -480,7 +465,7 @@ export function buildBudgetedToolText(options: {
           .map((page, index) => `---\n## Result ${index + 1}: ${page.url}\n\n${page.content}`)
           .join("\n\n") + saveNotice + truncationNote;
 
-  const text = [executionSummary, "", body].join("\n");
+  const text = capToolText([executionSummary, "", body].join("\n"), manifestPath);
   const totalReturnedChars = budgeted.reduce((sum, page) => sum + page.returnedChars, 0);
 
   return {

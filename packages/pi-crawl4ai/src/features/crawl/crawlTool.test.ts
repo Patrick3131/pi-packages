@@ -1,1273 +1,361 @@
-/**
- * Tests for crawl tool
- */
+// The host is import-only ESM. Mock registration, but execute the installed host truncator.
+jest.mock("@earendil-works/pi-coding-agent", () => {
+  const path = require("node:path");
+  const source = require("node:fs").readFileSync(path.resolve(__dirname, "../../../../../node_modules/@earendil-works/pi-coding-agent/dist/core/tools/truncate.js"), "utf8");
+  const module = { exports: {} };
+  new Function("module", "exports", require("esbuild").transformSync(source, { format: "cjs" }).code)(module, module.exports);
+  return { ...module.exports, defineTool: (tool: unknown) => tool };
+}, { virtual: true });
 
-import { loadConfig } from '../../config';
-import { registerCrawlTool } from './crawlTool';
-import { resetRequestPacingState } from './requestPacing';
-import { mockFetch } from '../../test-utils';
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
-import { existsSync, rmSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mergeConfigWithEnv } from "../../configLoader";
+import type { Crawl4AIConfig } from "../../config";
+import { registerCrawlTool } from "./crawlTool";
+import { resetRequestPacingState } from "./requestPacing";
+import { mockFetch, restoreFetch, resetEnv } from "../../test-utils";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { CrawlResult, CrawlToolParams } from "./types";
+import { existsSync, rmSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { urlToFilePath } from "./saveOutput";
+import { MAX_RESPONSE_BYTES } from "./http";
 
-// Test directory for save functionality
-const TEST_SAVE_DIR = './__test_crawl_save__';
+const TEST_SAVE_DIR = "./__test_crawl_save__";
+const URL = "https://example.com";
+const PAGE: CrawlResult = { url: URL, success: true, markdown: "# Example\n\nThis is example content." };
+const registeredTools: any[] = [];
 
-function cleanupTestDir() {
-  try {
-    rmSync(TEST_SAVE_DIR, { recursive: true, force: true });
-  } catch {
-    // Ignore if doesn't exist
-  }
-}
-
-// Mock ExtensionAPI
-const createMockPi = () => {
-  const registeredTools: any[] = [];
-
-  return {
-    registeredTools,
-    registerTool: jest.fn((tool) => {
-      registeredTools.push(tool);
-    }),
-  } as unknown as ExtensionAPI & { registeredTools: any[] };
+// Consumed fields captured from the actual authenticated 0.9.4 cache-hit response
+// /tmp/crawl-contract-enabled-typed-2.json; no runtime dependency on that evidence file.
+const CACHED_RESPONSE_094 = {
+  success: true,
+  results: [{
+    url: "https://httpbin.org/base64/PGh0bWw+PGhlYWQ+PHRpdGxlPkFsbG93ZWQgY2hpbGQgbWFya2VyPC90aXRsZT48L2hlYWQ+PGJvZHk+PG1haW4+PGgxPkFsbG93ZWQgY2hpbGQgbWFya2VyPC9oMT48cD5JbnN0YWxsYXRpb24gZXh0ZW5zaW9uIGRvY3VtZW50YXRpb24gZGVzY3JpYmVzIGJyb3dzZXIgcmVuZGVyaW5nLCBjb25maWd1cmVkIGRlYWRsaW5lcyBhbmQgcmVwZWF0YWJsZSBzb3VyY2UgcmVjb3ZlcnkuIEluc3RhbGxhdGlvbiBleHRlbnNpb24gZG9jdW1lbnRhdGlvbiBkZXNjcmliZXMgYnJvd3NlciByZW5kZXJpbmcsIGNvbmZpZ3VyZWQgZGVhZGxpbmVzIGFuZCByZXBlYXRhYmxlIHNvdXJjZSByZWNvdmVyeS4gSW5zdGFsbGF0aW9uIGV4dGVuc2lvbiBkb2N1bWVudGF0aW9uIGRlc2NyaWJlcyBicm93c2VyIHJlbmRlcmluZywgY29uZmlndXJlZCBkZWFkbGluZXMgYW5kIHJlcGVhdGFibGUgc291cmNlIHJlY292ZXJ5LiA8L3A+PHAgaWQ9ImRlbGF5ZWQiPmJlZm9yZS1tYXJrZXI8L3A+PC9tYWluPjwvYm9keT48L2h0bWw+",
+    success: true,
+    html: '<html><head><title>Allowed child marker</title></head><body><main><h1>Allowed child marker</h1><p>Installation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. Installation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. Installation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. </p><p id="delayed">before-marker</p></main></body></html>',
+    links: { internal: [], external: [] },
+    metadata: { title: "Allowed child marker", description: null, keywords: null, author: null },
+    error_message: null,
+    status_code: null,
+    response_headers: { "content-type": "text/html; charset=utf-8", "content-length": "513" },
+    markdown: {
+      raw_markdown: "# Allowed child marker\nInstallation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. Installation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. Installation extension documentation describes browser rendering, configured deadlines and repeatable source recovery. \nbefore-marker\n",
+      markdown_with_citations: "", references_markdown: "", fit_markdown: "", fit_html: "",
+    },
+    cache_status: "hit", cached_at: 1790766044.9991624,
+    session_id: null, js_execution_result: null, redirected_status_code: null, crawl_stats: null,
+  }],
 };
 
-describe('registerCrawlTool', () => {
-  it('should register crawl tool with pi', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
+function createTool(timeout = 60000, mutate?: (config: Crawl4AIConfig) => void) {
+  const raw = mergeConfigWithEnv({ outputDir: TEST_SAVE_DIR, retention: { enabled: false } });
+  const config: Crawl4AIConfig = { baseUrl: raw.baseUrl, timeout, apiToken: raw.apiToken, raw };
+  mutate?.(config);
+  const pi = { registerTool: (tool: unknown) => registeredTools.push(tool) } as unknown as ExtensionAPI;
+  registerCrawlTool(pi, config);
+  return registeredTools.at(-1);
+}
+function respond(results: CrawlResult[] = [PAGE]) { return mockFetch({ data: { success: true, results } }); }
+function invoke(params: Partial<CrawlToolParams> = {}, tool = createTool(), signal?: AbortSignal, ctx = { cwd: process.cwd() }) {
+  return tool.execute("id", { urls: [URL], ...params }, signal, undefined, ctx);
+}
 
-    registerCrawlTool(mockPi, config);
+beforeEach(() => { resetEnv(); resetRequestPacingState(); registeredTools.length = 0; });
+afterEach(() => { rmSync(TEST_SAVE_DIR, { recursive: true, force: true }); restoreFetch(); jest.useRealTimers(); });
 
-    expect(mockPi.registerTool).toHaveBeenCalledTimes(1);
-    expect(mockPi.registerTool).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'crawl',
-        label: 'Crawl Website',
-      })
-    );
+describe("crawl reliability regressions", () => {
+  it("saves a tiny complete page by default and returns references", async () => {
+    respond([{ ...PAGE, markdown: "# Tiny\n\nbody" }]);
+    const result = await invoke();
+    expect(result.details.returnMode).toBe("files");
+    expect(readFileSync(result.details.savedFiles[0].path, "utf8")).toBe("# Tiny\n\nbody");
+    expect(result.content[0].text).toContain(result.details.manifestPath);
   });
-
-  it('should have correct parameter schema', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
-
-    registerCrawlTool(mockPi, config);
-
-    const tool = mockPi.registeredTools[0];
-    expect(tool.parameters).toBeDefined();
+  it("accepts the authentic 0.9.4 cached response with nullable optional fields", async () => {
+    mockFetch({ data: CACHED_RESPONSE_094 });
+    const result = await invoke({ urls: [CACHED_RESPONSE_094.results[0].url] });
+    expect(result.details.results[0]).toMatchObject({ success: true, title: "Allowed child marker" });
+    expect(result.details.results[0].statusCode).toBeUndefined();
+    expect(result.details.results[0].errorMessage).toBeUndefined();
+    expect(readFileSync(result.details.savedFiles[0].path, "utf8")).toBe(CACHED_RESPONSE_094.results[0].markdown.raw_markdown);
   });
-
-  it('should include deepCrawl parameter in schema', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
-
-    registerCrawlTool(mockPi, config);
-
-    const tool = mockPi.registeredTools[0];
-    expect(tool.parameters).toBeDefined();
-    // Check that deepCrawl is an optional object parameter
-    expect(tool.parameters.properties.deepCrawl).toBeDefined();
+  it("normalizes nullable optional Markdown, metadata and header values without requiring fit content", async () => {
+    const cached = CACHED_RESPONSE_094.results[0];
+    mockFetch({ data: { success: true, results: [{ ...cached, response_headers: null, metadata: { title: null, depth: null, parent_url: null }, markdown: { ...cached.markdown, fit_markdown: null, fit_html: null } }] } });
+    const result = await invoke({ save: false });
+    expect(result.content[0].text).toContain("Allowed child marker");
+    expect(result.details.results[0].statusCode).toBeUndefined();
+    expect(result.details.results[0].depth).toBeUndefined();
+    expect(result.details.results[0].parentUrl).toBeUndefined();
   });
-
-  it('should describe progressive saved output', () => {
-    const mockPi = createMockPi();
-    const config = loadConfig();
-
-    registerCrawlTool(mockPi, config);
-
-    const tool = mockPi.registeredTools[0];
-    expect(tool.promptSnippet).toContain('index');
-    expect(tool.promptSnippet).toContain('crawl_read');
-    expect(tool.promptGuidelines).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('crawl-manifest.json'),
-        expect.stringContaining('crawl_read'),
-      ])
-    );
+  it.each([
+    { url: null }, { success: null }, { error_message: {} }, { status_code: "200" },
+    { status_code: 200.5 }, { metadata: [] }, { response_headers: [] },
+    { markdown: { raw_markdown: null } }, { markdown: { raw_markdown: "body", fit_markdown: {} } },
+  ])("does not weaken cached-response validation for malformed fields %j", async override => {
+    mockFetch({ data: { success: true, results: [{ ...CACHED_RESPONSE_094.results[0], ...override }] } });
+    await expect(invoke({ save: false })).rejects.toThrow(/Malformed/);
   });
-});
-
-describe('crawl tool execute', () => {
-  let mockPi: ExtensionAPI & { registeredTools: any[] };
-  let toolExecute: any;
-
-  beforeEach(() => {
-    resetRequestPacingState();
-    mockPi = createMockPi();
-    const config = loadConfig();
-    registerCrawlTool(mockPi, config);
-    toolExecute = mockPi.registeredTools[0].execute;
+  it("rejects files plus no-save before a network request", async () => {
+    const fetchMock = respond();
+    await expect(invoke({ save: false, returnMode: "files" })).rejects.toThrow("save=false");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
-
-  it('should return cancelled result when signal is aborted', async () => {
+  it("treats all failed pages as a real error", async () => {
+    respond([{ url: URL, success: false, error_message: "broken" }]);
+    await expect(invoke()).rejects.toThrow("broken");
+  });
+  it("enforces the deadline even when headers never arrive", async () => {
+    const fetchMock = jest.fn(() => new Promise(() => {}));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(invoke({}, createTool(25))).rejects.toThrow(/deadline|timed out/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("pre-abort makes no POST", async () => {
+    const fetchMock = respond();
+    const controller = new AbortController(); controller.abort();
+    await expect(invoke({}, createTool(), controller.signal)).rejects.toThrow(/cancelled/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("cancels a pending body and removes caller listeners", async () => {
     const controller = new AbortController();
+    const remove = jest.spyOn(controller.signal, "removeEventListener");
+    const cancel = jest.fn();
+    global.fetch = jest.fn(async () => new Response(new ReadableStream({ cancel }))) as typeof fetch;
+    const pending = invoke({}, createTool(), controller.signal);
+    await new Promise(resolve => setTimeout(resolve, 10));
     controller.abort();
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      controller.signal,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toBe('Crawl cancelled');
-    expect(result.details.cancelled).toBe(true);
+    await expect(pending).rejects.toThrow(/cancelled/);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+    respond(); await expect(invoke({ save: false })).resolves.toBeDefined();
   });
-
-  it('should call crawl4ai API with correct payload', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: '# Example\n\nThis is example content.',
-          },
-        ],
-      },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:11235/crawl',
-      expect.objectContaining({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-    );
-
-    const call = fetchMock.mock.calls[0];
-    const body = JSON.parse(call[1].body);
-    expect(body.urls).toEqual(['https://example.com']);
+  it("body reading and queued pacing share the configured deadline", async () => {
+    const cancel = jest.fn();
+    global.fetch = jest.fn(async () => new Response(new ReadableStream({ cancel }))) as typeof fetch;
+    await expect(invoke({}, createTool(25))).rejects.toThrow(/deadline/);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    const tool = createTool(25, config => { config.raw.minRequestIntervalMs = 5000; });
+    const fetchMock = respond();
+    await invoke({ save: false }, tool);
+    await expect(invoke({ save: false }, tool)).rejects.toThrow(/deadline/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    resetRequestPacingState(); await expect(invoke({ save: false }, tool)).resolves.toBeDefined();
   });
-
-  it('should send Authorization Bearer when apiToken is configured', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [{ url: 'https://example.com', success: true, markdown: 'ok' }],
-      },
-    });
-
-    const localMockPi = createMockPi();
-    const config = loadConfig();
-    config.apiToken = 'test-api-token';
-    config.raw.apiToken = 'test-api-token';
-    registerCrawlTool(localMockPi, config);
-    const execute = localMockPi.registeredTools[0].execute;
-
-    await execute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:11235/crawl',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer test-api-token',
-        },
-      })
-    );
+  it.each([
+    { success: true }, { success: true, results: [] }, { success: true, results: [{}] },
+    { success: true, results: [{ ...PAGE, markdown: 10 }] },
+    { success: true, results: [{ ...PAGE, links: { internal: "wrong", external: [] } }] },
+  ])("rejects malformed response %j", async data => {
+    mockFetch({ data }); await expect(invoke()).rejects.toThrow(/Malformed/);
   });
-
-  it('should return markdown content on success', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: '# Example\n\nThis is example content.',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], format: 'markdown' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('*Execution:*');
-    expect(result.content[0].text).toContain('egress=server-managed');
-    expect(result.content[0].text).toContain('# Example');
-    expect(result.content[0].text).toContain('This is example content.');
-    expect(result.details.format).toBe('markdown');
-    expect(result.details.results).toHaveLength(1);
-    expect(result.details.execution).toEqual({
-      egress: 'server-managed',
-    });
+  it("rejects unsuccessful envelopes and invalid JSON", async () => {
+    mockFetch({ data: { success: false, results: [] } }); await expect(invoke()).rejects.toThrow("Crawl request failed");
+    mockFetch({ text: "not JSON" }); await expect(invoke()).rejects.toThrow("JSON");
   });
-
-  it('should handle MarkdownGenerationResult object from API', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: {
-              raw_markdown: '# Example\n\nThis is example content.',
-              markdown_with_citations: '# Example\n\nThis is example content.⟨1⟩',
-              references_markdown: '\n## References\n\n⟨1⟩ https://example.com\n',
-              fit_markdown: '# Example\n\nFiltered content.',
-              fit_html: '<h1>Example</h1>',
-            },
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], format: 'markdown' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    // Prefer fit_markdown when available (token-budget default)
-    expect(result.content[0].text).toContain('# Example');
-    expect(result.content[0].text).toContain('Filtered content.');
-    expect(result.content[0].text).not.toContain('This is example content.');
-    expect(result.content[0].text).not.toContain('[object Object]');
-    expect(result.details.format).toBe('markdown');
-    expect(result.details.results[0].usedFitMarkdown).toBe(true);
+  it("reports partial results and redacts diagnostics", async () => {
+    const tool = createTool(60000, config => { config.apiToken = "secret-token"; });
+    respond([PAGE, { url: `${URL}/bad`, success: false, error_message: "Bearer secret-token" }]);
+    const result = await invoke({}, tool);
+    expect(result.details.partial).toBe(true);
+    expect(result.content[0].text).toContain("Partial results");
+    expect(JSON.stringify(result)).not.toContain("secret-token");
+    expect(result.details.results[1].success).toBe(false);
   });
-
-  it('should return HTML content when format is html', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            html: '<html><body>Example</body></html>',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], format: 'html' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('<html>');
-    expect(result.details.format).toBe('html');
+  it("HTTP errors are bounded/redacted and never retried", async () => {
+    const tool = createTool(60000, config => { config.apiToken = "secret-token"; });
+    const fetchMock = mockFetch({ ok: false, status: 500, text: "Bearer secret-token " + "x".repeat(5000) });
+    const error = await invoke({}, tool).catch((error: Error) => error);
+    expect(error.message).toContain("crawl4ai API error");
+    expect(error.message).not.toContain("secret-token");
+    expect(error.message.length).toBeLessThan(2100);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-
-  it('should return links when format is links', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            links: {
-              internal: [
-                { href: '/about', text: 'About' },
-                { href: '/contact', text: 'Contact' },
-              ],
-              external: [
-                { href: 'https://external.com', text: 'External' },
-              ],
-            },
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], format: 'links' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('Internal Links');
-    expect(result.content[0].text).toContain('/about');
-    expect(result.content[0].text).toContain('External Links');
-    expect(result.details.format).toBe('links');
+  it("surfaces the actual untrusted deep strategy rejection without bypass", async () => {
+    const fetchMock = mockFetch({ ok: false, status: 400, text: "Rejected config: type 'BFSDeepCrawlStrategy' may not be constructed from an untrusted request" });
+    await expect(invoke({ deepCrawl: { maxDepth: 2 } })).rejects.toThrow("This server rejects deep-crawl configuration");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-
-  it('should handle multiple URLs', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: 'Content from example.com',
-          },
-          {
-            url: 'https://other.com',
-            success: true,
-            markdown: 'Content from other.com',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com', 'https://other.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('Result 1');
-    expect(result.content[0].text).toContain('Result 2');
-    expect(result.details.results).toHaveLength(2);
+  it("bounds streamed response bytes", async () => {
+    const cancel = jest.fn();
+    global.fetch = jest.fn(async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array(MAX_RESPONSE_BYTES)); controller.enqueue(new Uint8Array(1)); }, cancel,
+    }))) as typeof fetch;
+    await expect(invoke()).rejects.toThrow("20 MiB");
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
-
-  it('should handle crawl errors gracefully', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: false,
-            error_message: 'Failed to load page',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('Error');
-    expect(result.content[0].text).toContain('Failed to load page');
+  it.each([
+    { urls: ["file:///etc/passwd"] }, { waitFor: NaN }, { maxCharsPerCall: 0 },
+    { deepCrawl: { maxDepth: 1.5 } }, { urls: [URL, `${URL}/other`], deepCrawl: { maxDepth: 2 } },
+    { deepCrawl: { maxDepth: 2, scoreThreshold: 0.1 } },
+    { bm25Threshold: 1 }, { bm25Query: " " }, { bm25Query: "docs", format: "html" },
+    { bm25Query: "docs", deepCrawl: { maxDepth: 2 } }, { bm25Query: "docs", urls: [URL, `${URL}/two`] },
+    { format: "text" }, { includeLinks: true }, { extractor: "trafilatura", save: false },
+  ] as Partial<CrawlToolParams>[])('preflights incompatible/invalid params %j', async params => {
+    const fetchMock = respond(); await expect(invoke(params)).rejects.toThrow(); expect(fetchMock).not.toHaveBeenCalled();
   });
-
-  it('should throw on API error', async () => {
-    mockFetch({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      text: 'Server error',
-    });
-
-    await expect(
-      toolExecute(
-        'tool-call-id',
-        { urls: ['https://example.com'] },
-        undefined,
-        undefined,
-        {}
-      )
-    ).rejects.toThrow('crawl4ai API error');
-  });
-
-  it('should throw on unsuccessful response', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: false,
-        results: [],
-      },
-    });
-
-    await expect(
-      toolExecute(
-        'tool-call-id',
-        { urls: ['https://example.com'] },
-        undefined,
-        undefined,
-        {}
-      )
-    ).rejects.toThrow('Crawl request failed');
-  });
-
-  it('should include waitFor in crawler config', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], waitFor: 2000 },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.wait_for).toContain('2000');
-  });
-
-  it('should include jsCode in crawler config', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], jsCode: 'document.querySelector(".btn").click()' },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.js_code).toContain('document.querySelector(".btn").click()');
-  });
-
-  it('should set cache bypass when bypassCache is true', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], bypassCache: true },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.cache_mode).toBe('BYPASS');
-  });
-
-
-  it('should omit client-side browser configuration', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.browser_config).toBeUndefined();
-  });
-
-  it('should apply global request pacing between calls', async () => {
-    jest.useFakeTimers();
-
-    try {
-      const localMockPi = createMockPi();
-      const config = loadConfig();
-      config.raw.minRequestIntervalMs = 5000;
-      registerCrawlTool(localMockPi, config);
-      const execute = localMockPi.registeredTools[0].execute;
-
-      const fetchMock = mockFetch({ ok: true, data: { success: true, results: [] } });
-
-      await execute('tool-call-id-1', { urls: ['https://example.com'] }, undefined, undefined, {});
-      const secondCall = execute('tool-call-id-2', { urls: ['https://example.com'] }, undefined, undefined, {});
-
-      await Promise.resolve();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      await jest.advanceTimersByTimeAsync(4999);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      await jest.advanceTimersByTimeAsync(1);
-      const result = await secondCall;
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-      expect(result.content[0].text).toContain('*Execution:*');
-      expect(result.details.minRequestIntervalMs).toBe(5000);
-      expect(result.details.rateLimitWaitedMs).toBe(5000);
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
 });
 
-describe('crawl tool deep crawl', () => {
-  let mockPi: ExtensionAPI & { registeredTools: any[] };
-  let toolExecute: any;
-
-  beforeEach(() => {
-    mockPi = createMockPi();
-    const config = loadConfig();
-    registerCrawlTool(mockPi, config);
-    toolExecute = mockPi.registeredTools[0].execute;
+describe("crawl public contract and transport", () => {
+  it("registers a typed schema, progressive guidance and BM25/extractor options", () => {
+    const tool = createTool();
+    expect(tool.name).toBe("crawl"); expect(tool.parameters.properties.deepCrawl).toBeDefined();
+    expect(tool.parameters.properties.bm25Query).toBeDefined(); expect(tool.parameters.properties.extractor).toBeDefined();
+    expect(tool.promptSnippet).toContain("index"); expect(tool.promptSnippet).toContain("crawl_read");
   });
-
-  it('should throw error when deep crawl is used with multiple URLs', async () => {
-    await expect(
-      toolExecute(
-        'tool-call-id',
-        {
-          urls: ['https://example.com', 'https://other.com'],
-          deepCrawl: { maxDepth: 2 }
-        },
-        undefined,
-        undefined,
-        {}
-      )
-    ).rejects.toThrow('Deep crawling requires exactly one start URL');
-  });
-
-  it('should include deep_crawl_strategy in crawler config', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy).toBeDefined();
-    expect(body.crawler_config.deep_crawl_strategy.type).toBe('BFSDeepCrawlStrategy');
-    expect(body.crawler_config.deep_crawl_strategy.params.max_depth).toBe(2);
-    expect(body.crawler_config.deep_crawl_strategy.params.max_pages).toBe(10);
-    expect(body.crawler_config.deep_crawl_strategy.params.include_external).toBe(false);
-  });
-
-  it('should use DFS strategy when specified', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 3, strategy: 'dfs' }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy.type).toBe('DFSDeepCrawlStrategy');
-    expect(body.crawler_config.deep_crawl_strategy.params.max_depth).toBe(3);
-  });
-
-  it('should use BestFirst strategy when specified', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 3, strategy: 'best-first', scoreThreshold: 0.5 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy.type).toBe('BestFirstCrawlingStrategy');
-    expect(body.crawler_config.deep_crawl_strategy.params.score_threshold).toBe(0.5);
-  });
-
-  it('should include custom maxPages', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2, maxPages: 50 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy.params.max_pages).toBe(50);
-  });
-
-  it('should include includeExternal when true', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2, includeExternal: true }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy.params.include_external).toBe(true);
-  });
-
-  it('should include URL pattern filters', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: {
-          maxDepth: 2,
-          includePatterns: ['/docs/*', '*.html'],
-          excludePatterns: ['/admin/*']
-        }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const strategy = body.crawler_config.deep_crawl_strategy;
-
-    expect(strategy.params.filter_chain).toBeDefined();
-    expect(strategy.params.filter_chain.type).toBe('FilterChain');
-    expect(strategy.params.filter_chain.params.filters).toHaveLength(1);
-
-    const patternFilter = strategy.params.filter_chain.params.filters[0];
-    expect(patternFilter.type).toBe('URLPatternFilter');
-    expect(patternFilter.params.patterns).toContain('/docs/*');
-    expect(patternFilter.params.patterns).toContain('*.html');
-    expect(patternFilter.params.patterns).toContain('!/admin/*');
-  });
-
-  it('should include domain filter', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: { success: true, results: [{ url: 'https://example.com', success: true, markdown: 'test' }] },
-    });
-
-    await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: {
-          maxDepth: 2,
-          allowedDomains: ['example.com', 'docs.example.com']
-        }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const strategy = body.crawler_config.deep_crawl_strategy;
-
-    expect(strategy.params.filter_chain).toBeDefined();
-    const domainFilter = strategy.params.filter_chain.params.filters.find(
-      (f: any) => f.type === 'DomainFilter'
-    );
-    expect(domainFilter).toBeDefined();
-    expect(domainFilter.params.allowed_domains).toContain('example.com');
-    expect(domainFilter.params.allowed_domains).toContain('docs.example.com');
-  });
-
-  it('should format deep crawl results with depth grouping', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: 'Home page content',
-            metadata: { depth: 0 }
-          },
-          {
-            url: 'https://example.com/docs',
-            success: true,
-            markdown: 'Docs page content',
-            metadata: { depth: 1 }
-          },
-          {
-            url: 'https://example.com/docs/api',
-            success: true,
-            markdown: 'API docs content',
-            metadata: { depth: 2 }
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    // Multi-page deep crawl uses files/index mode by default (token budget)
-    expect(result.content[0].text).toContain('Deep Crawl Results (3 pages');
-    expect(result.content[0].text).toContain('Return mode: files');
-    expect(result.content[0].text).toContain('Depth 0 (1 pages)');
-    expect(result.content[0].text).toContain('Depth 1 (1 pages)');
-    expect(result.content[0].text).toContain('Depth 2 (1 pages)');
-    expect(result.content[0].text).toContain('https://example.com');
-    expect(result.content[0].text).toContain('https://example.com/docs');
-    expect(result.content[0].text).toContain('https://example.com/docs/api');
-    // Full bodies should not be inlined as page sections — only short excerpts
-    expect(result.content[0].text).not.toContain('## https://example.com\n\nHome page content');
-    expect(result.content[0].text).toContain('excerpt: Home page content');
-    expect(result.details.returnMode).toBe('files');
-    expect(result.details.savedPath).toBeDefined();
-  });
-
-  it('should include deep crawl metadata in result details', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'test', metadata: { depth: 0 } },
-          { url: 'https://example.com/page', success: true, markdown: 'test', metadata: { depth: 1 } },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2, maxPages: 50 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.deepCrawl).toBeDefined();
-    expect(result.details.deepCrawl.totalPages).toBe(2);
-    expect(result.details.deepCrawl.maxDepth).toBe(2);
-  });
-
-  it('should mark failed pages in deep crawl output', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: 'Home page content',
-            metadata: { depth: 0 }
-          },
-          {
-            url: 'https://example.com/broken',
-            success: false,
-            error_message: '404 Not Found',
-            metadata: { depth: 1 }
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.content[0].text).toContain('[error] https://example.com/broken');
-    expect(result.content[0].text).toContain('[ok] https://example.com');
-    expect(result.details.returnMode).toBe('files');
-  });
-
-  it('should use regular format for single-page deep crawl result', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://example.com',
-            success: true,
-            markdown: 'Home page content',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2 }
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    // Single result stays inline (not multi-page files mode)
-    expect(result.content[0].text).not.toContain('Deep Crawl Results');
-    expect(result.content[0].text).toContain('## https://example.com');
-    expect(result.content[0].text).toContain('Home page content');
-    expect(result.details.returnMode).toBe('inline');
-    expect(result.details.deepCrawl).toEqual({
-      totalPages: 1,
-      maxDepth: 2,
-      maxPages: 10,
-    });
-  });
-
-  it('should work without deepCrawl parameter (backward compatibility)', async () => {
-    const fetchMock = mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'test' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.crawler_config.deep_crawl_strategy).toBeUndefined();
+  it("should work without deepCrawl parameter (backward compatibility)", async () => {
+    const fetchMock = respond(); const result = await invoke({ save: false });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).crawler_config.params.deep_crawl_strategy).toBeUndefined();
     expect(result.details.deepCrawl).toBeUndefined();
   });
+  it("should include deep crawl metadata in result details and depth grouping with failed-page labels", async () => {
+    respond([PAGE, { ...PAGE, url: `${URL}/docs`, metadata: { depth: 1 }, markdown: "Docs content" }, { url: `${URL}/broken`, success: false, error_message: "404", metadata: { depth: 1 } }]);
+    const result = await invoke({ deepCrawl: { maxDepth: 2 } });
+    expect(result.details.deepCrawl).toEqual({ totalPages: 3, maxDepth: 2, maxPages: 10 });
+    expect(result.content[0].text).toContain("Deep Crawl Results (3 pages"); expect(result.content[0].text).toContain("Depth 0 (1 pages)"); expect(result.content[0].text).toContain("Depth 1 (2 pages)");
+    expect(result.content[0].text).toContain(`[error] ${URL}/broken`); expect(result.content[0].text).toContain(`[ok] ${URL}`);
+    const manifest = JSON.parse(readFileSync(result.details.manifestPath, "utf8"));
+    expect(manifest.deepCrawl).toEqual({ maxDepth: 2, maxPages: 10 });
+  });
+  it("should handle multiple URLs and expose every exact saved page path in result order", async () => {
+    const pages = [PAGE, { ...PAGE, url: "https://other.com/docs", markdown: "Other content" }];
+    respond(pages); const result = await invoke({ urls: pages.map(page => page.url) });
+    expect(result.details.results).toHaveLength(2);
+    for (const [index, page] of result.details.savedFiles.entries()) {
+      expect(result.details.results[index].filePath).toBe(page.path); expect(result.content[0].text).toContain(`${page.url} → ${page.path}`);
+      expect(readFileSync(page.path, "utf8")).toBe(pages[index].markdown);
+    }
+  });
+  it("preserves bearer auth and server-managed egress without proxy/browser settings", async () => {
+    const tool = createTool(60000, config => { config.baseUrl = "http://localhost:11235/"; config.apiToken = "test-api-token"; });
+    const fetchMock = respond(); const result = await invoke({ save: false }, tool);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:11235/crawl", expect.objectContaining({ method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer test-api-token" } }));
+    const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.urls).toEqual([URL]); expect(payload.browser_config).toBeUndefined(); expect(JSON.stringify(payload)).not.toContain("proxy");
+    expect(result.details.execution).toEqual({ egress: "server-managed" });
+  });
+  it("serializes native run config, seconds delay, JS, and enabled/bypass enums", async () => {
+    const fetchMock = respond();
+    await invoke({ save: false, waitFor: 1800, jsCode: 'document.title="test"' });
+    let payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(payload.crawler_config.type).toBe("CrawlerRunConfig");
+    expect(payload.crawler_config.params.delay_before_return_html).toBe(1.8);
+    expect(payload.crawler_config.params.wait_for).toBeUndefined();
+    expect(payload.crawler_config.params.js_code).toEqual(['document.title="test"']);
+    expect(payload.crawler_config.params.cache_mode).toEqual({ type: "CacheMode", params: "enabled" });
+    await invoke({ save: false, bypassCache: true });
+    payload = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(payload.crawler_config.params.cache_mode).toEqual({ type: "CacheMode", params: "bypass" });
+  });
+  it.each(["bfs", "dfs", "best-first"] as const)("translates %s seed depth and maxPages with separate reverse/domain filters", async strategy => {
+    const fetchMock = respond();
+    await invoke({ save: false, deepCrawl: { strategy, maxDepth: 1, maxPages: 3, includeExternal: true, includePatterns: ["*/docs/*"], excludePatterns: ["*/admin/*"], allowedDomains: ["example.com"], ...(strategy === "best-first" ? { scoreThreshold: 0.5 } : {}) } });
+    const deep = JSON.parse(fetchMock.mock.calls[0][1].body).crawler_config.params.deep_crawl_strategy;
+    expect(deep.type).toBe({ bfs: "BFSDeepCrawlStrategy", dfs: "DFSDeepCrawlStrategy", "best-first": "BestFirstCrawlingStrategy" }[strategy]);
+    expect(deep.params.max_depth).toBe(0); expect(deep.params.max_pages).toBe(3); expect(deep.params.include_external).toBe(true);
+    expect(deep.params.filter_chain.params.filters).toEqual([
+      { type: "URLPatternFilter", params: { patterns: ["*/docs/*"], use_glob: true } },
+      { type: "URLPatternFilter", params: { patterns: ["*/admin/*"], use_glob: true, reverse: true } },
+      { type: "DomainFilter", params: { allowed_domains: ["example.com"] } },
+    ]);
+  });
+  it.each(["markdown", "html", "links"] as const)("renders %s inline and saves complete bodies", async format => {
+    const result: CrawlResult = { ...PAGE, html: "<html>Example</html>", links: { internal: [{ href: "/about", text: "About" }], external: [] } };
+    respond([result]);
+    const output = await invoke({ format, returnMode: "inline" });
+    expect(output.content[0].text).toContain({ markdown: "This is example content.", html: "<html>", links: "[About](/about)" }[format]);
+    expect(existsSync(output.details.savedFiles[0].path)).toBe(true);
+  });
+  it("honors fit preference without serializing full bodies into details", async () => {
+    respond([{ ...PAGE, markdown: { raw_markdown: "RAW body", fit_markdown: "FIT body", markdown_with_citations: "", references_markdown: "" } }]);
+    const fit = await invoke({ save: false }); expect(fit.content[0].text).toContain("FIT body"); expect(fit.details.results[0].usedFitMarkdown).toBe(true);
+    const raw = await invoke({ save: false, preferFitMarkdown: false }); expect(raw.content[0].text).toContain("RAW body"); expect(raw.details.results[0].usedFitMarkdown).toBe(false);
+    expect(JSON.stringify(raw.details)).not.toContain("RAW body");
+  });
+  it("applies per-process request pacing and brief headless progress", async () => {
+    jest.useFakeTimers();
+    const tool = createTool(60000, config => { config.raw.minRequestIntervalMs = 5000; });
+    const fetchMock = respond(); const onUpdate = jest.fn();
+    await tool.execute("first", { urls: [URL], save: false }, undefined, onUpdate, { cwd: process.cwd() });
+    const second = invoke({ save: false }, tool);
+    await jest.advanceTimersByTimeAsync(4999); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1); const result = await second;
+    expect(result.details.rateLimitWaitedMs).toBe(5000); expect(onUpdate).toHaveBeenCalledTimes(2);
+  });
 });
 
-describe('crawl tool save functionality', () => {
-  let mockPi: ExtensionAPI & { registeredTools: any[] };
-  let toolExecute: any;
-
-  beforeEach(() => {
-    mockPi = createMockPi();
-    const config = loadConfig();
-    registerCrawlTool(mockPi, config);
-    toolExecute = mockPi.registeredTools[0].execute;
-    cleanupTestDir();
+describe("crawl file-first output and extraction integration", () => {
+  it("inline saves the untruncated original and honors smaller legacy caps", async () => {
+    const body = "x".repeat(30000); respond([{ ...PAGE, markdown: body }]);
+    const result = await invoke({ returnMode: "inline", maxCharsPerPage: 100, maxCharsPerCall: 500 });
+    expect(result.details.totalReturnedChars).toBeLessThanOrEqual(100); expect(result.details.truncated).toBe(true);
+    expect(readFileSync(result.details.savedFiles[0].path, "utf8")).toBe(body);
+    expect(result.content[0].text).toContain(result.details.manifestPath);
   });
-
-  afterEach(() => {
-    cleanupTestDir();
+  it("save=false returns bounded inline with explicit loss warning and writes nothing", async () => {
+    respond([{ ...PAGE, markdown: "x".repeat(30000) }]);
+    const result = await invoke({ save: false, maxCharsPerPage: 100 });
+    expect(result.details.savedPath).toBeUndefined(); expect(result.details.returnMode).toBe("inline");
+    expect(result.content[0].text).toContain("not recoverable"); expect(existsSync(TEST_SAVE_DIR)).toBe(false);
   });
-
-  it('should not save when save parameter is undefined', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'test' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'] },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeUndefined();
-    expect(result.content[0].text).not.toContain('saved to:');
+  it("defaults total body cap to 12000 even for larger overrides and exhausted pages", async () => {
+    respond([PAGE, { ...PAGE, url: `${URL}/2`, markdown: "y".repeat(30000) }, { ...PAGE, url: `${URL}/3`, markdown: "z".repeat(30000) }]);
+    const result = await invoke({ save: false, maxCharsPerPage: 1e6, maxCharsPerCall: 1e6 });
+    expect(result.details.totalReturnedChars).toBeLessThanOrEqual(12000);
+    expect(result.details.results[2].truncated).toBe(true); expect(result.content[0].text).not.toContain("zzzz");
   });
-
-  it('should not save when save parameter is false', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'test' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], save: false },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeUndefined();
+  it("saves all pages but lists at most 20 entries and retains a complete manifest pointer", async () => {
+    respond(Array.from({ length: 30 }, (_, index) => ({ ...PAGE, url: `${URL}/${index}` })));
+    const result = await invoke();
+    expect(result.details.savedFiles).toHaveLength(30);
+    expect(result.content[0].text).toContain("first 20"); expect(result.content[0].text).not.toContain(`${URL}/25`);
+    expect(result.content[0].text).toContain(result.details.manifestPath);
+    expect(JSON.parse(readFileSync(result.details.manifestPath, "utf8")).pages).toHaveLength(30);
   });
-
-  it('should save to default directory when save is true', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: '# Test Content' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], save: true },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeDefined();
-    expect(result.details.savedPath).toMatch(/output-crawl4ai/);
-    expect(result.content[0].text).toContain('saved to:');
-    expect(result.content[0].text).toContain('output-crawl4ai');
+  it("resolves custom/default directories from ctx.cwd", async () => {
+    mkdirSync(TEST_SAVE_DIR, { recursive: true }); respond();
+    const result = await invoke({ save: "nested" }, createTool(), undefined, { cwd: resolve(TEST_SAVE_DIR) });
+    expect(result.details.savedPath.startsWith(join(resolve(TEST_SAVE_DIR), "nested"))).toBe(true);
+    expect(existsSync(result.details.savedFiles[0].path)).toBe(true);
   });
-
-  it('should save to custom directory when save is a string', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: '# Test Content' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], save: TEST_SAVE_DIR },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeDefined();
-    expect(result.details.savedPath).toContain('__test_crawl_save__');
-    expect(existsSync(result.details.savedPath)).toBe(true);
-    expect(existsSync(join(result.details.savedPath, 'crawl-manifest.json'))).toBe(true);
-    expect(existsSync(join(result.details.savedPath, 'example.com/index.md'))).toBe(true);
+  it("returns empty content warnings", async () => {
+    respond([{ ...PAGE, markdown: "" }]); const result = await invoke();
+    expect(readFileSync(result.details.savedFiles[0].path, "utf8")).toBe(""); expect(result.details.warnings).toHaveLength(1);
   });
-
-  it('should save multiple pages', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: '# Home' },
-          { url: 'https://example.com/docs', success: true, markdown: '# Docs' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com', 'https://example.com/docs'], save: TEST_SAVE_DIR },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(existsSync(join(result.details.savedPath, 'example.com/index.md'))).toBe(true);
-    expect(existsSync(join(result.details.savedPath, 'example.com/docs.md'))).toBe(true);
+  it("saves complete structural BM25 selection, source and metadata; no-match is valid", async () => {
+    const source = "# Tables\n\n| documentation | value |\n| --- | --- |\n| documentation | full row |\n\n# Other\n\nunrelated pricing";
+    respond([{ ...PAGE, markdown: source }]);
+    const result = await invoke({ bm25Query: "documentation", bm25Threshold: 0 });
+    const saved = result.details.savedFiles[0];
+    expect(readFileSync(saved.path, "utf8")).toContain("full row"); expect(readFileSync(saved.path, "utf8")).not.toContain("pricing");
+    expect(readFileSync(saved.sourcePath, "utf8")).toBe(source); expect(saved.filter.matchedSectionCount).toBe(1);
+    expect(result.content[0].text).toContain(saved.sourcePath);
+    const manifest = JSON.parse(readFileSync(result.details.manifestPath, "utf8"));
+    expect(manifest.pages[0].sourceFile).toBe(`${urlToFilePath(URL, "markdown")}.source.md`);
+    const empty = await invoke({ bm25Query: "no-match", bm25Threshold: 100 });
+    expect(readFileSync(empty.details.savedFiles[0].path, "utf8")).toBe(""); expect(empty.details.savedFiles[0].filter.matchedSectionCount).toBe(0);
   });
-
-  it('should expose the manifest and exact nested page paths in files mode', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          {
-            url: 'https://github.com/earendil-works/pi/issues/5512',
-            success: true,
-            markdown: '# Issue 5512',
-          },
-          {
-            url: 'https://github.com/earendil-works/pi/pulls/12',
-            success: true,
-            markdown: '# Pull 12',
-          },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: [
-          'https://github.com/earendil-works/pi/issues/5512',
-          'https://github.com/earendil-works/pi/pulls/12',
-        ],
-        returnMode: 'files',
-        save: TEST_SAVE_DIR,
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const issuePath = join(
-      result.details.savedPath,
-      'github.com/earendil-works/pi/issues/5512.md'
-    );
-    const pullPath = join(result.details.savedPath, 'github.com/earendil-works/pi/pulls/12.md');
-    const manifestPath = join(result.details.savedPath, 'crawl-manifest.json');
-
-    expect(existsSync(issuePath)).toBe(true);
-    expect(existsSync(pullPath)).toBe(true);
-    expect(result.details.manifestPath).toBe(manifestPath);
-    expect(result.details.savedFiles).toEqual([
-      expect.objectContaining({
-        url: 'https://github.com/earendil-works/pi/issues/5512',
-        relativePath: 'github.com/earendil-works/pi/issues/5512.md',
-        path: issuePath,
-      }),
-      expect.objectContaining({
-        url: 'https://github.com/earendil-works/pi/pulls/12',
-        relativePath: 'github.com/earendil-works/pi/pulls/12.md',
-        path: pullPath,
-      }),
-    ]);
-    expect(result.details.results[0].filePath).toBe(issuePath);
-    expect(result.content[0].text).toContain(`Manifest: ${manifestPath}`);
-    expect(result.content[0].text).toContain(
-      `https://github.com/earendil-works/pi/issues/5512 → ${issuePath}`
-    );
-    expect(result.content[0].text).toContain(
-      `https://github.com/earendil-works/pi/pulls/12 → ${pullPath}`
-    );
-    expect(result.content[0].text).not.toContain('github.com-earendil-works-pi-issues-5512.md');
+  it("requires configured Python before network activity and basic crawling needs none", async () => {
+    const fetchMock = respond(); await expect(invoke({ extractor: "trafilatura" })).rejects.toThrow("pythonPath"); expect(fetchMock).not.toHaveBeenCalled();
+    await expect(invoke({ save: false })).resolves.toBeDefined();
   });
-
-  it('should preserve save=false for files mode and explain that no files exist', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com/a', success: true, markdown: '# A' },
-          { url: 'https://example.com/b', success: true, markdown: '# B' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com/a', 'https://example.com/b'],
-        returnMode: 'files',
-        save: false,
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeUndefined();
-    expect(result.details.manifestPath).toBeUndefined();
-    expect(result.details.savedFiles).toBeUndefined();
-    expect(result.content[0].text).toContain('No crawl files exist for this result');
-    expect(result.content[0].text).toContain('save=true');
+  it("persists rendered HTML before missing executable errors and never silently falls back", async () => {
+    const html = "<html><article><h1>Original</h1><p>source</p></article></html>";
+    respond([{ ...PAGE, html }]);
+    const tool = createTool(60000, config => { config.raw.trafilatura = { pythonPath: "/__missing_python__" }; });
+    const error: Error = await invoke({ extractor: "trafilatura" }, tool).catch((error: Error) => error);
+    expect(error.message).toContain("Original HTML:");
+    const original = error.message.split("Original HTML: ")[1]; expect(readFileSync(original, "utf8")).toBe(html);
+    const session = readdirSync(TEST_SAVE_DIR)[0]; expect(existsSync(join(TEST_SAVE_DIR, session, "crawl-manifest.json"))).toBe(false);
   });
-
-  it('should explain that unsaved truncated inline output is not recoverable', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com/long', success: true, markdown: 'x'.repeat(1_000) },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com/long'],
-        returnMode: 'inline',
-        maxCharsPerPage: 100,
-        maxCharsPerCall: 5_000,
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeUndefined();
-    expect(result.details.truncated).toBe(true);
-    expect(result.content[0].text).toContain('not recoverable via crawl_read');
-    expect(result.content[0].text).toContain('save=true');
-  });
-
-  it('should save deep crawl results', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'Home', metadata: { depth: 0 } },
-          { url: 'https://example.com/page1', success: true, markdown: 'Page 1', metadata: { depth: 1 } },
-          { url: 'https://example.com/page2', success: true, markdown: 'Page 2', metadata: { depth: 1 } },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      {
-        urls: ['https://example.com'],
-        deepCrawl: { maxDepth: 2 },
-        save: TEST_SAVE_DIR,
-      },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(result.details.savedPath).toBeDefined();
-    expect(result.content[0].text).toContain('saved to:');
-    expect(existsSync(join(result.details.savedPath, 'example.com/index.md'))).toBe(true);
-    expect(existsSync(join(result.details.savedPath, 'example.com/page1.md'))).toBe(true);
-    expect(existsSync(join(result.details.savedPath, 'example.com/page2.md'))).toBe(true);
-
-    // Check manifest includes deep crawl info
-    const manifest = JSON.parse(readFileSync(join(result.details.savedPath, 'crawl-manifest.json'), 'utf-8'));
-    expect(manifest.deepCrawl).toBeDefined();
-    expect(manifest.deepCrawl.maxDepth).toBe(2);
-  });
-
-  it('should include manifest with correct metadata', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, markdown: 'test' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], save: TEST_SAVE_DIR },
-      undefined,
-      undefined,
-      {}
-    );
-
-    const manifest = JSON.parse(readFileSync(join(result.details.savedPath, 'crawl-manifest.json'), 'utf-8'));
-
-    expect(manifest.totalPages).toBe(1);
-    expect(manifest.format).toBe('markdown');
-    expect(manifest.urls).toEqual(['https://example.com']);
-    expect(manifest.files).toHaveLength(1);
-    expect(manifest.timestamp).toBeDefined();
-  });
-
-  it('should save HTML format with correct extension', async () => {
-    mockFetch({
-      ok: true,
-      data: {
-        success: true,
-        results: [
-          { url: 'https://example.com', success: true, html: '<html></html>' },
-        ],
-      },
-    });
-
-    const result = await toolExecute(
-      'tool-call-id',
-      { urls: ['https://example.com'], format: 'html', save: TEST_SAVE_DIR },
-      undefined,
-      undefined,
-      {}
-    );
-
-    expect(existsSync(join(result.details.savedPath, 'example.com/index.html'))).toBe(true);
+  it("wires configured stdin extractor to text plus BM25 with the original crawl deadline", async () => {
+    mkdirSync(TEST_SAVE_DIR, { recursive: true });
+    const executable = resolve(TEST_SAVE_DIR, "controlled-python");
+    writeFileSync(executable, `#!/usr/bin/env node\nlet input='';process.stdin.on('data',x=>input+=x);process.stdin.on('end',()=>{if(!input.includes('Rendered source'))process.exit(2);process.stdout.write('# Documentation\\n\\nUseful documentation table\\n\\n# Other\\n\\nPricing');});`, { mode: 0o755 });
+    respond([{ ...PAGE, html: "<html>Rendered source</html>" }]);
+    const tool = createTool(1000, config => { config.raw.trafilatura = { pythonPath: executable }; });
+    const result = await invoke({ extractor: "trafilatura", format: "text", bm25Query: "documentation", bm25Threshold: 0, includeLinks: true }, tool);
+    const saved = result.details.savedFiles[0]; expect(saved.path).toMatch(/\.txt$/); expect(readFileSync(saved.path, "utf8")).not.toContain("Pricing");
+    expect(readFileSync(saved.sourcePath, "utf8")).toContain("Pricing"); expect(readFileSync(saved.rawHtmlPath, "utf8")).toBe("<html>Rendered source</html>");
+    expect(saved.extractor).toEqual({ name: "trafilatura", includeLinks: true });
   });
 });

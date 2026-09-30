@@ -70,6 +70,21 @@ describe("applyRequestPacing", () => {
     expect(second).toEqual({ bucket: "global", minRequestIntervalMs: 5000, waitedMs: 5000 });
   });
 
+  it("cancels a queued request without waiting for its predecessor", async () => {
+    const config = createConfig(5000);
+    await applyRequestPacing(config);
+    const waiting = applyRequestPacing(config);
+    const controller = new AbortController();
+    const queued = applyRequestPacing(config, controller.signal);
+    controller.abort();
+    await expect(queued).rejects.toThrow("Crawl cancelled");
+    await jest.advanceTimersByTimeAsync(5000);
+    await waiting;
+    const next = applyRequestPacing(config);
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(next).resolves.toBeDefined();
+  });
+
   it("should support cancellation while waiting", async () => {
     const config = createConfig(5000);
     const controller = new AbortController();

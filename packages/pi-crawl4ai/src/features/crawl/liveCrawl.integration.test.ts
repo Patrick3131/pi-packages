@@ -1,263 +1,93 @@
-/**
- * Live page crawl + progressive read integration tests.
- *
- * Strategy:
- * 1) If crawl4ai is healthy on CRAWL4AI_BASE_URL (default localhost:11235),
- *    crawl real URLs through the crawl tool.
- * 2) Otherwise, fetch public pages over HTTPS, convert to markdown-ish text,
- *    save via saveCrawlResults, and exercise crawl_read.
- *
- * Set CRAWL4AI_LIVE=1 to fail when crawl4ai is unavailable instead of falling back.
- */
+/** Genuine remote-browser contract gate. Opt-in only; unavailable/unsupported services fail, never HTTPS fallback. */
+jest.mock("@earendil-works/pi-coding-agent", () => {
+  const path = require("node:path");
+  const source = require("node:fs").readFileSync(path.resolve(__dirname, "../../../../../node_modules/@earendil-works/pi-coding-agent/dist/core/tools/truncate.js"), "utf8");
+  const module = { exports: {} };
+  new Function("module", "exports", require("esbuild").transformSync(source, { format: "cjs" }).code)(module, module.exports);
+  return { ...module.exports, defineTool: (tool: unknown) => tool };
+}, { virtual: true });
 
-import { existsSync, readFileSync, rmSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "../../config";
 import { registerCrawlTool } from "./crawlTool";
 import { executeCrawlRead } from "./crawlReadTool";
-import { saveCrawlResults } from "./saveOutput";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import type { CrawlResult } from "./types";
+import type { CrawlToolParams } from "./types";
 
-const LIVE_OUTPUT = "./__test_live_crawl_output__";
-const BASE_URL = process.env.CRAWL4AI_BASE_URL || "http://localhost:11235";
-const REQUIRE_CRAWL4AI = process.env.CRAWL4AI_LIVE === "1";
+const OUTPUT = "./__test_live_crawl_output__";
+const live = process.env.CRAWL4AI_LIVE === "1" ? describe : describe.skip;
+const nativeFetch = global.fetch;
 
-const TARGETS = [
-  "https://example.com/",
-  "https://www.rust-lang.org/",
-];
-
-function cleanup() {
-  try {
-    rmSync(LIVE_OUTPUT, { recursive: true, force: true });
-  } catch {
-    // ignore
-  }
+function fixtures(): { root: string; allowed: string; excluded: string } {
+  // Supply already browser-reachable fixtures (including an operator-served local fixture) without a new deployment harness.
+  if (process.env.CRAWL4AI_LIVE_TARGETS_FILE) return JSON.parse(readFileSync(process.env.CRAWL4AI_LIVE_TARGETS_FILE, "utf8"));
+  const page = (body: string) => `https://httpbin.org/base64/${Buffer.from(`<html><body><main>${body}</main></body></html>`).toString("base64")}`;
+  const allowed = page("<h1>Allowed child marker</h1><p>Installation documentation explains browser rendering and source recovery.</p>");
+  const excluded = page("<h1>Excluded child marker</h1><p>This child must be excluded from filtered traversal.</p>");
+  const root = page(`<h1>Root fixture marker</h1><p id="delayed">before-marker</p><a href="${allowed}">Allowed documentation</a><a href="${excluded}">Excluded documentation</a><a href="https://example.com/">External domain</a><script>setTimeout(()=>document.getElementById("delayed").textContent="after-marker",1200)</script>`);
+  return { root, allowed, excluded };
 }
 
-async function crawl4aiHealthy(): Promise<boolean> {
-  try {
-    const response = await fetch(`${BASE_URL}/health`, {
-      signal: AbortSignal.timeout(2500),
+live("live Crawl4AI service contracts (deep/filter gate may fail on untrusted deployments)", () => {
+  let execute: any;
+  let targets: ReturnType<typeof fixtures>;
+  let observed: any[];
+  beforeEach(() => {
+    targets = fixtures(); observed = [];
+    const config = loadConfig();
+    config.raw.outputDir = OUTPUT; config.raw.retention.enabled = false;
+    const registered: any[] = [];
+    registerCrawlTool({ registerTool: (tool: unknown) => registered.push(tool) } as unknown as ExtensionAPI, config);
+    execute = (params: Partial<CrawlToolParams>) => registered[0].execute("live", { urls: [targets.root], ...params }, undefined, undefined, { cwd: process.cwd() });
+    jest.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const response = await nativeFetch(input, init);
+      observed.push(await response.clone().json());
+      return response;
     });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Very small HTML → markdown-ish conversion for fallback live tests. */
-function htmlToMarkdown(html: string, url: string): string {
-  let text = html;
-  // drop scripts/styles
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
-  // headings
-  text = text.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n# $1\n");
-  text = text.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n");
-  text = text.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n");
-  // paragraphs and breaks
-  text = text.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "\n\n$1\n\n");
-  text = text.replace(/<br\s*\/?>/gi, "\n");
-  text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "\n- $1");
-  // links keep text
-  text = text.replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, "$1");
-  // strip remaining tags
-  text = text.replace(/<[^>]+>/g, " ");
-  // entities
-  text = text
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-  text = text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (!/^#\s/m.test(text)) {
-    text = `# Page\n\nSource: ${url}\n\n${text}`;
-  }
-  return text.slice(0, 50_000);
-}
-
-async function fetchAsCrawlResult(url: string): Promise<CrawlResult> {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { "user-agent": "pi-crawl4ai-integration-test/1.0" },
   });
-  const html = await response.text();
-  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const title = titleMatch?.[1]?.replace(/\s+/g, " ").trim();
-  const markdown = htmlToMarkdown(html, url);
-  return {
-    url,
-    success: response.ok,
-    markdown: {
-      raw_markdown: markdown,
-      markdown_with_citations: markdown,
-      references_markdown: "",
-      fit_markdown: markdown,
-    },
-    status_code: response.status,
-    metadata: { title },
-  };
-}
+  afterEach(() => { jest.restoreAllMocks(); rmSync(OUTPUT, { recursive: true, force: true }); });
 
-function createMockPi() {
-  const registeredTools: any[] = [];
-  return {
-    registeredTools,
-    registerTool: jest.fn((tool) => {
-      registeredTools.push(tool);
-    }),
-  } as unknown as ExtensionAPI & { registeredTools: any[] };
-}
+  it("renders delayed JavaScript with waitFor and persists recoverable progressive reads", async () => {
+    const immediate = await execute({ bypassCache: true, format: "html" });
+    expect(readFileSync(immediate.details.savedFiles[0].path, "utf8")).toContain(">before-marker<");
+    const delayed = await execute({ bypassCache: true, waitFor: 1800, format: "html" });
+    expect(readFileSync(delayed.details.savedFiles[0].path, "utf8")).toContain(">after-marker<");
+    const markdown = await execute({ bypassCache: true, waitFor: 1800 });
+    expect(markdown.details.results[0].success).toBe(true);
+    const saved = markdown.details.savedFiles[0];
+    expect(readFileSync(saved.outlinePath, "utf8")).toContain("Root fixture marker");
+    const read = executeCrawlRead({ path: saved.path, query: "fixture", maxChars: 3000 }, { outputRoot: OUTPUT });
+    expect(read.details.error).toBeUndefined(); expect(read.text).toContain("Root fixture marker");
+    expect(markdown.content[0].text).toContain(markdown.details.manifestPath);
+    expect(JSON.parse(readFileSync(markdown.details.manifestPath, "utf8")).pages[0].file).toBe(saved.file);
+  }, 120000);
 
-describe("live crawl + crawl_read integration", () => {
-  beforeEach(cleanup);
-  afterAll(cleanup);
+  it("typed enabled cache is miss then hit; bypass remains a miss", async () => {
+    const url = `${targets.allowed}?pi-cache-test=${Date.now()}-${process.pid}`;
+    await execute({ urls: [url] });
+    await execute({ urls: [url] });
+    await execute({ urls: [url], bypassCache: true });
+    expect(observed[0].results[0].cache_status).toBe("miss");
+    expect(observed[1].results[0].cache_status).toBe("hit");
+    expect(observed[1].results[0].cached_at).toBeTruthy();
+    expect(observed[2].results[0].cache_status).toBe("miss");
+  }, 120000);
 
-  it("crawls real pages, saves outlines, and reads progressively", async () => {
-    const healthy = await crawl4aiHealthy();
-    if (REQUIRE_CRAWL4AI && !healthy) {
-      throw new Error(
-        `CRAWL4AI_LIVE=1 but crawl4ai is not healthy at ${BASE_URL}/health`
-      );
-    }
-
-    let sessionDir: string;
-    let pageFiles: string[] = [];
-
-    if (healthy) {
-      // Live crawl4ai path
-      process.env.CRAWL4AI_BASE_URL = BASE_URL;
-      process.env.CRAWL4AI_OUTPUT_DIR = LIVE_OUTPUT;
-      process.env.CRAWL4AI_RETENTION_ENABLED = "false";
-
-      const mockPi = createMockPi();
-      const config = loadConfig();
-      // force output dir / retention for this process
-      (config.raw as any).outputDir = LIVE_OUTPUT;
-      (config.raw as any).retention = {
-        enabled: false,
-        maxSessions: 20,
-        maxAgeDays: 7,
-        maxTotalMb: 512,
-      };
-      config.baseUrl = BASE_URL;
-
-      registerCrawlTool(mockPi, config);
-      const tool = mockPi.registeredTools.find((t) => t.name === "crawl");
-      expect(tool).toBeDefined();
-
-      const result = await tool.execute(
-        "live-1",
-        {
-          urls: TARGETS,
-          format: "markdown",
-          save: LIVE_OUTPUT,
-          returnMode: "files",
-          preferFitMarkdown: true,
-        },
-        undefined,
-        undefined,
-        {}
-      );
-
-      expect(result.details.savedPath).toBeDefined();
-      sessionDir = result.details.savedPath;
-      expect(existsSync(sessionDir)).toBe(true);
-
-      // Tool result should be compact index, not full multi-page dump
-      expect(result.content[0].text).toMatch(/Return mode: files|Page index|Crawl Results/i);
-      expect(result.content[0].text.length).toBeLessThan(20_000);
-
-      // eslint-disable-next-line no-console
-      console.log(
-        `[live-crawl] crawl4ai mode: saved=${sessionDir} toolChars=${result.content[0].text.length} pages=${result.details.results?.length}`
-      );
-    } else {
-      // Fallback: real HTTPS fetch + save pipeline (no browser render)
-      // eslint-disable-next-line no-console
-      console.log(
-        `[live-crawl] crawl4ai not available at ${BASE_URL}; falling back to HTTPS fetch pipeline`
-      );
-
-      const results: CrawlResult[] = [];
-      for (const url of TARGETS) {
-        results.push(await fetchAsCrawlResult(url));
-      }
-      expect(results.every((r) => r.success)).toBe(true);
-
-      sessionDir = saveCrawlResults(
-        LIVE_OUTPUT,
-        TARGETS,
-        results,
-        "markdown"
-      );
-    }
-
-    // Discover saved markdown pages (exclude outlines)
-    const walk = (dir: string): string[] => {
-      const out: string[] = [];
-      for (const name of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, name.name);
-        if (name.isDirectory()) out.push(...walk(full));
-        else if (name.isFile() && name.name.endsWith(".md") && !name.name.endsWith(".outline.md")) {
-          out.push(full);
-        }
-      }
-      return out;
-    };
-
-    pageFiles = walk(sessionDir);
-    expect(pageFiles.length).toBeGreaterThan(0);
-
-    for (const pagePath of pageFiles) {
-      const outlinePath = pagePath.replace(/\.md$/i, ".outline.md");
-      const metaPath = pagePath.replace(/\.md$/i, ".meta.json");
-      expect(existsSync(outlinePath)).toBe(true);
-      expect(existsSync(metaPath)).toBe(true);
-
-      const fullText = readFileSync(pagePath, "utf-8");
-      expect(fullText.length).toBeGreaterThan(20);
-
-      const outline = executeCrawlRead(
-        { path: pagePath, mode: "outline", maxChars: 4000 },
-        { outputRoot: LIVE_OUTPUT, cwd: process.cwd() }
-      );
-      expect(outline.details.mode).toBe("outline");
-      expect(outline.text.length).toBeGreaterThan(0);
-      expect(outline.text.length).toBeLessThan(Math.max(fullText.length, 1000));
-
-      const chunks = executeCrawlRead(
-        {
-          path: pagePath,
-          mode: "chunks",
-          query: "example documentation rust language install",
-          maxChars: 3500,
-        },
-        { outputRoot: LIVE_OUTPUT, cwd: process.cwd() }
-      );
-      expect(chunks.details.mode).toBe("chunks");
-      expect(chunks.text.length).toBeLessThanOrEqual(5000);
-
-      // eslint-disable-next-line no-console
-      console.log(
-        `[live-crawl] page=${pagePath} full=${fullText.length} outline=${outline.text.length} chunks=${chunks.text.length}`
-      );
-
-      // Progressive read should be materially smaller than full page when page is large
-      if (fullText.length > 2000) {
-        expect(outline.text.length).toBeLessThan(fullText.length * 0.8);
-      }
-    }
-
-    const manifest = JSON.parse(
-      readFileSync(join(sessionDir, "crawl-manifest.json"), "utf-8")
-    );
-    expect(manifest.pages?.length).toBeGreaterThan(0);
-    expect(manifest.pages[0].outlineFile).toBeDefined();
-    expect(manifest.pages[0].metaFile).toBeDefined();
-  }, 60_000);
+  it("deep/filter runtime gate: seed-only depth, maxPages, include/exclude/domain traversal", async () => {
+    // 0.9.4's untrusted API rejects strategies. This test MUST fail there rather than reinterpret rejection as traversal success.
+    const seed = await execute({ bypassCache: true, deepCrawl: { maxDepth: 1, maxPages: 5 } });
+    expect(seed.details.results.map((page: any) => page.url)).toEqual([targets.root]);
+    const limited = await execute({ bypassCache: true, deepCrawl: { maxDepth: 2, maxPages: 2 } });
+    expect(limited.details.results).toHaveLength(2);
+    const filtered = await execute({ bypassCache: true, deepCrawl: {
+      maxDepth: 2, maxPages: 5, includeExternal: true,
+      includePatterns: [targets.allowed, targets.excluded], excludePatterns: [targets.excluded], allowedDomains: [new URL(targets.root).hostname],
+    } });
+    const urls = filtered.details.results.map((page: any) => page.url);
+    expect(urls).toContain(targets.root); expect(urls).toContain(targets.allowed); expect(urls).not.toContain(targets.excluded);
+    expect(urls.every((url: string) => new URL(url).hostname === new URL(targets.root).hostname)).toBe(true);
+    expect(filtered.details.results.length).toBeLessThanOrEqual(5);
+    expect(resolve(filtered.details.manifestPath)).toBe(filtered.details.manifestPath);
+  }, 180000);
 });

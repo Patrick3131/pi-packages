@@ -8,7 +8,7 @@
  * This client never sends proxy credentials in the request body.
  *
  * Startup on/off is owned by `.pi/tools.json` (`/tools`). This package only
- * registers the tools. Use `/crawl-on` / `/crawl-off` for the current session.
+ * registers capabilities only; activation remains owned by /tools and presets.
  *
  * Configuration (environment variables):
  * - CRAWL4AI_BASE_URL: crawl4ai Docker API URL (default: http://localhost:11235)
@@ -29,7 +29,7 @@
  * ```
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "./config";
 import { registerCrawlTool } from "./features/crawl/crawlTool";
 import { registerCrawlReadTool } from "./features/crawl/crawlReadTool";
@@ -39,6 +39,9 @@ import {
   listCrawlSessions,
 } from "./features/crawl/cleanup";
 import { getDefaultOutputDir } from "./features/crawl/saveOutput";
+import { resolve } from "node:path";
+import { createCrawlDeadline, fetchCrawlApi, redactError } from "./features/crawl/http";
+import { extractWithTrafilatura } from "./features/crawl/trafilatura";
 
 export { loadConfig } from "./config";
 export { loadConfig as loadConfigFromFile, type Crawl4AIJsonConfig, type ResolvedConfig } from "./configLoader";
@@ -51,59 +54,44 @@ export * from "./features/crawl/outline";
  * Extension entry point.
  */
 export default function (pi: ExtensionAPI) {
-  const config = loadConfig({
-    log: (level, message) => {
-      console.log(`[pi-crawl4ai:${level}] ${message}`);
-    },
-  });
-
-  console.log(`[pi-crawl4ai] Initialized with baseUrl: ${config.baseUrl}`);
-  console.log(`[pi-crawl4ai] Egress is server-managed (client does not send proxy config)`);
+  const config = loadConfig();
 
   registerCrawlTool(pi, config);
   registerCrawlReadTool(pi, config);
 
-  const CRAWL_TOOL_NAMES = ["crawl", "crawl_read"] as const;
-
-  function setCrawlToolsActive(enabled: boolean) {
-    const activeNames = pi.getActiveTools();
-    if (enabled) {
-      const missing = CRAWL_TOOL_NAMES.filter((name) => !activeNames.includes(name));
-      if (missing.length > 0) {
-        pi.setActiveTools([...activeNames, ...missing]);
-      }
-      return;
-    }
-    const next = activeNames.filter(
-      (name) => !CRAWL_TOOL_NAMES.includes(name as (typeof CRAWL_TOOL_NAMES)[number]),
-    );
-    if (next.length !== activeNames.length) {
-      pi.setActiveTools(next);
-    }
-  }
-
-  pi.registerCommand("crawl-on", {
-    description: "Enable the crawl tools for this session (does not write .pi/tools.json)",
-    handler: async (_args, ctx) => {
-      setCrawlToolsActive(true);
-      ctx.ui.notify("Crawl tools enabled for this session", "info");
+  pi.registerCommand("crawl-status", {
+    description: "Check service health on demand; add extractor to check optional Python extraction",
+    handler: async (args, ctx) => {
+      const operation = createCrawlDeadline(Math.min(config.timeout, 5000), ctx.signal);
+      let message: string;
+      let failed = false;
+      try {
+        const health = await fetchCrawlApi(config, "/health", { method: "GET" }, operation.signal);
+        let parsed: unknown;
+        try { parsed = JSON.parse(health); } catch { throw new Error("Invalid service health JSON"); }
+        if (!parsed || typeof parsed !== "object") throw new Error("Invalid service health response");
+        message = `crawl4ai service reachable. ${redactError(health, config).slice(0, 500)}\nEgress is server-managed. HTTP cancellation may not cancel server-side browser work.`;
+        if (/\bextractor\b/i.test(args)) {
+          const pythonPath = config.raw.trafilatura?.pythonPath;
+          if (!pythonPath) throw new Error("Configure trafilatura.pythonPath / CRAWL4AI_TRAFILATURA_PYTHON; install trafilatura>=2,<3");
+          await extractWithTrafilatura({ pythonPath, html: `<html><body><article><h1>Availability check</h1><p>${"This is a local extractor availability check. ".repeat(30)}</p></article></body></html>`, format: "text", deadline: operation.deadline, signal: operation.signal });
+          message += "\nTrafilatura extraction available.";
+        } else message += `\nOptional Python: ${config.raw.trafilatura?.pythonPath ? "configured (not probed; use /crawl-status extractor)" : "not configured; basic crawling unaffected"}.`;
+      } catch (error) {
+        failed = true;
+        message = `crawl-status: ${redactError(error instanceof Error ? error.message : String(error), config)}`;
+      } finally { operation.dispose(); }
+      if (ctx.hasUI) ctx.ui.notify(message, failed ? "warning" : "info");
+      else pi.sendMessage({ customType: "crawl-status", content: message, display: true }, { triggerTurn: false });
     },
   });
 
-  pi.registerCommand("crawl-off", {
-    description: "Disable the crawl tools for this session (does not write .pi/tools.json)",
-    handler: async (_args, ctx) => {
-      setCrawlToolsActive(false);
-      ctx.ui.notify("Crawl tools disabled for this session", "info");
-    },
-  });
-
-  const outputRoot = () => getDefaultOutputDir(config.raw.outputDir);
+  const outputRoot = (cwd: string) => resolve(cwd, getDefaultOutputDir(config.raw.outputDir));
 
   pi.registerCommand("crawl-sessions", {
     description: "List saved crawl sessions under the output directory",
     handler: async (_args, ctx) => {
-      const root = outputRoot();
+      const root = outputRoot(ctx.cwd);
       const sessions = listCrawlSessions(root);
       if (sessions.length === 0) {
         ctx.ui.notify(`No crawl sessions in ${root}`, "info");
@@ -122,12 +110,11 @@ export default function (pi: ExtensionAPI) {
     description:
       "Prune old crawl sessions (usage: /crawl-cleanup [dry-run]). Uses retention maxSessions/maxAgeDays/maxTotalMb.",
     handler: async (args, ctx) => {
-      const root = outputRoot();
+      const root = outputRoot(ctx.cwd);
       const dryRun = /\bdry-?run\b/i.test(args ?? "");
       const policy = { ...config.raw.retention, enabled: true };
       const result = cleanupCrawlSessions(root, policy, { dryRun });
       const summary = formatCleanupSummary(result, dryRun);
-      console.log(`[pi-crawl4ai] ${summary}`);
       ctx.ui.notify(summary, result.deleted.length > 0 ? "warning" : "info");
     },
   });

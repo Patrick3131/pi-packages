@@ -120,6 +120,43 @@ describe("loadJsonConfig", () => {
 });
 
 describe("mergeConfigWithEnv", () => {
+  const originalPython = process.env.CRAWL4AI_TRAFILATURA_PYTHON;
+  afterEach(() => {
+    if (originalPython === undefined) delete process.env.CRAWL4AI_TRAFILATURA_PYTHON;
+    else process.env.CRAWL4AI_TRAFILATURA_PYTHON = originalPython;
+  });
+
+  it("accepts exactly one optional Python path with JSON/env resolution", () => {
+    process.env.CRAWL4AI_TRAFILATURA_PYTHON = "/env/python";
+    expect(mergeConfigWithEnv(null).trafilatura?.pythonPath).toBe("/env/python");
+    expect(mergeConfigWithEnv({ trafilatura: { pythonPath: "/json/python" } }).trafilatura?.pythonPath).toBe("/json/python");
+    expect(mergeConfigWithEnv({ trafilatura: { pythonPath: "${CRAWL4AI_TRAFILATURA_PYTHON}" } }).trafilatura?.pythonPath).toBe("/env/python");
+    delete process.env.CRAWL4AI_TRAFILATURA_PYTHON;
+    expect(mergeConfigWithEnv(null).trafilatura?.pythonPath).toBeUndefined();
+  });
+
+  it.each([
+    { timeoutMs: 0 }, { timeoutMs: NaN }, { minRequestIntervalMs: -1 },
+    { tokenBudget: { maxCharsPerPage: -1 } }, { tokenBudget: { deepCrawlDefaultMaxPages: 1.5 } },
+    { retention: { maxTotalMb: -1 } }, { retention: { maxSessions: 1.5 } },
+    { url: "file:///tmp/server" }, { url: "http://user:secret@server" },
+  ])("rejects invalid configured numbers/URL %j", config => {
+    expect(() => mergeConfigWithEnv(config)).toThrow();
+  });
+
+  it("rejects malformed numeric environment values rather than silently using defaults", () => {
+    process.env.CRAWL4AI_TIMEOUT = "30seconds";
+    expect(() => mergeConfigWithEnv(null)).toThrow();
+    process.env.CRAWL4AI_TIMEOUT = "30000";
+    process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS = "Infinity";
+    expect(() => mergeConfigWithEnv(null)).toThrow();
+  });
+
+  it("normalizes service trailing slashes and preserves smaller legacy preview limits", () => {
+    const config = mergeConfigWithEnv({ url: "https://server///", tokenBudget: { maxCharsPerPage: 100, maxCharsPerCall: 500 } });
+    expect(config.baseUrl).toBe("https://server"); expect(config.tokenBudget.maxCharsPerPage).toBe(100); expect(config.tokenBudget.maxCharsPerCall).toBe(500);
+    expect(mergeConfigWithEnv(null).tokenBudget.maxCharsPerCall).toBe(12000);
+  });
   beforeEach(() => {
     resetEnv();
   });

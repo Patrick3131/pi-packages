@@ -31,8 +31,8 @@ export function resolveEnvVars(value: string): string {
 }
 
 export function resolveNumber(value?: number | string): number | undefined {
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  if (typeof value !== "string") return undefined;
-  const parsed = parseInt(resolveEnvVars(value), 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  if (value === undefined) return undefined;
+  const parsed = typeof value === "number" ? value : Number(resolveEnvVars(value));
+  if ((typeof value === "string" && !resolveEnvVars(value).trim()) || !Number.isFinite(parsed)) throw new Error("Numeric crawl4ai setting must be finite");
+  return parsed;
 }

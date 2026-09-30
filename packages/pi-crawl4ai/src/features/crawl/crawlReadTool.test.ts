@@ -2,12 +2,21 @@
  * Tests for crawl_read progressive reader.
  */
 
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+jest.mock("@earendil-works/pi-coding-agent", () => {
+  const path = require("node:path");
+  const source = require("node:fs").readFileSync(path.resolve(__dirname, "../../../../../node_modules/@earendil-works/pi-coding-agent/dist/core/tools/truncate.js"), "utf8");
+  const module = { exports: {} };
+  new Function("module", "exports", require("esbuild").transformSync(source, { format: "cjs" }).code)(module, module.exports);
+  const truncate = module.exports;
+  return { ...truncate, defineTool: (tool: unknown) => tool };
+}, { virtual: true });
+
+import { mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadConfig } from "../../config";
 import { registerCrawlReadTool, executeCrawlRead } from "./crawlReadTool";
-import { saveCrawlResults } from "./saveOutput";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { saveCrawlResults, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath } from "./saveOutput";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const TEST_DIR = "./__test_crawl_read__";
 
@@ -55,12 +64,71 @@ describe("executeCrawlRead", () => {
       ],
       "markdown"
     );
-    const pagePath = join(sessionDir, "docs.example.com/install.md");
+    const pagePath = join(sessionDir, urlToFilePath("https://docs.example.com/install", "markdown"));
     expect(existsSync(pagePath)).toBe(true);
-    expect(existsSync(join(sessionDir, "docs.example.com/install.outline.md"))).toBe(true);
-    expect(existsSync(join(sessionDir, "docs.example.com/install.meta.json"))).toBe(true);
+    expect(existsSync(pagePath.replace(/\.md$/, ".outline.md"))).toBe(true);
+    expect(existsSync(pagePath.replace(/\.md$/, ".meta.json"))).toBe(true);
     return { sessionDir, pagePath };
   }
+
+  it("chooses newest completed URL session and reports timestamp, never falls back from explicit context", () => {
+    const { sessionDir: older } = seedSession();
+    const olderManifest = join(older, "crawl-manifest.json");
+    const oldData = JSON.parse(require("node:fs").readFileSync(olderManifest, "utf8"));
+    writeFileSync(olderManifest, JSON.stringify({ ...oldData, timestamp: "2020-01-01T00:00:00Z" }));
+    const { sessionDir: newest, pagePath } = seedSession();
+    const result = executeCrawlRead({ url: "https://docs.example.com/install", mode: "full" }, { outputRoot: TEST_DIR });
+    expect(result.details.path).toBe(pagePath); expect(result.text).toContain("Saved at:"); expect(result.details.savedAt).toBeDefined();
+    const missing = executeCrawlRead({ path: join(TEST_DIR, "missing-context"), url: "https://docs.example.com/install" }, { outputRoot: TEST_DIR });
+    expect(missing.details.error).toMatch(/Explicit crawl context/);
+    const wrong = executeCrawlRead({ path: newest, url: "https://not-saved.example/" }, { outputRoot: TEST_DIR });
+    expect(wrong.details.error).toMatch(/URL not found/);
+  });
+
+  it("does not silently read an older source when the newest matching manifest has a missing page", () => {
+    const { sessionDir: old } = seedSession();
+    const manifestPath = join(old, "crawl-manifest.json");
+    const manifest = JSON.parse(require("node:fs").readFileSync(manifestPath, "utf8"));
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, timestamp: "2020-01-01T00:00:00Z" }));
+    const { pagePath } = seedSession(); rmSync(pagePath);
+    const result = executeCrawlRead({ url: "https://docs.example.com/install" }, { outputRoot: TEST_DIR });
+    expect(result.details.error).toMatch(/missing/);
+  });
+
+  it("reads a legacy custom session and resolves relative paths from supplied cwd", () => {
+    const dir = resolve(TEST_DIR, "custom", "legacy"); mkdirSync(join(dir, "nested"), { recursive: true });
+    writeFileSync(join(dir, "nested", "page.md"), PAGE);
+    writeFileSync(join(dir, "crawl-manifest.json"), JSON.stringify({ timestamp: "2020-01-01T00:00:00Z", files: ["nested/page.md"], urls: ["https://legacy.example/"] }));
+    const result = executeCrawlRead({ path: "legacy", url: "https://legacy.example/", mode: "full" }, { outputRoot: "other", cwd: resolve(TEST_DIR, "custom") });
+    expect(result.text).toContain("Installation"); expect(result.details.path).toBe(join(dir, "nested", "page.md"));
+  });
+
+  it("rejects manifest traversal and symlink escapes for URL and direct reads", () => {
+    const { sessionDir, pagePath } = seedSession();
+    const outside = resolve(TEST_DIR, "outside.md"); writeFileSync(outside, "outside secret");
+    symlinkSync(outside, join(sessionDir, "escape.md"));
+    const manifestPath = join(sessionDir, "crawl-manifest.json");
+    for (const file of ["../outside.md", "escape.md"]) {
+      writeFileSync(manifestPath, JSON.stringify({ timestamp: new Date().toISOString(), files: [file], urls: ["https://escape.example/"] }));
+      const result = executeCrawlRead({ path: sessionDir, url: "https://escape.example/" }, { outputRoot: TEST_DIR });
+      expect(result.details.error).toMatch(/escapes/); expect(result.text).not.toContain("outside secret");
+    }
+    const direct = executeCrawlRead({ path: join(sessionDir, "escape.md"), mode: "full" }, { outputRoot: TEST_DIR });
+    expect(direct.details.error).toMatch(/escapes/);
+    expect(existsSync(pagePath)).toBe(true);
+  });
+
+  it("caps all read modes by characters, bytes and lines; zero is empty and oversized overrides retain a pointer", () => {
+    const { pagePath } = seedSession();
+    writeFileSync(pagePath, "# Documentation\n" + "文\n".repeat(50000));
+    for (const mode of ["outline", "chunks", "window", "full"] as const) {
+      const capped = executeCrawlRead({ path: pagePath, mode, query: "documentation", maxChars: 1000000, limit: 50000 }, { outputRoot: TEST_DIR });
+      expect(Buffer.byteLength(capped.text)).toBeLessThanOrEqual(50 * 1024); expect(capped.text.split("\n").length).toBeLessThanOrEqual(2000);
+      const zero = executeCrawlRead({ path: pagePath, mode, maxChars: 0 }, { outputRoot: TEST_DIR }); expect(zero.text).toBe("");
+    }
+    const full = executeCrawlRead({ path: pagePath, mode: "full" }, { outputRoot: TEST_DIR });
+    expect(full.text.length).toBeLessThanOrEqual(6000); expect(full.text).toContain(pagePath);
+  });
 
   it("returns outline mode by default", () => {
     const { pagePath } = seedSession();
@@ -75,6 +143,41 @@ describe("executeCrawlRead", () => {
     expect(result.text).toContain("Headings:");
     expect(result.details.usedSidecarOutline).toBe(true);
     expect(result.details.charCount).toBe(PAGE.length);
+  });
+
+  it("generates a default outline for saved Trafilatura text without treating the article as a sidecar", () => {
+    const url = "https://docs.example.com/text";
+    const text = "Native extracted article.\n\n" + "Documentation provides source recovery and browser rendering instructions. ".repeat(6);
+    const html = "<html><article>Original rendered source</article></html>";
+    const sessionDir = createCrawlSession(TEST_DIR, [url]);
+    writeCrawlArtifact(sessionDir, "original.raw.html", html);
+    const saved = saveCrawlResultsDetailed(TEST_DIR, [url], [{ url, success: true, markdown: text }], "text", undefined, {
+      sessionDir, artifacts: [{ rawHtmlFile: "original.raw.html", extractor: { name: "trafilatura", includeLinks: false } }],
+    });
+    const page = saved.pagePaths[0];
+    expect(page.path).toMatch(/\.txt$/);
+    expect(page.outlinePath).toBeUndefined(); expect(page.metaPath).toBeUndefined();
+    const outline = executeCrawlRead({ path: page.path }, { outputRoot: TEST_DIR });
+    expect(outline.details.mode).toBe("outline"); expect(outline.details.usedSidecarOutline).toBe(false);
+    expect(outline.text).toContain("# Outline"); expect(outline.text).toContain("No headings found");
+    expect(outline.text.length).toBeLessThan(text.length);
+    const query = executeCrawlRead({ path: page.path, query: "source recovery" }, { outputRoot: TEST_DIR });
+    expect(query.text).toContain("Documentation provides source recovery");
+    const full = executeCrawlRead({ path: page.path, mode: "full" }, { outputRoot: TEST_DIR });
+    expect(full.text).toContain(text);
+    expect(readFileSync(page.path, "utf8")).toBe(text);
+    expect(readFileSync(page.rawHtmlPath!, "utf8")).toBe(html);
+  });
+
+  it("keeps a relevant excerpt under a small cap when the saved source URL is very long", () => {
+    const url = `https://httpbin.org/base64/${"a".repeat(4000)}`;
+    const body = "# Actual article\n\nInstallation instructions provide source recovery and browser rendering. ".repeat(6);
+    const session = saveCrawlResults(TEST_DIR, [url], [{ url, success: true, markdown: body }], "markdown");
+    const path = join(session, urlToFilePath(url, "markdown"));
+    const result = executeCrawlRead({ path, mode: "chunks", query: "source recovery", maxChars: 1000 }, { outputRoot: TEST_DIR });
+    expect(result.text).toContain("Installation instructions");
+    expect(result.text).toContain(path);
+    expect(result.text.length).toBeLessThanOrEqual(1000);
   });
 
   it("returns query-ranked chunks", () => {
@@ -155,7 +258,7 @@ describe("executeCrawlRead", () => {
       { outputRoot: TEST_DIR, cwd: process.cwd() }
     );
     expect(result.text).toMatch(/not found/i);
-    expect(result.text).toContain(pagePath);
+    expect(result.text).toContain(pagePath.split("/").at(-1));
     expect(result.text).toContain("crawl-manifest.json");
   });
 

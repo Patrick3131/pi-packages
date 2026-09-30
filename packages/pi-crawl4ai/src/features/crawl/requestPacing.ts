@@ -1,4 +1,5 @@
 import type { Crawl4AIConfig } from "../../config";
+import { abortable } from "./http";
 
 const bucketQueues = new Map<string, Promise<void>>();
 const lastRequestAt = new Map<string, number>();
@@ -47,6 +48,7 @@ export async function applyRequestPacing(
   config: Crawl4AIConfig,
   signal?: AbortSignal
 ): Promise<RequestPacingResult | undefined> {
+  if (signal?.aborted) throw new Error("Crawl cancelled");
   const policy = getRequestPacingPolicy(config);
   if (!policy) return undefined;
 
@@ -55,10 +57,11 @@ export async function applyRequestPacing(
   const marker = new Promise<void>((resolve) => {
     release = resolve;
   });
-  bucketQueues.set(policy.bucket, prior.then(() => marker, () => marker));
-  await prior.catch(() => undefined);
+  const tail = prior.then(() => marker, () => marker);
+  bucketQueues.set(policy.bucket, tail);
 
   try {
+    await (signal ? abortable(prior, signal) : prior);
     const previous = lastRequestAt.get(policy.bucket);
     const waitedMs =
       previous === undefined
@@ -67,10 +70,13 @@ export async function applyRequestPacing(
     await sleep(waitedMs, signal);
     lastRequestAt.set(policy.bucket, Date.now());
     return { bucket: policy.bucket, minRequestIntervalMs: policy.minRequestIntervalMs, waitedMs };
+  } catch (error) {
+    if (signal?.aborted) throw new Error(signal.reason?.name === "AbortError" ? "Crawl cancelled" : String(signal.reason?.message ?? "Crawl cancelled"));
+    throw error;
   } finally {
     release();
-    if (bucketQueues.get(policy.bucket) === marker) {
-      bucketQueues.delete(policy.bucket);
-    }
+    void tail.then(() => {
+      if (bucketQueues.get(policy.bucket) === tail) bucketQueues.delete(policy.bucket);
+    });
   }
 }

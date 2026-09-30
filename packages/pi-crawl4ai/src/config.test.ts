@@ -3,7 +3,7 @@
  */
 
 import { join } from "node:path";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig } from "./config";
 import { resetEnv } from "./test-utils";
 
@@ -23,6 +23,16 @@ beforeEach(() => {
 });
 
 describe("loadConfig", () => {
+  it("loads JSON configuration without unsolicited stdout or exposing bearer values", () => {
+    const configPath = join(tempDir, "crawl4ai.json");
+    writeFileSync(configPath, JSON.stringify({ url: "https://service.example/", apiToken: "test-secret", timeoutMs: 45000 }));
+    const log = jest.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const config = loadConfig({ cwd: tempDir });
+      expect(config.baseUrl).toBe("https://service.example"); expect(config.apiToken).toBe("test-secret"); expect(config.timeout).toBe(45000);
+      expect(log).not.toHaveBeenCalled();
+    } finally { log.mockRestore(); rmSync(configPath); }
+  });
   it("should return default values when no config or env vars are set", () => {
     const config = loadConfig({ cwd: tempDir });
 

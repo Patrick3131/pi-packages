@@ -36,6 +36,7 @@ export interface Crawl4AIJsonConfig {
   retention?: RetentionSettings;
   /** Default directory for saved crawls (also used by auto-save / cleanup). */
   outputDir?: string;
+  trafilatura?: { pythonPath?: string };
 }
 
 export interface ResolvedTokenBudget {
@@ -64,6 +65,7 @@ export interface ResolvedConfig {
   retention: ResolvedRetention;
   /** Default crawl output root (./output-crawl4ai or env/config override). */
   outputDir: string;
+  trafilatura?: { pythonPath?: string };
 }
 
 export interface Crawl4AIConfig {
