@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-09-30
 canonical_ref: none
@@ -45,6 +45,10 @@ Producer-source Pi SDK `loadSkillsFromDir` discovers exactly the three core name
 Three writers' actual native session headers (not just launch arguments) confirm `opencode-go/deepseek-v4.1-flash`, `thinkingLevel: high` and distinct snapshot cwd; evidence `actual-model-headers.json`. All started within 0.23 seconds, demonstrating real concurrent dispatch. Fixture outcomes: all six scenarios PASS; evidence `/tmp/capability-recovery/exercise.md` and `fixtures/evidence/` includes real red/green, runtime readiness verdicts, preserved successful digest, retained canonical/unresolved/unique notes, exact approved deletion, deliberate failing check without autofixes, and actual git conflict with unchanged dirty/index sentinels. Partial failures are explicitly simulated. Parent rechecked direct green/runtime ready and exact cleanup paths.
 
 Fresh reviewer reported OK with notes, one P1 corrected for the pi-subagents 0.74.0 workflow-input change and one P2 completion-record update. Corrected source was revalidated: 45/45 tests, typecheck, package dry-run. Full root publication gates also passed: 458 tests plus 3 skipped, all-workspace typecheck and build. This remains functional proof, not a same-budget comparative benchmark.
+
+## Publication and Runtime Evidence
+
+Implementation `c008ef5` pushed; local and live remote canonical installs match its recovered source. Four skill commands and `/work` discovered once in Melon Labs/Melon Remote contexts; operator flags, global researcher and auxiliary Codex link verified. Source digest equals remote digest `549966fc2b96a542a86363ef3249e554f3673ee0f11926a074cb79bd00500b05`. Personal credential/model/preset/subagent hashes preserved. Remote settings byte-preserved; local independent package additions retained with exact old-settings reconstruction proof. Consumer concurrency and automatic disabled-tool registration are explicitly recorded in primary, not claimed unchanged. Same-role review follow-up: Merge verdict OK. Additional config snapshot defaults: 17/17 config tests and bash syntax pass. Final finish commit is synced separately after publication; no full personal-profile restore.
 
 ## Explicitly Not Testing
 No live network research, paid website crawls, provider transport changes, blanket prose snapshots, unrelated crawl work or automatic commit/push.

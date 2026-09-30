@@ -6,6 +6,9 @@
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
     "npm:pi-open-tui",
+    "npm:@ff-labs/pi-fff",
+    "npm:pi-tool-discipline",
+    "npm:pi-better-edit",
     {
       "source": "git:github.com/Patrick3131/pi-packages",
       "extensions": [

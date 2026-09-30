@@ -186,6 +186,9 @@ wanted = [
     "npm:pi-subagents",
     "npm:@narumitw/pi-goal",
     "npm:pi-open-tui",
+    "npm:@ff-labs/pi-fff",
+    "npm:pi-tool-discipline",
+    "npm:pi-better-edit",
     "git:github.com/Patrick3131/pi-packages",
 ]
 
@@ -268,6 +271,9 @@ pi install npm:pi-subagents
 pi install npm:@narumitw/pi-goal
 pi install git:github.com/Patrick3131/pi-packages
 pi install npm:pi-open-tui
+pi install npm:@ff-labs/pi-fff
+pi install npm:pi-tool-discipline
+pi install npm:pi-better-edit
 
 # Retire superseded installations, not only their settings declarations.
 for source in npm:pi-xai-oauth npm:pi-mcp-adapter git:github.com/StanleyOneG/pi-compact npm:@jmfederico/pi-web; do

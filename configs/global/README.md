@@ -17,7 +17,8 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 
 `settings.json` includes the default provider/model (`opencode-go` /
 `deepseek-v4.1-flash`), theme, and thinking level, plus the npm packages
-`pi-subagents`, `pi-goal`, and `pi-open-tui`. It
+`pi-subagents`, `pi-goal`, `pi-open-tui`, and the search/edit stack
+`@ff-labs/pi-fff` + `pi-tool-discipline` + `pi-better-edit`. It
 does **not** include secrets.
 
 `mcp.json` configures native MCP with no global servers and disables automatic
@@ -67,6 +68,30 @@ not restore, so a fresh machine starts from the extension's defaults (all
 footer segments on, telemetry on, thinking peek at one line). Tune with
 `/open-tui`; disable the extension entirely for a session by setting
 `enabled: false` there instead of removing the package.
+
+The search/edit stack is three independent third-party extensions with
+non-overlapping tool names, verified to load together:
+
+- `@ff-labs/pi-fff` registers `ffgrep` and `fffind` — Rust/SIMD search that is
+  pre-indexed at session start, frecency-ranked, and git-aware, with no `rg`/`fd`
+  subprocess per call. It stays in its default `tools-and-ui` mode. Its fourth
+  tool, `fff-multi-grep`, is gated behind `PI_FFF_MULTIGREP=1` upstream and is
+  deliberately left off; the author ships it disabled because their tests found
+  it harmful.
+- `pi-tool-discipline` registers no tools. It activates the built-in
+  `grep`/`find`/`ls` definitions so Pi stops emitting "Use bash for file
+  operations like ls, rg, find" (that guideline is only suppressed when a tool
+  with one of those exact names is active), and injects ffgrep/fffind-first
+  guidance into the system prompt.
+- `pi-better-edit` replaces `read` and `edit` with hash-anchored
+  `HASH│content` line anchors (`read`, `read_skill`, `edit`,
+  `undo_last_edit`) and guards `write` against reproduced anchor rows. Its
+  `edit` needs an anchor served by its own `read`; an edit without one fails
+  closed with `[E_UNKNOWN_ANCHOR]` and writes nothing.
+
+A `--fff-mode=override` run renames the FFF tools to
+`grep`/`find`/`multi_grep` instead. The snapshot keeps the default mode, where
+`pi-tool-discipline` is what suppresses the bash file-operation guideline.
 
 Shared packages are installed as one Git-backed package. Its three operator-only
 work skills load from canonical `packages/pi-work/skills/`; `/work` embeds the

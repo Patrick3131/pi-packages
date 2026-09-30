@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-09-30
 canonical_ref: none
@@ -29,12 +29,12 @@ Shared contract: three core work skills remain the /work interface; cleanup is a
 - [x] Verify operator metadata, sibling resources and unrelated-state preservation.
 
 ## Publication (subsequently authorised)
-- [ ] Commit/push all current pi-packages changes, including other crawler/researcher work.
-- [ ] Sync local canonical installation for Melon Labs/Melon Remote and live Melon Remote container, preserve personal/product state, verify source hashes/discovery.
+- [x] Commit/push all current pi-packages changes, including other crawler/researcher work.
+- [x] Sync local canonical installation for Melon Labs/Melon Remote and live Melon Remote container, preserve personal/product state, verify source hashes/discovery.
 
 ## Completion
-- [ ] Every acceptance criterion verified with honest limitations.
-- [ ] Finish/move all three documents together.
+- [x] Every acceptance criterion verified with honest limitations.
+- [x] Finish/move all three documents together.
 
 ## Open Questions
 None
