@@ -15,11 +15,13 @@ Pi package that registers `/tools` and project tool defaults.
 }
 ```
 
-- Names are the `/tools` registry names. Names the current session did not
-  register are ignored when the file is applied.
+- Names are the full `/tools` registry names. Names the current session does not
+  register are removed during reconciliation and saving.
 - Values must be `true` or `false`.
 - A missing file is created on first `/tools` open, `/tools save`, or the first agent turn. Live-active tools seed as `true`; everything else is `false`.
-- Tools that appear later are appended as `false`. Existing keys are never rewritten automatically.
+- Tools that appear later are appended as `false`. Registered tools keep their saved on/off values during automatic reconciliation.
+- Stale names are pruned at session start, before agent turns, and when opening the TUI picker. `/tools save` also writes only the current catalog. This uses every registered tool, not just active tools, so disabling a tool does not remove it.
+- If a tool is temporarily unregistered, its saved preference is removed too; if it returns later, it defaults to `false`.
 
 ## Session vs defaults
 

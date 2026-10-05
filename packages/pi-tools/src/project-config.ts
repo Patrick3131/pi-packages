@@ -41,19 +41,24 @@ export function loadProjectToolsConfig(path: string): ProjectToolsConfig | undef
 }
 
 /**
- * Fill in tools that are not in the file yet.
- * New names are false. First create seeds currently-active tools as true.
+ * Reconcile defaults with the full registered tool catalog.
+ * Removed names are pruned; new names are false. First create seeds live-active tools.
  */
 export function reconcileProjectTools(options: {
 	existing?: ProjectToolsConfig;
 	allToolNames: string[];
 	activeTools: string[];
-}): { tools: ProjectToolsConfig; added: string[]; created: boolean } {
+}): { tools: ProjectToolsConfig; added: string[]; removed: string[]; created: boolean } {
 	const existing = options.existing;
 	const created = existing === undefined;
 	const tools: ProjectToolsConfig = { ...(existing ?? {}) };
+	const known = new Set(options.allToolNames);
 	const active = new Set(options.activeTools);
 	const added: string[] = [];
+	const removed = Object.keys(tools).filter((name) => !known.has(name));
+	for (const name of removed) {
+		delete tools[name];
+	}
 
 	for (const name of options.allToolNames) {
 		if (Object.hasOwn(tools, name)) {
@@ -63,7 +68,7 @@ export function reconcileProjectTools(options: {
 		added.push(name);
 	}
 
-	return { tools, added, created };
+	return { tools, added, removed, created };
 }
 
 export function enabledProjectToolNames(tools: ProjectToolsConfig, allToolNames: string[]): string[] {

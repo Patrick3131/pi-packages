@@ -75,7 +75,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			allToolNames: allTools.map((tool) => tool.name),
 			activeTools: pi.getActiveTools(),
 		});
-		if (reconciled.created || reconciled.added.length > 0) {
+		if (reconciled.created || reconciled.added.length > 0 || reconciled.removed.length > 0) {
 			writeProjectToolsConfig(path, reconciled.tools);
 		}
 		return { path, tools: reconciled.tools, created: reconciled.created, added: reconciled.added };
@@ -98,12 +98,11 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		refreshCatalog();
 		enabledTools = new Set(pi.getActiveTools());
 		const path = projectPath(ctx.cwd);
-		const existing = loadProjectToolsConfig(path) ?? {};
 		const snapshot = snapshotProjectTools(
 			allTools.map((tool) => tool.name),
 			enabledTools,
 		);
-		writeProjectToolsConfig(path, { ...existing, ...snapshot });
+		writeProjectToolsConfig(path, snapshot);
 		ctx.ui.notify(`Saved project tool defaults to ${path}`, "info");
 	}
 

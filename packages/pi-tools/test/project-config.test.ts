@@ -33,17 +33,18 @@ test("first create seeds live-active tools as true and the rest as false", () =>
 	assert.equal(tools.web_search_searxng, false);
 });
 
-test("existing files only append unknown tools as false", () => {
-	const { tools, created, added } = reconcileProjectTools({
-		existing: { read: true, bash: true },
+test("reconciliation prunes stale names and preserves registered defaults", () => {
+	const existing = { read: true, bash: false, read_skill: true, mcpScript: false };
+	const { tools, created, added, removed } = reconcileProjectTools({
+		existing,
 		allToolNames: ["read", "bash", "agent_browser"],
 		activeTools: ["read", "bash", "agent_browser"],
 	});
 	assert.equal(created, false);
 	assert.deepEqual(added, ["agent_browser"]);
-	assert.equal(tools.read, true);
-	assert.equal(tools.bash, true);
-	assert.equal(tools.agent_browser, false);
+	assert.deepEqual(removed, ["read_skill", "mcpScript"]);
+	assert.deepEqual(tools, { read: true, bash: false, agent_browser: false });
+	assert.deepEqual(existing, { read: true, bash: false, read_skill: true, mcpScript: false });
 });
 
 test("enabledProjectToolNames ignores unknown and false tools", () => {
