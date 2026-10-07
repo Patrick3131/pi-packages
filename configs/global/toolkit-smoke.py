@@ -18,7 +18,7 @@ def main():
     agent = Path(args.agent_dir).expanduser().resolve()
     env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent))
     with tempfile.TemporaryFile() as errors:
-        process = subprocess.Popen(['pi', '--mode', 'rpc', '--no-session', '--no-mcp'], cwd=args.cwd or agent,
+        process = subprocess.Popen(['pi', '--mode', 'rpc', '--no-session', '--offline'], cwd=args.cwd or agent,
                                    env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors, bufsize=0)
         notifications = []
         def call(command):

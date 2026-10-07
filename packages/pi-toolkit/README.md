@@ -38,7 +38,8 @@ without review.
 
 ### Host limits
 
-Typechecked against Pi 0.99.1 and fresh-process smoke-tested against Pi 1.0.4.
+Typechecked against Pi 0.99.1 and fresh-process smoke-tested against Pi 0.99.2
+(remote) and Pi 1.0.4 (local).
 Optional introspection methods are guarded.
 Missing source, skills, auth-status, and loadout metadata appears as unknown,
 not an invented empty or disabled state. Complete extension-load status and MCP
