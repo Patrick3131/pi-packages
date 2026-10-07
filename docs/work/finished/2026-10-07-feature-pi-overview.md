@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-07
 canonical_ref: none
@@ -127,7 +127,7 @@ Proposed new paths (not existing files):
 - [x] AC8: New workspace is registered/documented, typechecks, and passes risk tests and root regression tests; any unrelated baseline failures are recorded rather than attributed to this feature.
 - [x] AC9: Toolkit supplies `/tools`, `/preset`, skill-mention expansion/autocomplete, and `/overview` once each. Feature filters remain independent; existing presets.json, tools.json, shortcuts, and preset-state remain compatible. Old workspaces are retired without behavior regression.
 - [x] AC10: Targeted migration previews exact local-global/remote changes, backs up only changed files, preserves unrelated settings and deliberate filters, rejects malformed/ambiguous state safely, and is a no-op on repeat. No credentials/sessions/trust or project-owned config is changed.
-- [ ] AC11: Following separately approved publication and activation, both scoped consumers have the verified intended published revision, no stale active old entry paths or duplicate registrations, and passing command/preset/mention/overview smoke checks. Record installed revision, source attribution, reload requirements, and rollback evidence per target. Remote HTML stays local to the remote filesystem; no server/tunnel is added.
+- [x] AC11: Following separately approved publication and activation, both scoped consumers have the verified intended published revision, no stale active old entry paths or duplicate registrations, and passing command/preset/mention/overview smoke checks. Record installed revision, source attribution, reload requirements, and rollback evidence per target. Remote HTML stays local to the remote filesystem; no server/tunnel is added.
 
 ## Consumer Migration and Cutover
 
@@ -142,11 +142,11 @@ Proposed new paths (not existing files):
 
 ## Validation
 
-Use fixture-driven collection/normalization tests, a command harness proving side-effect boundaries, safe HTML rendering tests, and a manual local report check. Detailed risks, commands, and pending evidence are in the companion test plan. Planning itself does not run implementation tests or claim a UI exists.
+Use fixture-driven collection/normalization tests, a command harness proving side-effect boundaries, safe HTML rendering tests, and a manual local report check. Detailed risks, commands, and verification evidence are in the companion test plan. Planning itself does not run implementation tests or claim a UI exists.
 
 ## Implementation State
 
-Source implementation and validation for AC1–AC10 passed on 2026-10-07. AC11 remains pending the separately required publication/activation approval; neither global consumer has been updated. Both currently use `8f90855cba3884c8bc62475ed5163833dcc4f3b5`. Settings-only previews found no reference changes on either scoped target, so activation needs the published package update, not a blanket config sync. See the test companion for evidence and exact gate commands.
+All AC1–AC11 verified on 2026-10-07. Operator approved publication/activation with “yes finish it.” Toolkit source `a2e7b7b` and portable smoke fix `056b4c5` are published. Local-global Pi 1.0.4 and the configured remote Pi 0.99.2 both run intended feature revision `056b4c5143ce6928fad4fc35005d7e1705909547`, upgraded from `8f90855cba3884c8bc62475ed5163833dcc4f3b5`. Narrow previews and repeat migration found no settings changes; only the shared package was updated. Fresh normal sessions prove once-only toolkit command ownership, preset/tool/overview behavior and zero model calls. Separate installed-factory input probes and normal TUI checks prove live skill expansion/autocomplete on both hosts. Prior revisions remain available for targeted rollback; no live rollback, Pi upgrade, service restart, project scan, extra cache/worktree cleanup, or remote hosting was performed. Active pre-existing sessions need `/reload`; fresh sessions are already verified. See the test companion for per-target evidence.
 
 ## Open Questions
 

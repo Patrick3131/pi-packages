@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-07
 canonical_ref: none
@@ -31,7 +31,7 @@ One serial source implementation unit owns `packages/pi-toolkit/`, migration of 
 - [x] Manually review `/overview` in this repository: locate `/preset` ownership, definitions, tool exposure/default differences, current versus startup provider, and MCP unknown-state explanation (AC2–AC5).
 - [x] Run workspace tests/typecheck, root regression tests/typecheck/build, recording baseline failures separately (AC8).
 - [x] Run migrated feature regression tests and verify each feature can be filtered independently without duplicate hooks/commands (AC9).
-- [ ] After separately approved publication/activation, preview/apply the narrow cutover on local-global and configured-remote Pi, verify installed revisions and fresh-session smoke checks, and record per-target evidence/reload requirements (AC11).
+- [x] After separately approved publication/activation, preview/apply the narrow cutover on local-global and configured-remote Pi, verify installed revisions and fresh-session smoke checks, and record per-target evidence/reload requirements (AC11).
 - [x] Stop on an unknown project consumer, ambiguous mapping, or one-target failure; report residuals and preserve targeted backups instead of widening scope (AC10, AC11).
 
 ## Docs
@@ -39,15 +39,15 @@ One serial source implementation unit owns `packages/pi-toolkit/`, migration of 
 - [x] Add toolkit `README.md`, `AGENTS.md`, `CONTEXT.md`, and `.env.example`; retire/migrate old package docs, update root and global restore/sync docs with feature paths and narrow cutover/rollback instructions, preserving unrelated edits.
 - [x] Keep spec/test/to-do consistent if implementation discovers a material API limitation or changes the supported host range.
 
-## Current Gate
+## Completion Evidence
 
-Publication/activation approval requested. Source is implemented and reviewed; do not mark done or move this package before both installed consumer revisions and fresh-session smoke checks pass. No project consumers were scanned or changed.
+Operator approved publication/activation with “yes finish it.” Both scoped installed consumers verified at feature revision 056b4c5, with once-only toolkit source attribution, normal fresh-session command/preset/overview smoke, actual skill expansion, normal TUI autocomplete, no-op repeat mapping and available prior-revision rollback metadata. Root validation passes; see the test companion for per-target evidence and known host/API limits. No project consumers were scanned or changed. The final documentation-only closing commit may advance the published revision without altering tested feature code.
 
 ## Completion
 
-- [ ] Every acceptance criterion is verified with evidence recorded in the test companion.
+- [x] Every acceptance criterion is verified with evidence recorded in the test companion.
 - [x] Coverage decision and explicit omissions are still justified; no claim of tested UI before manual verification.
-- [ ] Set all three documents to `done`, update `last_reviewed`, and move the complete basename group to `docs/work/finished/` only after acceptance.
+- [x] Set all three documents to `done`, update `last_reviewed`, and move the complete basename group to `docs/work/finished/` only after acceptance.
 
 ## Open Questions
 
