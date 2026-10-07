@@ -33,6 +33,21 @@ export function redactError(message: string, config: Crawl4AIConfig): string {
     .replace(/Bearer\s+[^\s"']+/gi, "Bearer [redacted]").slice(0, 2000);
 }
 
+function transportMessage(value: unknown): string {
+  if (value && typeof value === "object" && "message" in value && typeof value.message === "string") return value.message;
+  return String(value);
+}
+
+/** Only the immediate cause; no stacks, recursive cause traversal or raw objects. */
+function formatTransportError(error: unknown, config: Crawl4AIConfig): string {
+  const cause = error && typeof error === "object" && "cause" in error ? error.cause : undefined;
+  const code = cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string" ? cause.code : undefined;
+  // Keep endpoint/code before potentially long messages. Remove userinfo everywhere,
+  // then redact tokens before the shared bound can leave a partial secret behind.
+  const message = `crawl4ai connection failed (${config.baseUrl})${code ? ` [${code}]` : ""}: ${transportMessage(error)}${cause !== undefined ? `; cause: ${transportMessage(cause)}` : ""}`;
+  return redactError(message.replace(/(https?:\/\/)[^\s/"'<>]*@/gi, "$1"), config);
+}
+
 export async function readBoundedBody(response: Response, signal: AbortSignal): Promise<string> {
   const declared = Number(response.headers?.get("content-length"));
   if (declared > MAX_RESPONSE_BYTES) {
@@ -66,11 +81,17 @@ export async function readBoundedBody(response: Response, signal: AbortSignal): 
 export async function fetchCrawlApi(config: Crawl4AIConfig, route: string, init: RequestInit, signal: AbortSignal): Promise<string> {
   if (signal.aborted) throw signal.reason;
   const token = config.apiToken ?? config.raw.apiToken;
-  const response = await abortable(fetch(`${config.baseUrl.replace(/\/+$/, "")}${route}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers },
-    signal,
-  }), signal);
+  let response: Response;
+  try {
+    response = await abortable(fetch(`${config.baseUrl.replace(/\/+$/, "")}${route}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers },
+      signal,
+    }), signal);
+  } catch (error) {
+    if (signal.aborted) throw signal.reason;
+    throw new Error(formatTransportError(error, config));
+  }
   const text = await readBoundedBody(response, signal);
   if (!response.ok) {
     const unsupported = /deep_crawl_strategy|untrusted request|BFSDeepCrawlStrategy|DFSDeepCrawlStrategy|BestFirstCrawlingStrategy/i.test(text)

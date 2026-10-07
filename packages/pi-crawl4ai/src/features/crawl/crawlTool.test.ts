@@ -132,7 +132,9 @@ describe("crawl reliability regressions", () => {
   it("enforces the deadline even when headers never arrive", async () => {
     const fetchMock = jest.fn(() => new Promise(() => {}));
     global.fetch = fetchMock as unknown as typeof fetch;
-    await expect(invoke({}, createTool(25))).rejects.toThrow(/deadline|timed out/i);
+    const error = await invoke({}, createTool(25)).catch((error: Error) => error);
+    expect(error.message).toMatch(/deadline|timed out/i);
+    expect(error.message).not.toContain("connection failed");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("pre-abort makes no POST", async () => {
@@ -149,7 +151,9 @@ describe("crawl reliability regressions", () => {
     const pending = invoke({}, createTool(), controller.signal);
     await new Promise(resolve => setTimeout(resolve, 10));
     controller.abort();
-    await expect(pending).rejects.toThrow(/cancelled/);
+    const error = await pending.catch((error: Error) => error);
+    expect(error.message).toMatch(/cancelled/);
+    expect(error.message).not.toContain("connection failed");
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
     respond(); await expect(invoke({ save: false })).resolves.toBeDefined();
@@ -171,7 +175,10 @@ describe("crawl reliability regressions", () => {
     { success: true, results: [{ ...PAGE, markdown: 10 }] },
     { success: true, results: [{ ...PAGE, links: { internal: "wrong", external: [] } }] },
   ])("rejects malformed response %j", async data => {
-    mockFetch({ data }); await expect(invoke()).rejects.toThrow(/Malformed/);
+    mockFetch({ data });
+    const error = await invoke().catch((error: Error) => error);
+    expect(error.message).toMatch(/Malformed/);
+    expect(error.message).not.toContain("connection failed");
   });
   it("rejects unsuccessful envelopes and invalid JSON", async () => {
     mockFetch({ data: { success: false, results: [] } }); await expect(invoke()).rejects.toThrow("Crawl request failed");
@@ -186,11 +193,42 @@ describe("crawl reliability regressions", () => {
     expect(JSON.stringify(result)).not.toContain("secret-token");
     expect(result.details.results[1].success).toBe(false);
   });
+  it.each([
+    { rejection: Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error("connect refused"), { code: "ECONNREFUSED", cause: new Error("nested-secret-marker") }) }), expected: ["fetch failed", "ECONNREFUSED", "connect refused"] },
+    { rejection: new TypeError("fetch failed"), expected: ["fetch failed"] },
+    { rejection: "socket unavailable", expected: ["socket unavailable"] },
+  ])("renders service transport diagnostics and immediate cause only (%#)", async ({ rejection, expected }) => {
+    const tool = createTool(60000, config => { config.baseUrl = "http://service.example:11235"; });
+    const fetchMock = jest.fn().mockRejectedValue(rejection);
+    global.fetch = fetchMock as typeof fetch;
+    const error = await invoke({ save: false }, tool).catch((error: Error) => error);
+    expect(error.message).toContain("http://service.example:11235");
+    for (const value of expected) expect(error.message).toContain(value);
+    expect(error.message).not.toContain("nested-secret-marker");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("sanitizes the complete transport diagnostic before bounding it", async () => {
+    const endpoint = "http://synthetic-user:synthetic-password@service.example:11235";
+    const secret = "secret-token";
+    const diagnostic = `${endpoint} ${secret} Bearer ${secret} ${"x".repeat(5000)}`;
+    const tool = createTool(60000, config => { config.baseUrl = endpoint; config.apiToken = secret; });
+    global.fetch = jest.fn().mockRejectedValue(Object.assign(new TypeError(`fetch failed ${diagnostic}`), {
+      cause: Object.assign(new Error(`connect refused ${diagnostic}`), { code: "ECONNREFUSED" }),
+    })) as typeof fetch;
+    const error = await invoke({ save: false }, tool).catch((error: Error) => error);
+    expect(error.message).toContain("http://service.example:11235");
+    expect(error.message).toContain("ECONNREFUSED");
+    expect(error.message).not.toContain(secret);
+    expect(error.message).not.toContain("synthetic-user");
+    expect(error.message).not.toContain("synthetic-password");
+    expect(error.message.length).toBeLessThanOrEqual(2000 + "Crawl failed: ".length);
+  });
   it("HTTP errors are bounded/redacted and never retried", async () => {
     const tool = createTool(60000, config => { config.apiToken = "secret-token"; });
     const fetchMock = mockFetch({ ok: false, status: 500, text: "Bearer secret-token " + "x".repeat(5000) });
     const error = await invoke({}, tool).catch((error: Error) => error);
     expect(error.message).toContain("crawl4ai API error");
+    expect(error.message).not.toContain("connection failed");
     expect(error.message).not.toContain("secret-token");
     expect(error.message.length).toBeLessThan(2100);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -205,7 +243,9 @@ describe("crawl reliability regressions", () => {
     global.fetch = jest.fn(async () => new Response(new ReadableStream({
       start(controller) { controller.enqueue(new Uint8Array(MAX_RESPONSE_BYTES)); controller.enqueue(new Uint8Array(1)); }, cancel,
     }))) as typeof fetch;
-    await expect(invoke()).rejects.toThrow("20 MiB");
+    const error = await invoke().catch((error: Error) => error);
+    expect(error.message).toContain("20 MiB");
+    expect(error.message).not.toContain("connection failed");
     expect(cancel).toHaveBeenCalledTimes(1);
   });
   it.each([

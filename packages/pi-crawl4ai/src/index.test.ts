@@ -101,6 +101,25 @@ describe("pi-crawl4ai registration and on-demand status", () => {
     expect(errorOptions).toEqual({ triggerTurn: false });
     expect(headlessNotify).not.toHaveBeenCalled();
   });
+  it("delivers shared transport diagnostics from crawl-status", async () => {
+    process.env.CRAWL4AI_BASE_URL = "http://service.example:11235";
+    process.env.CRAWL4AI_API_TOKEN = "test-token";
+    global.fetch = jest.fn().mockRejectedValue(Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error("connect refused Bearer test-token"), { code: "ECONNREFUSED" }),
+    })) as typeof fetch;
+    const { pi, commands } = createMockPi(); extension(pi);
+    await commands["crawl-status"].handler("", { hasUI: false, cwd: process.cwd() });
+    const [message, options] = (pi.sendMessage as jest.Mock).mock.calls[0];
+    expect(message.customType).toBe("crawl-status");
+    expect(message.display).toBe(true);
+    expect(message.content).toMatch(/^crawl-status: /);
+    expect(message.content).toContain("http://service.example:11235");
+    expect(message.content).toContain("ECONNREFUSED");
+    expect(message.content).toContain("connect refused");
+    expect(message.content).not.toContain("test-token");
+    expect(options).toEqual({ triggerTurn: false });
+    expect(pi.setActiveTools).not.toHaveBeenCalled();
+  });
   it("reports bounded/redacted errors without depending on terminal UI", async () => {
     process.env.CRAWL4AI_API_TOKEN = "test-token";
     mockFetch({ ok: false, status: 401, text: "Bearer test-token " + "x".repeat(5000) });
