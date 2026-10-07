@@ -19,10 +19,11 @@
     "extensions": [
       "packages/pi-crawl4ai/src/index.ts",
       "packages/pi-delegation/src/index.ts",
-      "packages/pi-presets/src/preset.ts",
+      "packages/pi-toolkit/src/features/presets/index.ts",
       "packages/pi-searxng/src/index.ts",
-      "packages/pi-tools/src/tools.ts",
-      "packages/pi-skill-mentions/src/index.ts",
+      "packages/pi-toolkit/src/features/tools/index.ts",
+      "packages/pi-toolkit/src/features/skill-mentions/index.ts",
+      "packages/pi-toolkit/src/features/overview/index.ts",
       "packages/pi-recap/src/index.ts",
       "packages/pi-work/src/index.ts"
     ],

@@ -32,12 +32,8 @@ pi-packages/
 │   │   ├── skills/
 │   │   └── package.json
 │   │
-│   ├── pi-presets/           # /preset engine
-│   │   ├── src/
-│   │   └── package.json
-│   │
-│   ├── pi-tools/             # /tools command
-│   │   ├── src/
+│   ├── pi-toolkit/           # /tools, /preset, mentions, /overview
+│   │   ├── src/features/     # Four separate extension entry points
 │   │   └── package.json
 │   │
 │   ├── pi-searxng/           # SearXNG web_search_searxng

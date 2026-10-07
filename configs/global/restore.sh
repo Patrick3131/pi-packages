@@ -140,6 +140,7 @@ if [[ "$AGENT_DIR" != "$HOME/.pi/agent" && ! -e "$HOME/.pi/agent" ]]; then
 fi
 
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
+python3 "$ROOT/migrate-toolkit.py" --agent-dir "$AGENT_DIR" --apply
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 copy_file "$ROOT/mcp-policy.ts" "$AGENT_DIR/extensions/mcp-policy.ts"
@@ -161,7 +162,7 @@ fi
 if [[ -f "$AGENT_DIR/extensions/tools.ts" ]]; then
 	backup_if_exists "$AGENT_DIR/extensions/tools.ts"
 	rm -f "$AGENT_DIR/extensions/tools.ts"
-	echo "Removed loose $AGENT_DIR/extensions/tools.ts so /tools comes from pi-tools"
+	echo "Removed loose $AGENT_DIR/extensions/tools.ts so /tools comes from pi-toolkit"
 fi
 
 python3 - "$AGENT_DIR/settings.json" <<'PY'

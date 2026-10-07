@@ -9,9 +9,7 @@ A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed 
 | [pi-crawl4ai](./packages/pi-crawl4ai) | Remote browser crawling, file-first reads, BM25 and optional Trafilatura/agents; server-managed egress | Git package |
 | [pi-work](./packages/pi-work) | Detailed planning, optional parallel sliced implementation/integration, safe work-note cleanup, scaffold, and `/work` wizard | Git package |
 | [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate | Git package |
-| [pi-presets](./packages/pi-presets) | Named job presets (`/preset`, `--preset`) | Git package |
-| [pi-tools](./packages/pi-tools) | Official `/tools` command | Git package |
-| [pi-skill-mentions](./packages/pi-skill-mentions) | Reference several skills from anywhere in one message (`$<name>`) | Git package |
+| [pi-toolkit](./packages/pi-toolkit) | Everyday utilities: `/tools`, `/preset`, `$skill-name` mentions, and My Pi HTML `/overview` | Git package |
 | [pi-recap](./packages/pi-recap) | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`) | Git package |
 | [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
 | [paseo-melon](./paseo-melon) | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees | Paseo plugin |
@@ -44,6 +42,21 @@ pi update --extensions
 This is the deployment and normal workstation setup. Local paths are reserved
 for development of an extension before it is pushed.
 
+
+### Toolkit migration
+
+`pi-toolkit` replaces the former tools/presets/skill-mentions workspaces inside the same Git package. Commands, preset files, tools.json, and skill syntax are unchanged; its four feature entry points remain independently filterable.
+
+After publishing the verified commit, preview then apply only the toolkit cutover (local global Pi and the configured remote runtime):
+
+```bash
+./scripts/pi-sync --toolkit-only --check
+./scripts/pi-sync --toolkit-only --apply
+# Local global target only:
+./scripts/pi-sync --toolkit-only --local-only --check
+```
+
+This does not copy shared presets or replace unrelated config. It maps verified old feature references with private timestamped backups, preserves custom feature filters, and refuses ambiguous patterns. Reload/start fresh and check `/tools`, `/preset`, `$` mentions, and `/overview` once per target. The remote report is a file on the remote host; no web server is started. See [toolkit migration and rollback](./packages/pi-toolkit/README.md#migration).
 ### Native MCP and compaction
 
 Requires Pi 0.99.0 or newer. Pi owns MCP connections, codemode, tool discovery,

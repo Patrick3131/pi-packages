@@ -151,5 +151,6 @@ test("reads workspace package names from this repository's manifest", () => {
   const byName = readWorkspaceDirs(repositoryRoot);
 
   assert.ok(byName.get("pi-work"), "pi-work should map to its package dir");
-  assert.ok(byName.size >= 8, "every workspace package should be mapped");
+  assert.ok(byName.get("pi-toolkit"), "consolidated toolkit should map to its package dir");
+  assert.equal(byName.has("pi-tools"), false, "retired workspace must not point outside a worktree");
 });

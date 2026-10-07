@@ -66,6 +66,8 @@ class Dokploy:
         mode = "apply" if apply else "check"
         worker_args = ["--worker", "--agent-dir", "/data/pi-agent", "--pi-bin-dir", "/data/pi-runtime/bin",
                        "--revision", args.revision, "--result-token", token]
+        if getattr(args, "toolkit_only", False):
+            worker_args += ["--toolkit-only"]
         if apply:
             worker_args += ["--apply"]
         elif args.require_approval:

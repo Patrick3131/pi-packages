@@ -107,11 +107,10 @@ new syncing are needed. The package provides:
 
 - `packages/pi-work` — three shared operator skills and `/work`
 
-- `packages/pi-presets` — `/preset` engine
-- `packages/pi-tools` — `/tools` command
+- `packages/pi-toolkit` — `/preset`, `/tools`, `$` skill mentions, and My Pi HTML `/overview`; independently filterable feature entry points
 - `packages/pi-searxng` — `web_search_searxng` (off by default)
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read`
-- `packages/pi-skill-mentions` — `$<name>` mentions with `$` autocomplete, so one message can load several skills
+- Toolkit feature paths are `packages/pi-toolkit/src/features/{presets,tools,skill-mentions,overview}/index.ts`.
 - `packages/pi-delegation` — standing delegation policy, appended to the
   system prompt only when the `subagent` tool is active in the session
 - Native Pi — MCP, codemode, deferred tool search, and between-turn compaction
@@ -120,6 +119,22 @@ Restore removes a leftover `~/.pi/agent/extensions/tools.ts` so `/tools` is
 not registered twice. On managed remote hosts, `paseo-init` uses `--force` only for fresh settings;
 persisted settings use narrow migration. Neither path copies auth or session
 state. Agents-only restore is available independently for persisted hosts.
+
+
+## Toolkit cutover
+
+Preview global settings reference changes (no project scanning or credential reads):
+
+```bash
+python3 configs/global/migrate-toolkit.py
+python3 configs/global/migrate-toolkit.py --apply
+# Remote filesystem, when invoked under the existing Paseo user/lock boundary:
+python3 configs/global/migrate-toolkit.py --agent-dir /data/pi-agent
+```
+
+For a published package update plus migration on both configured consumers, use `./scripts/pi-sync --toolkit-only --check`, then `--toolkit-only --apply`. This path preserves presets, models, MCP config, credentials, sessions, and all other consumer settings. Do not use full restore `--force` or `--accept-config` just for toolkit migration. Fresh/full restore applies the narrow mapper before legacy normalization; standalone custom-policy conflicts fail for explicit review.
+
+Backups are private `settings.json.toolkit-backup-<timestamp>` files, created only when settings actually change. Repeat apply is a no-op. To preview a targeted rollback, pass `--rollback <backup>`; add `--apply` to restore only migrated fields. Later edits to those fields cause refusal; other personal settings are retained. Pair rollback with the previously recorded shared-package revision to avoid old paths against new source. No cache deletion, project edits, or restart is automated.
 
 ## Custom agent definitions
 

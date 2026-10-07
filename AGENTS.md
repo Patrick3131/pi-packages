@@ -17,9 +17,7 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
 - `packages/pi-delegation` - Capability-gated delegation instructions
-- `packages/pi-presets` - Global `/preset` engine; job lists stay in JSON files
-- `packages/pi-tools` - Official `/tools` command, installed as a package
-- `packages/pi-skill-mentions` - Reference several skills from anywhere in one message (`$<name>`)
+- `packages/pi-toolkit` - Everyday utilities: `/tools`, `/preset`, skill mentions, and `/overview` (separate feature entry points)
 - `packages/pi-recap` - Session recap HTML: user questions with short, expandable answers (`/recap`, `/user-messages`)
 - `packages/pi-searxng` - Self-hosted SearXNG tool `web_search_searxng` (off by default)
 - `paseo-melon/` - Paseo workspace panel for Melon worktrees and previews (installed with `paseo plugin add`)

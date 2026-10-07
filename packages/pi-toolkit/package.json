@@ -1,0 +1,28 @@
+{
+  "name": "pi-toolkit",
+  "version": "0.1.0",
+  "description": "Everyday Pi utilities: tools, presets, skill mentions, and My Pi setup overview",
+  "type": "module",
+  "scripts": {
+    "test": "node --import tsx --test --test-force-exit test/*.test.ts test/**/*.test.ts src/features/overview/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf coverage"
+  },
+  "keywords": ["pi", "pi-package", "pi-extension"],
+  "author": "Patrick Fischer <patrick-fischer@live.de>",
+  "license": "MIT",
+  "repository": {"type": "git", "url": "https://github.com/Patrick3131/pi-packages", "directory": "packages/pi-toolkit"},
+  "files": ["src", "README.md", "LICENSE"],
+  "pi": {"extensions": [
+    "./src/features/presets/index.ts",
+    "./src/features/tools/index.ts",
+    "./src/features/skill-mentions/index.ts",
+    "./src/features/overview/index.ts"
+  ]},
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": ">=0.99.1",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {"@types/node": "^24.5.2", "tsx": "^4.21.0", "typescript": "^5.9.2"}
+}

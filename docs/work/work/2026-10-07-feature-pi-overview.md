@@ -117,16 +117,16 @@ Proposed new paths (not existing files):
 
 ## Acceptance Criteria
 
-- [ ] AC1: `/overview` creates a usable self-contained HTML report and opens it in the local browser during interactive use. It always reports its path and survives browser-launch failure; automated/non-TUI invocations do not auto-open a browser. No command flags or text export are implemented.
-- [ ] AC2: All scoped declarations and observed capabilities appear with origin/status evidence; this repository's filtered Git copy and local development checkout are explained without claiming two loaded copies.
-- [ ] AC3: Tool rows separate live membership, exposure/callability, saved defaults, and preset requests. Preset whole-name overrides, recorded state, unknown tools, and resume/manual divergence are represented accurately.
-- [ ] AC4: Provider rows separate current/default/auth-configured/model-availability; MCP rows separate configured/extension-registered/observed-tools/unknown connection state. Empty and unknown are visibly different.
-- [ ] AC5: Search, section links, expanders, keyboard navigation, and responsive dark/light presentation allow a user to answer what supplies `/preset`, which presets exist, and why a declared package/tool is not active without reading raw JSON.
-- [ ] AC6: The overview command performs no config/session/tool/model/MCP mutation, auth resolution, network call, extension import, or server launch. Only report output and an optional local browser launch are its side effects. Secrets in disallowed fields never enter the snapshot/rendered output; untrusted text cannot execute in HTML.
-- [ ] AC7: Invalid/missing files and unsupported optional APIs yield localized safe warnings/unknown state rather than a broken report or misleading empty inventory; untrusted project scope is not read.
-- [ ] AC8: New workspace is registered/documented, typechecks, and passes risk tests and root regression tests; any unrelated baseline failures are recorded rather than attributed to this feature.
-- [ ] AC9: Toolkit supplies `/tools`, `/preset`, skill-mention expansion/autocomplete, and `/overview` once each. Feature filters remain independent; existing presets.json, tools.json, shortcuts, and preset-state remain compatible. Old workspaces are retired without behavior regression.
-- [ ] AC10: Targeted migration previews exact local-global/remote changes, backs up only changed files, preserves unrelated settings and deliberate filters, rejects malformed/ambiguous state safely, and is a no-op on repeat. No credentials/sessions/trust or project-owned config is changed.
+- [x] AC1: `/overview` creates a usable self-contained HTML report and opens it in the local browser during interactive use. It always reports its path and survives browser-launch failure; automated/non-TUI invocations do not auto-open a browser. No command flags or text export are implemented.
+- [x] AC2: All scoped declarations and observed capabilities appear with origin/status evidence; this repository's filtered Git copy and local development checkout are explained without claiming two loaded copies.
+- [x] AC3: Tool rows separate live membership, exposure/callability, saved defaults, and preset requests. Preset whole-name overrides, recorded state, unknown tools, and resume/manual divergence are represented accurately.
+- [x] AC4: Provider rows separate current/default/auth-configured/model-availability; MCP rows separate configured/extension-registered/observed-tools/unknown connection state. Empty and unknown are visibly different.
+- [x] AC5: Search, section links, expanders, keyboard navigation, and responsive dark/light presentation allow a user to answer what supplies `/preset`, which presets exist, and why a declared package/tool is not active without reading raw JSON.
+- [x] AC6: The overview command performs no config/session/tool/model/MCP mutation, auth resolution, network call, extension import, or server launch. Only report output and an optional local browser launch are its side effects. Secrets in disallowed fields never enter the snapshot/rendered output; untrusted text cannot execute in HTML.
+- [x] AC7: Invalid/missing files and unsupported optional APIs yield localized safe warnings/unknown state rather than a broken report or misleading empty inventory; untrusted project scope is not read.
+- [x] AC8: New workspace is registered/documented, typechecks, and passes risk tests and root regression tests; any unrelated baseline failures are recorded rather than attributed to this feature.
+- [x] AC9: Toolkit supplies `/tools`, `/preset`, skill-mention expansion/autocomplete, and `/overview` once each. Feature filters remain independent; existing presets.json, tools.json, shortcuts, and preset-state remain compatible. Old workspaces are retired without behavior regression.
+- [x] AC10: Targeted migration previews exact local-global/remote changes, backs up only changed files, preserves unrelated settings and deliberate filters, rejects malformed/ambiguous state safely, and is a no-op on repeat. No credentials/sessions/trust or project-owned config is changed.
 - [ ] AC11: Following separately approved publication and activation, both scoped consumers have the verified intended published revision, no stale active old entry paths or duplicate registrations, and passing command/preset/mention/overview smoke checks. Record installed revision, source attribution, reload requirements, and rollback evidence per target. Remote HTML stays local to the remote filesystem; no server/tunnel is added.
 
 ## Consumer Migration and Cutover
@@ -143,6 +143,10 @@ Proposed new paths (not existing files):
 ## Validation
 
 Use fixture-driven collection/normalization tests, a command harness proving side-effect boundaries, safe HTML rendering tests, and a manual local report check. Detailed risks, commands, and pending evidence are in the companion test plan. Planning itself does not run implementation tests or claim a UI exists.
+
+## Implementation State
+
+Source implementation and validation for AC1–AC10 passed on 2026-10-07. AC11 remains pending the separately required publication/activation approval; neither global consumer has been updated. Both currently use `8f90855cba3884c8bc62475ed5163833dcc4f3b5`. Settings-only previews found no reference changes on either scoped target, so activation needs the published package update, not a blanket config sync. See the test companion for evidence and exact gate commands.
 
 ## Open Questions
 

@@ -96,15 +96,24 @@ def target(args, checkout):
     if not shutil.which("pi", path=env["PATH"]):
         raise RuntimeError("pi executable not found")
     current = json.loads((agent / "settings.json").read_text())
+    toolkit = getattr(args, "toolkit_only", False)
+    migration = None
+    if toolkit:
+        import runpy
+        migration = runpy.run_path(str(checkout / "configs/global/migrate-toolkit.py"))
+        migrated = migration["migrate"](current)
+        migration["execute"](agent)
+        planned = [(agent / "settings.json", json.dumps(migrated, indent=2) + "\n")] if migrated != current else []
+    else:
+        planned = changes(checkout / "configs/global", agent)
+        show(planned)
     if not any(source(e) == SOURCE for e in current.get("packages", [])):
         raise RuntimeError(f"Expected unpinned global package {SOURCE}; install it first")
-    planned = changes(checkout / "configs/global", agent)
-    show(planned)
-    print(f"{agent}: {len(planned)} shared config change(s); published commit {args.revision}", flush=True)
+    print(f"{agent}: {len(planned)} {'toolkit reference' if toolkit else 'shared config'} change(s); published commit {args.revision}", flush=True)
     installed = agent / "git/github.com/Patrick3131/pi-packages"
     if (installed / ".git").exists():
         run(["git", "-C", str(installed), "rev-parse", "HEAD"])
-    if planned and (args.apply or args.require_approval) and not args.accept_config:
+    if planned and not toolkit and (args.apply or args.require_approval) and not args.accept_config:
         raise RuntimeError("Config differs: review --check, then pass --accept-config to authorize these changes")
     if not args.apply:
         return
@@ -113,9 +122,12 @@ def target(args, checkout):
     actual = subprocess.check_output(["git", "-C", str(installed), "rev-parse", "HEAD"], text=True).strip()
     if actual != args.revision:
         raise RuntimeError(f"Published branch moved during sync ({actual}); config not applied. Rerun.")
-    write_changes(planned)
-    hook = agent / FILES["worktree-setup.mjs"]
-    hook.chmod(hook.stat().st_mode | 0o100)
+    if toolkit:
+        migration["execute"](agent, apply=True)
+    else:
+        write_changes(planned)
+        hook = agent / FILES["worktree-setup.mjs"]
+        hook.chmod(hook.stat().st_mode | 0o100)
     print(f"Updated {agent} to {actual}. Run /reload in active sessions (or restart).", flush=True)
 
 
@@ -131,6 +143,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="report only (default)")
     parser.add_argument("--accept-config", action="store_true", help="authorize displayed shared config replacements")
     parser.add_argument("--local-only", action="store_true", help="explicitly skip remote")
+    parser.add_argument("--toolkit-only", action="store_true", help="update shared package and migrate only toolkit references; preserve other config")
     parser.add_argument("--agent-dir", default=os.environ.get("PI_CODING_AGENT_DIR", "~/.pi/agent"))
     parser.add_argument("--pi-bin-dir", default="")
     parser.add_argument("--require-approval", action="store_true", help=argparse.SUPPRESS)
