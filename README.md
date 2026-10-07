@@ -165,6 +165,67 @@ For a pinned release, install a Git tag or commit:
 pi install git:github.com/Patrick3131/pi-packages@<tag-or-commit>
 ```
 
+## Sync local Pi and melon-remote
+
+After testing and pushing shared changes, run from this checkout:
+
+```bash
+# Uses your existing authenticated Dokploy CLI configuration; no SSH exports.
+
+./scripts/pi-sync --check
+./scripts/pi-sync --apply
+# Only after reviewing config differences:
+./scripts/pi-sync --apply --accept-config
+# Explicitly operate on the local global installation only:
+./scripts/pi-sync --local-only --check
+```
+
+Requires Python 3, Git and Pi locally and in the Pi container, plus `gosu` and
+`flock` in that container. Reads existing Dokploy CLI authentication (locates
+`dokploy` on PATH), or `DOKPLOY_URL` + `DOKPLOY_API_KEY`/`DOKPLOY_AUTH_TOKEN`.
+The URL must use HTTPS. No token is copied into tasks or logs. The CLI stores
+its auth inside its npm installation: back it up securely before upgrading the
+CLI, or use environment variables to avoid losing auth on npm upgrades.
+
+The one configured remote target is Dokploy compose `_aUWwRNm5fjVkxzUFO4_J`
+(`tools-remotecoding-wmvl3i`), service **`paseo`**, not `codex-paseo` or the SSH
+workbench. The script verifies compose identity before use. If that deployment
+is recreated, review/update the constants in `scripts/pi-sync-dokploy.py`.
+Remote paths are `/data/pi-agent` and `/data/pi-runtime/bin`; local scope honors
+`PI_CODING_AGENT_DIR`.
+
+This command reads the **published** GitHub revision, not your unpushed working
+copy. It checks both targets before applying, updates only the shared Git
+package, verifies the installed commit, and reports reload requirements. It
+never scans repositories, updates project-local packages, upgrades Pi or
+third-party packages, pushes commits, deletes worktrees, or restarts sessions.
+Remote operations use the same lock as Paseo startup/update and run as `paseo`.
+Each remote check/apply creates a temporary **disabled** Dokploy task, manually
+runs it via the corrected tRPC API envelope (bypassing the CLI query bug), and
+requires both terminal `done` status and an exact per-run/revision completion
+marker in the logs. The worker source is transmitted from this checkout, but
+package/config content always comes from the selected published commit.
+Verified tasks are deleted; failed/unverified tasks remain disabled for
+inspection and their IDs are printed. No recurring schedule, sudo password,
+SSH connection, container restart or deployment/redeploy is used.
+
+Shared config is an explicit allowlist: package declarations in `settings.json`,
+`presets.json`, `APPEND_SYSTEM.md`, MCP policy extension, worktree setup hook,
+and custom agent definitions. Shared package declarations replace matching
+entries; target-only packages and other settings keys are preserved. Shared
+file differences require `--accept-config`; existing files get timestamped
+backups. MCP endpoints, subagent configuration, model preferences, auth,
+sessions, trust, caches and unrelated custom agents are not copied or deleted.
+Bootstrap new machines with restore separately.
+
+Sync is sequential, not transactional across machines. A failure may leave one
+target updated; the command exits nonzero and reports failure. Inspect any
+retained task before rerunning: a timed-out API call may still be executing,
+and mutation requests are never automatically retried. Check mode creates
+Dokploy task/audit/log metadata and clones into temporary storage, but changes
+no installed config/packages. Successful task cleanup removes its task logs.
+
+
 ## Structure
 
 ```
