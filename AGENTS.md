@@ -125,3 +125,5 @@ packages/<name>/
 ## References
 
 - Pi extension docs: https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
+
+Harness-neutral acquisition clients are exported from the root Git package as `pi-packages/research`. Keep this bundle free of Coding Agent/TUI runtime imports; consumers inject config, cwd and cancellation. `npm run build:research` builds it and Git dependency prepare runs that command.

@@ -142,3 +142,7 @@ extension should be loaded.
 - pi-crawl4ai: `packages/pi-crawl4ai/CONTEXT.md`
 - pi-work: `packages/pi-work/CONTEXT.md`
 - Future packages: `packages/<name>/CONTEXT.md`
+
+## Harness-neutral research consumers
+
+The root Git package exports `pi-packages/research`, a Node-only bundle of SearXNG search, Crawl4AI execution and progressive artifact reading. Coding Agent registrations delegate to these same cores. No second crawler/search implementation is added. Consumers provide explicit config, signal and private cwd; presentation uses fixed bounded byte/line delivery without loading the Coding Agent runtime. Pin the Git source revision; `prepare` builds the standalone research export.

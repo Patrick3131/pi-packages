@@ -13,7 +13,9 @@
     "test:configs": "node --test configs/global/*.test.mjs",
     "test:coverage": "jest --coverage",
     "clean": "npm run clean --workspaces && rm -rf node_modules coverage",
-    "typecheck:configs": "tsc --noEmit --strict --skipLibCheck --module nodenext --target ES2022 configs/global/mcp-policy.ts"
+    "typecheck:configs": "tsc --noEmit --strict --skipLibCheck --module nodenext --target ES2022 configs/global/mcp-policy.ts",
+    "build:research": "tsup src/research.ts --dts --format esm --target node22 --tsconfig tsconfig.research.json --out-dir dist --clean",
+    "prepare": "npm run build:research"
   },
   "pi": {
     "extensions": [
@@ -40,7 +42,8 @@
     "@earendil-works/pi-ai": "^0.99.1",
     "@earendil-works/pi-coding-agent": "^0.99.1",
     "@earendil-works/pi-tui": "^0.99.1",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "tsup": "^8.0.0"
   },
   "keywords": [
     "pi",
@@ -51,5 +54,21 @@
   "license": "MIT",
   "engines": {
     "node": ">=22.19"
-  }
+  },
+  "exports": {
+    "./research": {
+      "types": "./dist/research.d.mts",
+      "import": "./dist/research.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "packages/*/src/**",
+    "packages/*/skills/**",
+    "packages/*/agents/**",
+    "packages/*/package.json",
+    "README.md",
+    "LICENSE"
+  ]
 }

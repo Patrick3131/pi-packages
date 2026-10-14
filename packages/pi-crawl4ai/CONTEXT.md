@@ -68,3 +68,5 @@ JSON search: working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `c
 ## Dependencies and validation
 
 `@earendil-works/pi-coding-agent` and `typebox` are host-provided peers, not bundled runtime copies. Tests are colocated; strict live tests are explicitly opt-in and never substitute plain HTTPS for browser/API proof. Package discovery, actual Python, interactive/headless and authorized child launch evidence are distinct from unit/build checks. Deep-strategy support is deployment-specific.
+
+`crawlCore.ts` and `crawlReadCore.ts` own execution and artifact reading without Coding Agent imports. `crawlTool.ts` / `crawlReadTool.ts` retain the existing registration/schema and delegate. The root research export shares these cores; injected cwd and signal bind each caller’s artifacts and cancellation.

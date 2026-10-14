@@ -100,3 +100,5 @@ Do **not** configure client-side proxy credentials. Proxy/egress belongs on the 
 - Keep CONTEXT.md architecture in sync with major structural changes
 
 Host imports use `@earendil-works/pi-coding-agent` and `typebox`; both are host-provided peers, never runtime dependencies.
+
+Harness-neutral execution/read cores must not import Coding Agent or TUI runtime. Keep host tool schemas/registration in the existing adapters; the root Git research export reuses the cores. Fixed delivery caps remain 50 KiB/2000 lines.

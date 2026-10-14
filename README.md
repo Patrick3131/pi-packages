@@ -267,3 +267,7 @@ pi-packages/
 ## License
 
 MIT
+
+## Research clients for other harnesses
+
+A pinned npm Git install exposes `pi-packages/research`: `searchSearxng`, `executeCrawl`, `executeCrawlRead` and their input/config types. Supply explicit provider env/config, cancellation and a private assignment cwd. Coding Agent tools use the same cores. The bundle has only Node built-in imports; no Coding Agent or TUI runtime is loaded. Build with `npm run build:research`. No local-machine source imports are required.

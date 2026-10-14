@@ -1,6 +1,20 @@
 /** Fixed, bounded crawl previews and compact saved-page indexes. */
 
-import { truncateHead, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
+// Fixed delivery caps match Pi's host limits without importing its runtime.
+const DEFAULT_MAX_BYTES = 50 * 1024;
+const DEFAULT_MAX_LINES = 2000;
+function truncateHead(text: string, limits: { maxBytes: number; maxLines: number }): { content: string; truncated: boolean } {
+  const lines = text.split("\n");
+  if (Buffer.byteLength(text) <= limits.maxBytes && lines.length <= limits.maxLines) return { content: text, truncated: false };
+  const kept: string[] = [];
+  let bytes = 0;
+  for (const line of lines) {
+    const next = Buffer.byteLength(line) + (kept.length ? 1 : 0);
+    if (kept.length >= limits.maxLines || bytes + next > limits.maxBytes) break;
+    kept.push(line); bytes += next;
+  }
+  return { content: kept.join("\n"), truncated: true };
+}
 
 /** Apply host byte/line limits after reserving an exact recovery reference. */
 export function capToolText(text: string, pointer = "", maxChars = Number.MAX_SAFE_INTEGER): string {
