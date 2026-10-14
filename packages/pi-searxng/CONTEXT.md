@@ -16,3 +16,5 @@ src/index.ts    register web_search_searxng, disable on session_start
 
 Live instance: Dokploy `Tools` / `discovery-services`, JSON on
 `http://10.8.0.1:18089` and `http://172.18.0.1:18089`. No API token.
+
+`pi-packages/research` exports the shared web_search_searxng tool descriptor and execution client so other harnesses reuse the coding-agent tool name, description and parameter schema.
