@@ -188,6 +188,13 @@ subagent children prune the repo's tools.json.
   catalog being complete. Async subagent children are the main way a filtered
   catalog appears, but the extension must not assume which process wrote it.
   Changing pi-subagents' child extension loading or cwd is out of scope.
+- D10: Treat the file as input, never as a mirror of a catalog. Do not append newly
+  registered names as false and do not rewrite the file to match the registry;
+  unlisted names stay disabled exactly as today, so the file stays small and holds
+  only decisions a human made. A delegated child session is not an owner of
+  project preferences: skip both applying and writing when the session header
+  carries `parentSession` (`ctx.sessionManager.getHeader()`), which is cheap and
+  general, since children receive their tool set from the delegating agent.
 
 ## Files
 
