@@ -15,7 +15,7 @@
     "clean": "npm run clean --workspaces && rm -rf node_modules coverage",
     "typecheck:configs": "tsc --noEmit --strict --skipLibCheck --module nodenext --target ES2022 configs/global/mcp-policy.ts",
     "build:research": "tsup src/research.ts --dts --format esm --target node22 --tsconfig tsconfig.research.json --out-dir dist --clean",
-    "prepare": "npm run build:research"
+    "prepare": "node scripts/prepare-research.mjs"
   },
   "pi": {
     "extensions": [
