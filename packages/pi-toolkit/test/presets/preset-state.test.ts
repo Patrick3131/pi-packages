@@ -30,7 +30,7 @@ function createProject(presets: unknown): string {
 	return dir;
 }
 
-function createHarness(options: { cwd: string; presetFlag?: string }) {
+function createHarness(options: { cwd: string; presetFlag?: string; branchEntries?: RecordedEntry[] }) {
 	const entries: RecordedEntry[] = [];
 	const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => Promise<unknown>>();
 	const commands = new Map<string, (args: string, ctx: ExtensionCommandContext) => Promise<void>>();
@@ -64,7 +64,10 @@ function createHarness(options: { cwd: string; presetFlag?: string }) {
 		cwd: options.cwd,
 		model: undefined,
 		modelRegistry: { find: () => undefined },
-		sessionManager: { getEntries: () => entries },
+		sessionManager: {
+			getEntries: () => entries,
+			getBranch: () => options.branchEntries ?? entries,
+		},
 		ui: {
 			notify: () => undefined,
 			setStatus: () => undefined,
@@ -121,4 +124,19 @@ test("a session without a preset records no preset state", async () => {
 	await harness.sessionStart({}, harness.ctx);
 
 	assert.deepEqual(presetStateEntries(harness.entries), []);
+});
+
+
+test("a preset entry left on an abandoned branch is not restored", async () => {
+	const cwd = createProject({ plan: { tools: ["read", "grep", "find", "ls"] } });
+	const abandoned: RecordedEntry[] = [
+		{ type: "custom", customType: PRESET_STATE_ENTRY_TYPE, data: { name: "plan" } },
+	];
+	const harness = createHarness({ cwd, branchEntries: [] });
+
+	// The whole session file still holds the abandoned entry; the current branch does not.
+	harness.entries.push(...abandoned);
+	await harness.sessionStart({}, harness.ctx);
+
+	assert.deepEqual(harness.activeTools, []);
 });

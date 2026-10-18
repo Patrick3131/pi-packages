@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export const TOOLS_JSON_FILENAME = "tools.json";
 
 export type ProjectToolsConfig = Record<string, boolean>;
+
+/**
+ * Result of reading `.pi/tools.json`. A malformed file is reported instead of
+ * being treated as absent, so no caller can silently replace preferences the
+ * user wrote.
+ */
+export type ProjectToolsRead =
+	| { status: "missing" }
+	| { status: "invalid"; error: string }
+	| { status: "ok"; tools: ProjectToolsConfig };
 
 export function getProjectToolsPath(cwd: string, configDirName = ".pi"): string {
 	return join(cwd, configDirName, TOOLS_JSON_FILENAME);
@@ -28,71 +38,95 @@ export function parseProjectToolsJson(content: string, source = TOOLS_JSON_FILEN
 	return tools;
 }
 
-export function loadProjectToolsConfig(path: string): ProjectToolsConfig | undefined {
+export function readProjectToolsConfig(path: string): ProjectToolsRead {
 	if (!existsSync(path)) {
-		return undefined;
+		return { status: "missing" };
 	}
 	try {
-		return parseProjectToolsJson(readFileSync(path, "utf8"), path);
+		return { status: "ok", tools: parseProjectToolsJson(readFileSync(path, "utf8"), path) };
 	} catch (error) {
-		console.error(`Failed to load project tools from ${path}: ${error}`);
-		return undefined;
+		return { status: "invalid", error: error instanceof Error ? error.message : String(error) };
 	}
+}
+
+export function loadProjectToolsConfig(path: string): ProjectToolsConfig | undefined {
+	const read = readProjectToolsConfig(path);
+	if (read.status === "ok") {
+		return read.tools;
+	}
+	if (read.status === "invalid") {
+		console.error(`Failed to load project tools from ${path}: ${read.error}`);
+	}
+	return undefined;
 }
 
 /**
- * Reconcile defaults with the full registered tool catalog.
- * Removed names are pruned; new names are false. First create seeds live-active tools.
+ * The on/off decisions the file makes about tools this catalog knows.
+ *
+ * A name the file does not mention keeps whatever Pi decided for it. Absence is
+ * never a disable instruction: a session catalog can be missing names because of
+ * a restricted allowlist, a still-connecting MCP server, or a failed extension
+ * load, and none of those is a statement about the user's preferences.
  */
-export function reconcileProjectTools(options: {
-	existing?: ProjectToolsConfig;
-	allToolNames: string[];
-	activeTools: string[];
-}): { tools: ProjectToolsConfig; added: string[]; removed: string[]; created: boolean } {
-	const existing = options.existing;
-	const created = existing === undefined;
-	const tools: ProjectToolsConfig = { ...(existing ?? {}) };
-	const known = new Set(options.allToolNames);
-	const active = new Set(options.activeTools);
-	const added: string[] = [];
-	const removed = Object.keys(tools).filter((name) => !known.has(name));
-	for (const name of removed) {
-		delete tools[name];
-	}
-
-	for (const name of options.allToolNames) {
-		if (Object.hasOwn(tools, name)) {
+export function projectToolOverrides(
+	tools: ProjectToolsConfig,
+	knownToolNames: string[],
+): { enable: string[]; disable: string[] } {
+	const known = new Set(knownToolNames);
+	const enable: string[] = [];
+	const disable: string[] = [];
+	for (const [name, enabled] of Object.entries(tools)) {
+		if (!known.has(name)) {
 			continue;
 		}
-		tools[name] = created ? active.has(name) : false;
-		added.push(name);
+		if (enabled) {
+			enable.push(name);
+		} else {
+			disable.push(name);
+		}
 	}
-
-	return { tools, added, removed, created };
+	return { enable, disable };
 }
 
-export function enabledProjectToolNames(tools: ProjectToolsConfig, allToolNames: string[]): string[] {
-	const known = new Set(allToolNames);
-	return Object.entries(tools)
-		.filter(([name, enabled]) => enabled && known.has(name))
-		.map(([name]) => name);
-}
-
-export function snapshotProjectTools(allToolNames: string[], enabledTools: Iterable<string>): ProjectToolsConfig {
-	const enabled = new Set(enabledTools);
-	const tools: ProjectToolsConfig = {};
-	for (const name of [...allToolNames].sort()) {
-		tools[name] = enabled.has(name);
+/**
+ * Explicit-save merge: rewrite only the tools this session can see, and keep
+ * every other key exactly as it was. Saving from a smaller catalog therefore
+ * cannot drop preferences it never had the evidence to judge.
+ */
+export function mergeProjectTools(options: {
+	existing?: ProjectToolsConfig;
+	updateToolNames: string[];
+	activeTools: string[];
+}): ProjectToolsConfig {
+	const merged: ProjectToolsConfig = { ...(options.existing ?? {}) };
+	const active = new Set(options.activeTools);
+	for (const name of options.updateToolNames) {
+		merged[name] = active.has(name);
 	}
-	return tools;
+	return merged;
 }
 
+/** Saved names this session does not register, which a save preserves but cannot apply. */
+export function unavailableSavedToolNames(tools: ProjectToolsConfig, knownToolNames: string[]): string[] {
+	const known = new Set(knownToolNames);
+	return Object.keys(tools)
+		.filter((name) => !known.has(name))
+		.sort();
+}
+
+/**
+ * Write the map atomically: a same-directory temporary file is renamed into
+ * place, so a reader never observes a half-written file. Last writer wins; this
+ * is not a cross-process merge guarantee.
+ */
 export function writeProjectToolsConfig(path: string, tools: ProjectToolsConfig): void {
 	mkdirSync(dirname(path), { recursive: true });
 	const ordered = Object.fromEntries(
 		Object.entries(tools).sort(([left], [right]) => left.localeCompare(right)),
 	);
-	writeFileSync(path, `${JSON.stringify(ordered, null, 2)}\n`);
+	const tempPath = `${path}.${process.pid}.tmp`;
+	writeFileSync(tempPath, `${JSON.stringify(ordered, null, 2)}\n`);
+	renameSync(tempPath, path);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

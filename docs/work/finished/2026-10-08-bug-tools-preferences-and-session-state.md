@@ -1,5 +1,5 @@
 ---
-status: backlog
+status: done
 owner: engineering
 last_reviewed: 2026-10-18
 canonical_ref: none
@@ -210,29 +210,47 @@ All paths below are relative to the planning checkout.
 
 ## Acceptance Criteria
 
-- [ ] AC1: Startup, agent runs, picker open/toggles, and printing leave tools.json
+- [x] AC1: Startup, agent runs, picker open/toggles, and printing leave tools.json
   unchanged, or absent if missing; explicit save is the only write path.
-- [ ] AC2: With different session catalogs, read-only activity preserves all saved
+- [x] AC2: With different session catalogs, read-only activity preserves all saved
   preferences. A sequential save from a smaller catalog preserves unavailable
   keys and updates only current non-hidden tools. Output remains valid boolean
   JSON after atomic replacement.
-- [ ] AC3: Invalid config survives reads and explicit save byte-for-byte, with an
+- [x] AC3: Invalid config survives reads and explicit save byte-for-byte, with an
   actionable warning/error instead of replacement or default application.
-- [ ] AC4: Fresh sessions honor valid defaults without overriding a preset;
+- [x] AC4: Fresh sessions honor valid defaults without overriding a preset;
   reload/resume/fork and startup with restored history preserve session loadouts.
   Late registration does not write disk or silently reapply defaults.
-- [ ] AC5: Picker/print distinguish direct activation, indirect access, hidden
+- [x] AC5: Picker/print distinguish direct activation, indirect access, hidden
   state, and saved-only unavailable names. Hidden tools cannot be presented as
   successfully activated; toggle status reflects Pi's accepted state.
-- [ ] AC6: An abandoned branch's preset entry cannot control tools or preset
+- [x] AC6: An abandoned branch's preset entry cannot control tools or preset
   restoration on the current branch.
-- [ ] AC7: Updated policy/docs explain explicit saves, unavailable preference
+- [x] AC7: Updated policy/docs explain explicit saves, unavailable preference
   retention, fresh/restored session behavior, exposure, and mid-run limitations;
   toolkit tests and typecheck pass.
-- [ ] AC8: A session with a restricted or incomplete catalog (--tools/
+- [x] AC8: A session with a restricted or incomplete catalog (--tools/
   --exclude-tools, MCP servers still connecting, a failed extension load) cannot
   delete or flip saved preferences; read-only lifecycle paths leave the file
   byte-identical.
+
+## Implementation
+
+Implemented 2026-10-18 in packages/pi-toolkit. The file is now input only.
+
+- project-config.ts: dropped \`reconcileProjectTools\` and \`snapshotProjectTools\`;
+  added \`readProjectToolsConfig\` (distinguishes missing from invalid),
+  \`projectToolOverrides\`, \`mergeProjectTools\`, \`unavailableSavedToolNames\`, and an
+  atomic same-directory temp-then-rename write.
+- index.ts: removed every automatic write (\`session_start\`, \`before_agent_start\`,
+  picker open). \`session_start\` applies the file as overrides on top of Pi's own
+  selection, and only for a session that owns the project directory
+  (no \`parentSession\`), with no preset on the current branch, and no loadout
+  already declared in the transcript. Toggles and print read \`exposure\` and read
+  active state back from Pi.
+- state.ts: removed the unused \`resolveEnabledTools\`; added
+  \`declaresToolLoadout\`; preset evidence is read from \`getBranch()\` in both
+  features.
 
 ## Validation
 

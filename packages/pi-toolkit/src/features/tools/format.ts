@@ -12,7 +12,12 @@ export interface ToolLike {
 	parameters?: unknown;
 	promptGuidelines?: string[];
 	sourceInfo?: ToolSourceInfoLike;
+	/** Pi's exposure for this tool: how the model can reach it, from `pi.getAllTools()`. */
+	exposure?: string;
 }
+
+/** Exposures whose tools stay callable without being declared to the model. */
+const INDIRECT_EXPOSURES = new Set(["codemode", "deferred"]);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -33,6 +38,28 @@ export function formatSource(sourceInfo: ToolSourceInfoLike | undefined): string
 		return `${location} (${sourceInfo.path})`;
 	}
 	return location || sourceInfo.path || "unknown";
+}
+
+/**
+ * How this session can actually reach the tool.
+ *
+ * Membership in the active set only means "declared to the model". Tools with
+ * `codemode` or `deferred` exposure stay callable from codemode scripts and
+ * `tool_search` while inactive, and `hidden` tools cannot be activated at all,
+ * so plain enabled/disabled would misreport both.
+ */
+export function toolStatus(tool: ToolLike, options?: { enabled?: boolean }): string {
+	const exposure = tool.exposure;
+	if (exposure === "hidden") {
+		return "unavailable (hidden)";
+	}
+	if (options?.enabled === undefined) {
+		return exposure && INDIRECT_EXPOSURES.has(exposure) ? `indirect (${exposure})` : "declared";
+	}
+	if (options.enabled) {
+		return "enabled";
+	}
+	return exposure && INDIRECT_EXPOSURES.has(exposure) ? `inactive (indirect via ${exposure})` : "disabled";
 }
 
 function schemaType(schema: unknown): string {
@@ -86,8 +113,11 @@ export function formatToolSummary(tool: ToolLike): string {
 
 export function formatToolDetails(tool: ToolLike, options?: { enabled?: boolean }): string {
 	const lines: string[] = [];
-	if (options?.enabled !== undefined) {
-		lines.push(options.enabled ? "status: enabled" : "status: disabled");
+	if (options?.enabled !== undefined || tool.exposure !== undefined) {
+		lines.push(`status: ${toolStatus(tool, options)}`);
+	}
+	if (tool.exposure !== undefined) {
+		lines.push(`exposure: ${tool.exposure}`);
 	}
 	lines.push(`source: ${formatSource(tool.sourceInfo)}`);
 
@@ -122,8 +152,21 @@ export function formatToolsDump(tools: ToolLike[], options?: { enabledTools?: It
 	const enabled = options?.enabledTools ? new Set(options.enabledTools) : undefined;
 	return tools
 		.map((tool) => {
-			const header = enabled ? `${tool.name}  [${enabled.has(tool.name) ? "enabled" : "disabled"}]` : tool.name;
-			return `${header}\n${formatToolDetails(tool, enabled ? { enabled: enabled.has(tool.name) } : undefined)}`;
+			const status = toolStatus(tool, enabled ? { enabled: enabled.has(tool.name) } : undefined);
+			return `${tool.name}  [${status}]\n${formatToolDetails(tool, enabled ? { enabled: enabled.has(tool.name) } : undefined)}`;
 		})
 		.join("\n\n---\n\n");
+}
+
+/**
+ * Names saved in `.pi/tools.json` that this session does not register. They are
+ * kept on disk by a save but cannot take effect here, so they are reported
+ * instead of being presented as ordinary tools.
+ */
+export function formatUnavailableSaved(names: string[]): string {
+	if (names.length === 0) {
+		return "";
+	}
+	const header = `Saved but not registered in this session (kept by save, not applied):`;
+	return [header, ...names.map((name) => `  - ${name}`)].join("\n");
 }

@@ -1,5 +1,5 @@
 ---
-status: backlog
+status: done
 owner: engineering
 last_reviewed: 2026-10-18
 canonical_ref: none
@@ -94,9 +94,10 @@ git diff --check
 | Pre-change async-child prune (2026-10-18) | passed as bug reproduction | Disposable dir: fixture with 24 keys / 14 true became 6 keys / 4 true after one `async` reviewer child with that cwd; survivors were exactly its tools (find, grep, ls, read) |
 | Pre-change async-child prune in this checkout (2026-10-18) | observed in place | pi-packages `.pi/tools.json` mtime coincided with an async reviewer child (cwd = pi-packages, tools find/grep/ls/read); content left exactly those four true |
 | Melon Labs fingerprint (2026-10-18) | source- and data-verified | tools.json's nine true names equal the `web-researcher` agent's nine tools; 177 async child sessions ran with the repo as cwd |
-| New persistence/invalid/lifecycle/branch regressions | pending | Implementation must record commands and outcomes |
-| Toolkit typecheck and diff check | pending | Implementation must record commands and outcomes |
-| Real Pi exposure/lifecycle verification | pending | Record host version, safe fixture, observed status and behavior |
+| New persistence/invalid/lifecycle/branch regressions | passed | `npm test --workspace=packages/pi-toolkit`: 115 tests, 115 pass, 0 fail. New/extended: project-config (read states, overrides, merge, atomic write), project-persistence (no lifecycle writes, partial catalog, merge save, missing file, malformed, child session, declared loadout, preset owner, abandoned branch), format (exposure labels, hidden, unavailable list), state (declared loadout), presets (branch-local entry) |
+| Toolkit typecheck and diff check | passed | `npm run typecheck --workspace=packages/pi-toolkit` clean; root `npm run typecheck` clean for every workspace |
+| Real Pi exposure/lifecycle verification | passed (write behaviour), not manually exercised (picker UI) | Pi 1.3.0 with the working-tree extension in a disposable project: old code rewrote `.pi/tools.json` (deleted `crawl` + `some_removed_tool`, appended 6 names as false); fixed code left it byte-identical (sha256 unchanged). The interactive `/tools` picker was not opened in a real terminal |
+| Full suite | passed | `npm test` at the repo root: exit 0, jest 217 passed / 3 skipped, every node workspace `fail 0` |
 
 ## Explicitly Not Testing
 

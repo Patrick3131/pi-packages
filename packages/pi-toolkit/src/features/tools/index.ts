@@ -1,8 +1,14 @@
 /**
  * Official Pi /tools command, packaged so it can be installed like pi-presets.
  *
- * Project defaults live in <cwd>/.pi/tools.json.
- * /tools toggles are session-only unless the user presses s or runs /tools save.
+ * Project defaults live in <cwd>/.pi/tools.json and are input only: nothing in a
+ * session lifecycle writes that file. Only `s` / `/tools save` writes, and that
+ * write merges instead of reconciling, so a catalog that happens to be missing
+ * names (restricted allowlist, MCP server still connecting, extension that
+ * failed to load, delegated child session) can never delete or flip them.
+ *
+ * A name the file does not mention keeps Pi's native choice; absence is never a
+ * disable instruction.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
@@ -10,16 +16,22 @@ import { CONFIG_DIR_NAME, getSettingsListTheme } from "@earendil-works/pi-coding
 import { Box, Container, type SettingItem, SettingsList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 import { getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
-import { formatToolDetails, formatToolSummary, formatToolsDump } from "./format.js";
 import {
-	enabledProjectToolNames,
+	formatToolDetails,
+	formatToolSummary,
+	formatToolsDump,
+	formatUnavailableSaved,
+} from "./format.js";
+import {
 	getProjectToolsPath,
-	loadProjectToolsConfig,
-	reconcileProjectTools,
-	snapshotProjectTools,
+	mergeProjectTools,
+	type ProjectToolsConfig,
+	projectToolOverrides,
+	readProjectToolsConfig,
+	unavailableSavedToolNames,
 	writeProjectToolsConfig,
 } from "./project-config.js";
-import { activePresetName, sameToolSet } from "./state.js";
+import { activePresetName, declaresToolLoadout, sameToolSet } from "./state.js";
 
 export interface ToolsPrintData {
 	text: string;
@@ -37,14 +49,20 @@ export function fitPickerLine(line: string, width: number): string {
 export default function toolsExtension(pi: ExtensionAPI) {
 	let enabledTools: Set<string> = new Set();
 	let allTools: ToolInfo[] = [];
-	let appliedDefaults = false;
-
-	function applyTools() {
-		pi.setActiveTools(Array.from(enabledTools));
-	}
 
 	function refreshCatalog() {
 		allTools = pi.getAllTools();
+	}
+
+	function catalogNames(): string[] {
+		return allTools.map((tool) => tool.name);
+	}
+
+	/** Tools this session may retarget on save: everything registered, minus unreachable ones. */
+	function savableToolNames(): string[] {
+		return allTools
+			.filter((tool) => tool.exposure !== "hidden")
+			.map((tool) => tool.name);
 	}
 
 	function projectPath(cwd: string): string {
@@ -52,58 +70,86 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	}
 
 	/**
+	 * A delegated child session (subagent) receives its tool set from the agent
+	 * that launched it and shares the project directory with its parent. It is
+	 * not the owner of this project's preferences, so it neither applies nor
+	 * saves them.
+	 */
+	function sessionOwnsProjectPreferences(ctx: ExtensionContext): boolean {
+		try {
+			const header = ctx.sessionManager.getHeader?.();
+			return header?.parentSession === undefined;
+		} catch {
+			return true;
+		}
+	}
+
+	/**
 	 * A job preset selects tools for a specific task; `.pi/tools.json` only
 	 * describes the repo's resting defaults. When a preset is active it owns the
-	 * tool set, so the defaults must not be re-applied behind it.
+	 * tool set, so the file must not be applied behind it.
 	 *
 	 * `pi.getFlag` only reads flags the calling extension registered, and Pi
 	 * rejects a second owner for the same flag, so the shared signal is the
-	 * `preset-state` entry `pi-presets` records in the session. That entry is
-	 * written when a preset is applied, which is always before the first
-	 * `before_agent_start` of the session.
+	 * `preset-state` entry `pi-presets` records in the session. `getBranch`
+	 * keeps an abandoned branch's entry from claiming ownership.
 	 */
 	function presetOwnsTools(ctx: ExtensionContext): boolean {
-		return activePresetName({ entries: ctx.sessionManager.getEntries() }) !== undefined;
+		return activePresetName({ entries: ctx.sessionManager.getBranch() }) !== undefined;
 	}
 
-	function reconcileFile(cwd: string) {
-		refreshCatalog();
-		const path = projectPath(cwd);
-		const existing = loadProjectToolsConfig(path);
-		const reconciled = reconcileProjectTools({
-			existing,
-			allToolNames: allTools.map((tool) => tool.name),
-			activeTools: pi.getActiveTools(),
-		});
-		if (reconciled.created || reconciled.added.length > 0 || reconciled.removed.length > 0) {
-			writeProjectToolsConfig(path, reconciled.tools);
+	/**
+	 * Apply the file as overrides on top of what this session already has:
+	 * mentioned tools are turned on or off, unmentioned tools are left alone.
+	 * Nothing is written, and a name this session cannot see is simply unknown.
+	 */
+	function applyProjectOverrides(tools: ProjectToolsConfig): boolean {
+		const { enable, disable } = projectToolOverrides(tools, catalogNames());
+		const next = new Set(pi.getActiveTools());
+		for (const name of enable) {
+			next.add(name);
 		}
-		return { path, tools: reconciled.tools, created: reconciled.created, added: reconciled.added };
-	}
-
-	function applyProjectDefaults(tools: Record<string, boolean>) {
-		const next = enabledProjectToolNames(
-			tools,
-			allTools.map((tool) => tool.name),
-		);
-		const changed = !sameToolSet(enabledTools, next) || !sameToolSet(pi.getActiveTools(), next);
-		enabledTools = new Set(next);
-		if (changed) {
-			applyTools();
+		for (const name of disable) {
+			next.delete(name);
 		}
-		appliedDefaults = true;
+		const nextNames = Array.from(next);
+		if (sameToolSet(pi.getActiveTools(), nextNames)) {
+			return false;
+		}
+		pi.setActiveTools(nextNames);
+		enabledTools = new Set(pi.getActiveTools());
+		return true;
 	}
 
-	function saveProjectDefaults(ctx: ExtensionCommandContext) {
+	function saveProjectDefaults(ctx: ExtensionCommandContext): void {
 		refreshCatalog();
 		enabledTools = new Set(pi.getActiveTools());
 		const path = projectPath(ctx.cwd);
-		const snapshot = snapshotProjectTools(
-			allTools.map((tool) => tool.name),
-			enabledTools,
-		);
-		writeProjectToolsConfig(path, snapshot);
+		const existing = readProjectToolsConfig(path);
+		if (existing.status === "invalid") {
+			ctx.ui.notify(
+				`${path} is not valid JSON tool preferences (${existing.error}). Fix or remove it, then save again.`,
+				"error",
+			);
+			return;
+		}
+		const tools = mergeProjectTools({
+			existing: existing.status === "ok" ? existing.tools : undefined,
+			updateToolNames: savableToolNames(),
+			activeTools: pi.getActiveTools(),
+		});
+		writeProjectToolsConfig(path, tools);
 		ctx.ui.notify(`Saved project tool defaults to ${path}`, "info");
+	}
+
+	function readPreferences(ctx: ExtensionContext): ProjectToolsConfig | undefined {
+		const path = projectPath(ctx.cwd);
+		const read = readProjectToolsConfig(path);
+		if (read.status === "invalid") {
+			ctx.ui.notify(`${path} is not valid JSON tool preferences: ${read.error}`, "warning");
+			return undefined;
+		}
+		return read.status === "ok" ? read.tools : undefined;
 	}
 
 	function printTools(query: string, ctx: ExtensionCommandContext) {
@@ -115,7 +161,14 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			return;
 		}
 
-		const text = formatToolsDump(matched, { enabledTools });
+		const preferences = readPreferences(ctx) ?? {};
+		const unavailable = unavailableSavedToolNames(preferences, catalogNames());
+		const sections = [formatToolsDump(matched, { enabledTools })];
+		const savedSection = query ? "" : formatUnavailableSaved(unavailable);
+		if (savedSection) {
+			sections.push(savedSection);
+		}
+		const text = sections.join("\n\n---\n\n");
 		pi.appendEntry<ToolsPrintData>(PRINT_ENTRY_TYPE, {
 			text,
 			query: query || undefined,
@@ -138,10 +191,14 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 		refreshCatalog();
 		enabledTools = new Set(pi.getActiveTools());
-		reconcileFile(ctx.cwd);
+		readPreferences(ctx);
 		let detailsMode = false;
 
-		function itemDescription(tool: ToolInfo): string {
+		/**
+		 * Status is read back from Pi after every change: a hidden tool cannot be
+		 * activated, and the picker must not claim it was.
+		 */
+		function statusOf(tool: ToolInfo): string {
 			return detailsMode
 				? formatToolDetails(tool, { enabled: enabledTools.has(tool.name) })
 				: formatToolSummary(tool);
@@ -150,8 +207,8 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		await ctx.ui.custom((tui, theme, _kb, done) => {
 			const items: SettingItem[] = allTools.map((tool) => ({
 				id: tool.name,
-				label: tool.name,
-				description: itemDescription(tool),
+				label: tool.exposure === "hidden" ? `${tool.name} (unavailable)` : tool.name,
+				description: statusOf(tool),
 				currentValue: enabledTools.has(tool.name) ? "enabled" : "disabled",
 				values: ["enabled", "disabled"],
 			}));
@@ -177,12 +234,15 @@ export default function toolsExtension(pi: ExtensionAPI) {
 					} else {
 						enabledTools.delete(id);
 					}
+					pi.setActiveTools(Array.from(enabledTools));
+					// Read back what Pi accepted so the next render is honest.
+					enabledTools = new Set(pi.getActiveTools());
 					const item = items.find((candidate) => candidate.id === id);
 					const tool = allTools.find((candidate) => candidate.name === id);
 					if (item && tool) {
-						item.description = itemDescription(tool);
+						item.description = statusOf(tool);
+						item.currentValue = enabledTools.has(id) ? "enabled" : "disabled";
 					}
-					applyTools();
 				},
 				() => {
 					done(undefined);
@@ -207,7 +267,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 						for (const item of items) {
 							const tool = allTools.find((candidate) => candidate.name === item.id);
 							if (tool) {
-								item.description = itemDescription(tool);
+								item.description = statusOf(tool);
 							}
 						}
 						tui.requestRender();
@@ -249,6 +309,10 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				return;
 			}
 			if (command.action === "save") {
+				if (!sessionOwnsProjectPreferences(ctx)) {
+					ctx.ui.notify("A delegated subagent session does not own this project's tool preferences.", "warning");
+					return;
+				}
 				saveProjectDefaults(ctx);
 				return;
 			}
@@ -264,28 +328,18 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		appliedDefaults = false;
-		const existing = loadProjectToolsConfig(projectPath(ctx.cwd));
-		if (!existing) {
+		refreshCatalog();
+		if (!sessionOwnsProjectPreferences(ctx) || presetOwnsTools(ctx)) {
 			return;
 		}
-		const { tools } = reconcileFile(ctx.cwd);
-		if (presetOwnsTools(ctx)) {
-			// Still reconciled above so newly registered tools are recorded, but
-			// the preset's tool set stays exactly as the preset defined it.
+		// Resume, fork, and reload re-declare their own loadout; only a session
+		// that has not chosen yet may take the project defaults.
+		if (declaresToolLoadout(ctx.sessionManager.getEntries())) {
 			return;
 		}
-		applyProjectDefaults(tools);
-	});
-
-	pi.on("before_agent_start", async (_event, ctx) => {
-		const { tools, created } = reconcileFile(ctx.cwd);
-		if (presetOwnsTools(ctx)) {
-			appliedDefaults = true;
-			return;
-		}
-		if (!appliedDefaults || created) {
-			applyProjectDefaults(tools);
+		const tools = readPreferences(ctx);
+		if (tools) {
+			applyProjectOverrides(tools);
 		}
 	});
 }

@@ -25,4 +25,11 @@ Apply path:
 4. `before_agent_start` appends `instructions`
 5. `(none)` restores the snapshot
 
+The active preset is recorded as a `preset-state` custom entry on every change.
+`pi-tools` reads that entry to know a preset owns the tool set and to leave
+`.pi/tools.json` alone. Both features read it from the **current branch**
+(`sessionManager.getBranch()`): an entry left on an abandoned branch is not
+evidence about this session, and restoring from it would apply a preset the
+current branch never chose.
+
 This is session workflow control, not capability installation.

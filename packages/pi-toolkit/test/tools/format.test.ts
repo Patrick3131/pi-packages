@@ -8,6 +8,8 @@ import {
 	formatToolDetails,
 	formatToolSummary,
 	formatToolsDump,
+	formatUnavailableSaved,
+	toolStatus,
 	type ToolLike,
 } from "../../src/features/tools/format.js";
 
@@ -63,6 +65,17 @@ test("formatToolDetails includes status, source, params, and guidelines", () => 
 	assert.match(details, /Prefer crawl over fetch/);
 });
 
+test("an inactive indirect tool is reported as reachable, not plainly disabled", () => {
+	assert.equal(toolStatus({ ...crawl, exposure: "deferred" }, { enabled: false }), "inactive (indirect via deferred)");
+	assert.equal(toolStatus({ ...crawl, exposure: "codemode" }, { enabled: false }), "inactive (indirect via codemode)");
+	assert.equal(toolStatus({ ...crawl, exposure: "deferred" }, { enabled: true }), "enabled");
+});
+
+test("a hidden tool is unavailable rather than toggleable", () => {
+	assert.equal(toolStatus({ ...crawl, exposure: "hidden" }, { enabled: false }), "unavailable (hidden)");
+	assert.match(formatToolDetails({ ...crawl, exposure: "hidden" }, { enabled: false }), /exposure: hidden/);
+});
+
 test("formatToolsDump lists every tool without sending extra metadata", () => {
 	const dump = formatToolsDump([crawl, { name: "read", description: "Read a file" }], {
 		enabledTools: ["read"],
@@ -70,4 +83,24 @@ test("formatToolsDump lists every tool without sending extra metadata", () => {
 	assert.match(dump, /crawl {2}\[disabled\]/);
 	assert.match(dump, /read {2}\[enabled\]/);
 	assert.match(dump, /---/);
+});
+
+test("formatToolsDump distinguishes indirect reachability", () => {
+	const dump = formatToolsDump(
+		[
+			{ name: "mcp__admin__save", description: "Save", exposure: "deferred" },
+			{ name: "mcp__admin__gone", description: "Gone", exposure: "hidden" },
+		],
+		{ enabledTools: [] },
+	);
+	assert.match(dump, /mcp__admin__save {2}\[inactive \(indirect via deferred\)\]/);
+	assert.match(dump, /mcp__admin__gone {2}\[unavailable \(hidden\)\]/);
+});
+
+test("formatUnavailableSaved reports preserved names and stays empty otherwise", () => {
+	assert.equal(formatUnavailableSaved([]), "");
+	const text = formatUnavailableSaved(["mcp__gone__one", "mcp__gone__two"]);
+	assert.match(text, /not registered in this session/);
+	assert.match(text, /mcp__gone__one/);
+	assert.match(text, /mcp__gone__two/);
 });

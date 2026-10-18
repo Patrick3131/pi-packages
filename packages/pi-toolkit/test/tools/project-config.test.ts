@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import {
-	enabledProjectToolNames,
 	getProjectToolsPath,
+	mergeProjectTools,
 	parseProjectToolsJson,
-	reconcileProjectTools,
-	snapshotProjectTools,
+	projectToolOverrides,
+	readProjectToolsConfig,
+	unavailableSavedToolNames,
 	writeProjectToolsConfig,
 } from "../../src/features/tools/project-config.js";
 
@@ -21,44 +22,61 @@ test("parseProjectToolsJson requires true or false", () => {
 	assert.throws(() => parseProjectToolsJson(JSON.stringify({ read: 1 })), /true or false/);
 });
 
-test("first create seeds live-active tools as true and the rest as false", () => {
-	const { tools, created, added } = reconcileProjectTools({
-		allToolNames: ["read", "bash", "web_search_searxng"],
-		activeTools: ["read", "bash"],
-	});
-	assert.equal(created, true);
-	assert.deepEqual(added, ["read", "bash", "web_search_searxng"]);
-	assert.equal(tools.read, true);
-	assert.equal(tools.bash, true);
-	assert.equal(tools.web_search_searxng, false);
+test("readProjectToolsConfig separates a missing file from an unreadable one", () => {
+	const dir = mkdtempSync(join(tmpdir(), "pi-tools-read-"));
+	mkdirSync(join(dir, ".pi"), { recursive: true });
+	const path = join(dir, ".pi", "tools.json");
+
+	assert.deepEqual(readProjectToolsConfig(path), { status: "missing" });
+
+	writeFileSync(path, "{ not json");
+	const invalid = readProjectToolsConfig(path);
+	assert.equal(invalid.status, "invalid");
+
+	writeFileSync(path, JSON.stringify({ read: true }));
+	assert.deepEqual(readProjectToolsConfig(path), { status: "ok", tools: { read: true } });
 });
 
-test("reconciliation prunes stale names and preserves registered defaults", () => {
-	const existing = { read: true, bash: false, read_skill: true, mcpScript: false };
-	const { tools, created, added, removed } = reconcileProjectTools({
+test("projectToolOverrides only speaks about names this catalog knows", () => {
+	const tools = { read: true, bash: false, gone: true, also_gone: false };
+	assert.deepEqual(projectToolOverrides(tools, ["read", "bash", "write"]), {
+		enable: ["read"],
+		disable: ["bash"],
+	});
+});
+
+test("mergeProjectTools keeps keys a smaller catalog cannot see", () => {
+	const existing = { read: true, bash: true, mcp__admin__save: true, gone: false };
+	const merged = mergeProjectTools({
 		existing,
-		allToolNames: ["read", "bash", "agent_browser"],
-		activeTools: ["read", "bash", "agent_browser"],
+		updateToolNames: ["read", "bash"],
+		activeTools: ["read"],
 	});
-	assert.equal(created, false);
-	assert.deepEqual(added, ["agent_browser"]);
-	assert.deepEqual(removed, ["read_skill", "mcpScript"]);
-	assert.deepEqual(tools, { read: true, bash: false, agent_browser: false });
-	assert.deepEqual(existing, { read: true, bash: false, read_skill: true, mcpScript: false });
+
+	assert.deepEqual(merged, { read: true, bash: false, mcp__admin__save: true, gone: false });
+	assert.deepEqual(existing, { read: true, bash: true, mcp__admin__save: true, gone: false });
 });
 
-test("enabledProjectToolNames ignores unknown and false tools", () => {
+test("mergeProjectTools on a missing file records only what this session saw", () => {
 	assert.deepEqual(
-		enabledProjectToolNames({ read: true, bash: false, gone: true }, ["read", "bash"]),
-		["read"],
+		mergeProjectTools({ updateToolNames: ["read", "bash"], activeTools: ["bash"] }),
+		{ bash: true, read: false },
 	);
 });
 
-test("snapshot and write keep a sorted boolean map", () => {
-	const dir = mkdtempSync(join(tmpdir(), "pi-tools-json-"));
+test("unavailableSavedToolNames reports saved names this session does not register", () => {
+	assert.deepEqual(
+		unavailableSavedToolNames({ read: true, gone: true, also_gone: false }, ["read"]),
+		["also_gone", "gone"],
+	);
+});
+
+test("writeProjectToolsConfig writes sorted boolean JSON and leaves no temp file", () => {
+	const dir = mkdtempSync(join(tmpdir(), "pi-tools-write-"));
 	const path = join(dir, ".pi", "tools.json");
-	writeProjectToolsConfig(path, snapshotProjectTools(["bash", "read"], ["read"]));
+	writeProjectToolsConfig(path, { read: true, bash: false });
+
 	assert.equal(readFileSync(path, "utf8"), `${JSON.stringify({ bash: false, read: true }, null, 2)}\n`);
+	assert.deepEqual(readdirSync(join(dir, ".pi")), ["tools.json"]);
 	assert.equal(getProjectToolsPath("/repo"), "/repo/.pi/tools.json");
-	writeFileSync(path, JSON.stringify({ read: true }));
 });

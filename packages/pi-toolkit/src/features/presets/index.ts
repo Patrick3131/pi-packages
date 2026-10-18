@@ -305,8 +305,10 @@ export default function presetExtension(pi: ExtensionAPI) {
 			}
 		}
 
-		const entries = ctx.sessionManager.getEntries();
-		const presetEntry = entries
+		// Only the current branch may claim the preset: an abandoned branch's entry is not
+		// evidence about this session's tool set.
+		const presetEntry = ctx.sessionManager
+			.getBranch()
 			.filter(
 				(entry: { type: string; customType?: string }) =>
 					entry.type === "custom" && entry.customType === PRESET_STATE_ENTRY_TYPE,
