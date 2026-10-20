@@ -128,7 +128,7 @@ packages/<name>/
 
 Harness-neutral acquisition clients are exported from the root Git package as `pi-packages/research`. Keep this bundle free of Coding Agent/TUI runtime imports; consumers inject config, cwd and cancellation. `npm run build:research` builds it. Git dependency `prepare` runs `scripts/prepare-research.mjs`, which builds the bundle when dev dependencies are present and skips it on a production install (`npm install --omit=dev`), where `tsup` is absent; never make `prepare` depend on a devDependency unconditionally, because that fails the whole package install.
 
-The root toolkit additionally publishes private versioned GitHub Packages releases
+The root toolkit additionally publishes public versioned GitHub Packages releases
 as `@patrick3131/pi-packages`. Keep the Git resource layout/prepare path compatible.
 Tagged release CI owns build/test/publishing; consumers use exact versions and
 secret-only registry authentication. No repository visibility or local Pi settings

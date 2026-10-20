@@ -147,7 +147,7 @@ extension should be loaded.
 
 The root Git package exports `pi-packages/research`, a Node-only bundle of SearXNG search, Crawl4AI execution and progressive artifact reading. Coding Agent registrations delegate to these same cores. No second crawler/search implementation is added. Consumers provide explicit config, signal and private cwd; presentation uses fixed bounded byte/line delivery without loading the Coding Agent runtime. Pin the Git source revision. `prepare` builds the standalone research export only when `tsup` is installed; production installs omit dev dependencies, so they skip the build instead of failing it.
 
-The root toolkit additionally publishes private versioned GitHub Packages releases
+The root toolkit additionally publishes public versioned GitHub Packages releases
 as `@patrick3131/pi-packages`. Keep the Git resource layout/prepare path compatible.
 Tagged release CI owns build/test/publishing; consumers use exact versions and
 secret-only registry authentication. No repository visibility or local Pi settings

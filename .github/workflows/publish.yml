@@ -1,4 +1,4 @@
-name: Publish private Pi toolkit
+name: Publish versioned Pi toolkit
 on:
   push:
     tags: ["v*"]
@@ -27,10 +27,10 @@ jobs:
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify private release
+      - name: Verify public release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          test "$(gh api /users/Patrick3131/packages/npm/pi-packages --jq .visibility)" = private
+          test "$(gh api /users/Patrick3131/packages/npm/pi-packages --jq .visibility)" = public
           npm view "@patrick3131/pi-packages@$(node -p 'require("./package.json").version')" version dist.integrity --json

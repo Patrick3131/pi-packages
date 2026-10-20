@@ -272,14 +272,14 @@ MIT
 
 A pinned npm Git install exposes `pi-packages/research`: `searchSearxng`, `executeCrawl`, `executeCrawlRead` and their input/config types. Supply explicit provider env/config, cancellation and a private assignment cwd. Coding Agent tools use the same cores. The bundle has only Node built-in imports; no Coding Agent or TUI runtime is loaded. Build with `npm run build:research`. No local-machine source imports are required.
 
-## Private npm releases
+## Versioned npm releases
 
 The root toolkit is also published as `@patrick3131/pi-packages` to GitHub Packages.
 Tagged `v<package version>` releases run package tests/typechecks and publish with
-Actions' scoped `GITHUB_TOKEN`. Registry visibility is private; source repository
+Actions' scoped `GITHUB_TOKEN`. Registry visibility is public; source repository
 visibility is unchanged. Research consumers pin an exact version and import
 `@patrick3131/pi-packages/research`; the compiled export needs no consumer build.
-Grant each consuming repository explicit package Actions read access, configure
+GitHub npm downloads require authentication even for public packages. Configure
 `@patrick3131:registry=https://npm.pkg.github.com`, and inject its read credential
 only during installation. Local registry installs need authenticated read access;
 never commit a token or bake it into an image.

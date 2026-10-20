@@ -1,6 +1,6 @@
 {
   "name": "@patrick3131/pi-packages",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Monorepo for Pi extensions",
   "workspaces": [
     "packages/*"
@@ -81,7 +81,7 @@
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
+    "access": "public"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
