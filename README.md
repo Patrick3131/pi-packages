@@ -287,5 +287,10 @@ never commit a token or bake it into an image.
 Existing Pi installations may continue using `git:github.com/Patrick3131/pi-packages`
 with their current extension filters. No registry token or settings change is
 required for that path. A future npm switch should replace the Git entry rather
-than load both copies. Pi supplies the optional host peers; research-only consumers
+than load both copies. Pi supplies host imports to extensions; research-only consumers
 do not install a second Coding Agent runtime.
+
+GitHub npm metadata does not retain `peerDependenciesMeta` on this registry, so
+the root intentionally declares no optional host peers. Keep host peer declarations
+in the extension workspaces; adding them at the root would install a second Pi
+runtime into research-only consumers.

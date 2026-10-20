@@ -132,5 +132,6 @@ The root toolkit additionally publishes public versioned GitHub Packages release
 as `@patrick3131/pi-packages`. Keep the Git resource layout/prepare path compatible.
 Tagged release CI owns build/test/publishing; consumers use exact versions and
 secret-only registry authentication. No repository visibility or local Pi settings
-change accompanies registry publishing. Host peers are optional and host-provided;
+change accompanies registry publishing. Subpackages declare host-provided peer contracts; the root declares no peers,
+so research consumers do not install a Coding Agent runtime.
 the research bundle stays standalone. Ship the work scaffold as well as resources.
