@@ -271,3 +271,21 @@ MIT
 ## Research clients for other harnesses
 
 A pinned npm Git install exposes `pi-packages/research`: `searchSearxng`, `executeCrawl`, `executeCrawlRead` and their input/config types. Supply explicit provider env/config, cancellation and a private assignment cwd. Coding Agent tools use the same cores. The bundle has only Node built-in imports; no Coding Agent or TUI runtime is loaded. Build with `npm run build:research`. No local-machine source imports are required.
+
+## Private npm releases
+
+The root toolkit is also published as `@patrick3131/pi-packages` to GitHub Packages.
+Tagged `v<package version>` releases run package tests/typechecks and publish with
+Actions' scoped `GITHUB_TOKEN`. Registry visibility is private; source repository
+visibility is unchanged. Research consumers pin an exact version and import
+`@patrick3131/pi-packages/research`; the compiled export needs no consumer build.
+Grant each consuming repository explicit package Actions read access, configure
+`@patrick3131:registry=https://npm.pkg.github.com`, and inject its read credential
+only during installation. Local registry installs need authenticated read access;
+never commit a token or bake it into an image.
+
+Existing Pi installations may continue using `git:github.com/Patrick3131/pi-packages`
+with their current extension filters. No registry token or settings change is
+required for that path. A future npm switch should replace the Git entry rather
+than load both copies. Pi supplies the optional host peers; research-only consumers
+do not install a second Coding Agent runtime.

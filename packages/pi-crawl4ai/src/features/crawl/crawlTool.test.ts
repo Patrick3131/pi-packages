@@ -9,6 +9,7 @@ jest.mock("@earendil-works/pi-coding-agent", () => {
 
 import { mergeConfigWithEnv } from "../../config/loader";
 import type { Crawl4AIConfig } from "../../config";
+import { CrawlValidationError, executeCrawl } from "./crawlCore";
 import { registerCrawlTool } from "./crawlTool";
 import { resetRequestPacingState } from "./requestPacing";
 import { mockFetch, restoreFetch, resetEnv } from "../../test-utils";
@@ -63,6 +64,24 @@ beforeEach(() => { resetEnv(); resetRequestPacingState(); registeredTools.length
 afterEach(() => { rmSync(TEST_SAVE_DIR, { recursive: true, force: true }); restoreFetch(); jest.useRealTimers(); });
 
 describe("crawl reliability regressions", () => {
+  it.each([
+    [{ includeLinks: true }, "includeLinks requires extractor=trafilatura"],
+    [{ format: "text" }, "text format requires extractor=trafilatura"],
+    [{ urls: [URL, "https://example.org"], deepCrawl: { maxDepth: 1 } }, "Deep crawling requires exactly one start URL"],
+  ])("preserves corrective preflight errors in both core and Pi adapter: %j", async (invalid, message) => {
+    const fetchMock = respond();
+    const raw = mergeConfigWithEnv({ outputDir: TEST_SAVE_DIR, retention: { enabled: false } });
+    const config: Crawl4AIConfig = { baseUrl: raw.baseUrl, timeout: 1000, raw };
+    for (const operation of [
+      () => executeCrawl({ urls: [URL], ...invalid } as CrawlToolParams, config, { cwd: process.cwd() }),
+      () => invoke(invalid as Partial<CrawlToolParams>),
+    ]) {
+      await expect(operation()).rejects.toBeInstanceOf(CrawlValidationError);
+      await expect(operation()).rejects.toMatchObject({ code: "validation_error", message });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("uses fixed preview and deep-page defaults despite obsolete environment settings", async () => {
     const settings = {
       CRAWL4AI_RETURN_MODE: "files", CRAWL4AI_MAX_CHARS_PER_PAGE: "1", CRAWL4AI_MAX_CHARS_PER_CALL: "1",

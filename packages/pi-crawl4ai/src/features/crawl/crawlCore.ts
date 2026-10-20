@@ -8,6 +8,12 @@ import { DEFAULT_PREVIEW_SETTINGS, buildBudgetedToolText, decideReturnMode, slim
 import { filterMarkdownBm25 } from "./bm25";
 import { extractWithTrafilatura } from "./trafilatura";
 
+/** Preflight failures are correctable input errors, never website/provider failures. */
+export class CrawlValidationError extends Error {
+  readonly code = "validation_error";
+  constructor(message: string) { super(message); this.name = "CrawlValidationError"; }
+}
+
 const DEFAULT_DEEP_MAX_PAGES = 10;
 
 export function buildDeepCrawlStrategy(config: DeepCrawlConfig, defaultMaxPages: number): Record<string, unknown> {
@@ -146,7 +152,8 @@ function resolvePreviewSettings(params: CrawlToolParams): PreviewSettings {
 }
 
 export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConfig, options: { cwd: string; signal?: AbortSignal; onUpdate?: (result: { content: { type: "text"; text: string }[]; details: undefined }) => void }) {
-      validateParams(params, config);
+      try { validateParams(params, config); }
+      catch (error) { throw new CrawlValidationError(error instanceof Error ? error.message : "Invalid crawl parameters"); }
       const operation = createCrawlDeadline(config.timeout, options.signal);
       const budget = resolvePreviewSettings(params);
       const format = params.format ?? "markdown";

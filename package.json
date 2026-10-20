@@ -1,7 +1,6 @@
 {
-  "name": "pi-packages",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@patrick3131/pi-packages",
+  "version": "0.1.0",
   "description": "Monorepo for Pi extensions",
   "workspaces": [
     "packages/*"
@@ -14,8 +13,9 @@
     "test:coverage": "jest --coverage",
     "clean": "npm run clean --workspaces && rm -rf node_modules coverage",
     "typecheck:configs": "tsc --noEmit --strict --skipLibCheck --module nodenext --target ES2022 configs/global/mcp-policy.ts",
-    "build:research": "tsup src/research.ts --dts --format esm --target node22 --tsconfig tsconfig.research.json --out-dir dist --clean",
-    "prepare": "node scripts/prepare-research.mjs"
+    "build:research": "tsup --config tsup.research.config.ts",
+    "prepare": "node scripts/prepare-research.mjs",
+    "prepack": "npm run build:research"
   },
   "pi": {
     "extensions": [
@@ -69,6 +69,38 @@
     "packages/*/agents/**",
     "packages/*/package.json",
     "README.md",
-    "LICENSE"
-  ]
+    "LICENSE",
+    "packages/pi-work/scaffold/**",
+    "scripts/prepare-research.mjs",
+    "tsconfig.research.json",
+    "tsup.research.config.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Patrick3131/pi-packages.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  }
 }

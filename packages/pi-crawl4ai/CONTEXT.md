@@ -72,3 +72,11 @@ JSON search: working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `c
 `crawlCore.ts` and `crawlReadCore.ts` own execution and artifact reading without Coding Agent imports. `crawlTool.ts` / `crawlReadTool.ts` retain the existing registration/schema and delegate. The root research export shares these cores; injected cwd and signal bind each caller’s artifacts and cancellation.
 
 The crawl and crawl_read tool descriptions/parameters are shared descriptor exports through `pi-packages/research`; coding-agent registration and other harness adapters consume the same definitions alongside the harness-neutral execution clients.
+
+Preflight failures use exported `CrawlValidationError` with stable `validation_error`
+and their ordinary corrective message. Core and Coding Agent adapter share it;
+provider/network failures retain their separate transport behavior.
+
+Crawl tests run serially: subprocess deadline fixtures must not compete with
+parallel Jest workers for startup time. The root research export also exposes
+`listCrawlSessions` for host-owned artifact maintenance; it does not run cleanup.

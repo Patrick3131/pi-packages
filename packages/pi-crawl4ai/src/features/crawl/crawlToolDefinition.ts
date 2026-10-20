@@ -14,7 +14,7 @@ export const crawlToolDefinition = {
     ],
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { minItems: 1, description: "HTTP(S) URLs; exactly one seed for deepCrawl" }),
-      format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links"), Type.Literal("text")], { description: "Default markdown; text requires extractor" })),
+      format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links"), Type.Literal("text")], { description: "Default markdown; text requires extractor=trafilatura and configured Python extraction" })),
       waitFor: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Milliseconds to wait after rendering before extraction" })),
       jsCode: Type.Optional(Type.String({ description: "Remote-browser JavaScript; trusted use only" })),
       bypassCache: Type.Optional(Type.Boolean()),
@@ -36,6 +36,6 @@ export const crawlToolDefinition = {
       bm25Query: Type.Optional(Type.String({ description: "Keep only matching sections; one URL, Markdown/text only; not with deepCrawl" })),
       bm25Threshold: Type.Optional(Type.Number({ minimum: 0, description: "Default 1; requires bm25Query" })),
       extractor: Type.Optional(Type.Literal("trafilatura", { description: "Local Trafilatura extraction; requires saving" })),
-      includeLinks: Type.Optional(Type.Boolean({ description: "Trafilatura links (default false)" })),
+      includeLinks: Type.Optional(Type.Boolean({ description: "Requires extractor=trafilatura; includeLinks=true keeps extracted links (default false)" })),
     }),
 };
