@@ -1,7 +1,7 @@
 ---
-status: in_progress
+status: done
 owner: engineering
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 canonical_ref: none
 ---
 
@@ -27,10 +27,10 @@ Excluded: generic browser session service, authenticated/personal browser profil
 
 ## Evidence and Dependencies
 
-- Required baseline: [crawl contracts and preservation](../finished/2026-10-21-bug-crawl-content-preservation-and-contract.md). Its result schema, source/view references, revision-bound reads and per-page error contract are frozen before this package changes the shared core.
+- Required baseline: [crawl contracts and preservation](2026-10-21-bug-crawl-content-preservation-and-contract.md). Its result schema, source/view references, revision-bound reads and per-page error contract are frozen before this package changes the shared core.
 - Newly read owned server source: `/Users/patrick/Development/discovery-services/deploy/crawl4ai/{Dockerfile,entrypoint.sh,operator_deep_crawl.py,bounded_deep_crawl.py,source_integration.py,container_integration_test.py}`. The pinned image is 0.9.5; ordinary config still loads UNTRUSTED, while reviewed bounded constructors implement deep traversal. No global gate relaxation is needed.
 - Reused authenticated server inspection from this chat: `/execute_js` is a separate disabled route; `/crawl` rejects js_code. Its implementation calls a pooled crawler and returns js_execution_result. The owned config pools contexts retaining cookies/localStorage/service workers until recycle, so a missing public session ID does not establish isolation. Upstream PDF acquisition uses requests.Session().get with a 600-second read timeout; its URL/peer validators do not prove traversal through the owned pinning/operator proxy. Isolated contexts and proxy-bound, deadline-limited PDF acquisition are known required adaptations. No live interaction/PDF success was established. These are required implementation proofs, not claimed working features.
-- Reused research: [landscape](2026-10-21-research-crawl-package-landscape.md) and [extraction comparison](2026-10-21-research-trafilatura-and-extraction-comparison.md). Upstream allowlists CSS/XPath extraction classes and scalar wait/selection fields: remote structured extraction is not categorically prohibited. Actual deployed payloads must be proven, not inferred from allowlist names.
+- Reused research: [landscape](../work/2026-10-21-research-crawl-package-landscape.md) and [extraction comparison](../work/2026-10-21-research-trafilatura-and-extraction-comparison.md). Upstream allowlists CSS/XPath extraction classes and scalar wait/selection fields: remote structured extraction is not categorically prohibited. Actual deployed payloads must be proven, not inferred from allowlist names.
 
 ## Implementation Notes
 
@@ -93,4 +93,4 @@ None
 
 ## Implementation Acceptance
 
-Independent fresh Astra medium review is READY after correcting schema closure/regex admission, bounded killable derivation, script-hash provenance, exclusion-only views and malformed interaction uncertainty. Server source is committed as fc4823f037db76b6b36d48722832b7be33cc9ce4 on discovery-services/feat/crawl-interaction-and-documents. Final locally tested image sha256:88e75e880cc9e88397908fa097a640b1ad32b63f05b63a029f35fa4823175d7a passed 44 installed unit checks, ten source checks, full ordinary/deep/legacy-PDF/interaction/document/security/resource/cleanup acceptance and the built-client smoke. HTTP operator proxy requests: 52; direct/private target requests: zero. Toolkit 0.1.4 publication is explicitly authorized by the user and is the remaining release handoff; production rollout is not performed.
+Independent fresh Astra medium review is READY after correcting schema closure/regex admission, bounded killable derivation, script-hash provenance, exclusion-only views and malformed interaction uncertainty. Server source is committed as fc4823f037db76b6b36d48722832b7be33cc9ce4 on discovery-services/feat/crawl-interaction-and-documents. Final locally tested image sha256:88e75e880cc9e88397908fa097a640b1ad32b63f05b63a029f35fa4823175d7a passed 44 installed unit checks, ten source checks, full ordinary/deep/legacy-PDF/interaction/document/security/resource/cleanup acceptance and the built-client smoke. HTTP operator proxy requests: 52; direct/private target requests: zero. Toolkit @patrick3131/pi-packages@0.1.4 was explicitly authorized and published by successful GitHub Actions run 39683079053 from tag v0.1.4 / source c025d719510f3de4444d2d8786454e918d51234a; production rollout is not performed.

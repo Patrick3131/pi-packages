@@ -1,7 +1,7 @@
 ---
-status: in_progress
+status: done
 owner: engineering
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 canonical_ref: none
 ---
 
@@ -30,9 +30,9 @@ One serial unit across the server/client interface. Depends on completed baselin
 ## Docs
 
 - [x] Update client/server contracts, config examples, operational opt-in/uncertain-operation behavior and release handoff.
-- [ ] Link the exact package release/server image needed by Melon Labs; do not enable production in a planning turn.
+- [x] Link the exact package release/server image needed by Melon Labs; do not enable production in a planning turn.
 
 ## Completion
 
 - [x] AC1–AC6 verified locally; test evidence distinguishes production not performed.
-- [ ] Set all three documents done, update last_reviewed and move together to docs/work/finished after implementation is actually complete.
+- [x] Set all three documents done, update last_reviewed and move together to docs/work/finished after implementation is actually complete.

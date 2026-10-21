@@ -1,7 +1,7 @@
 ---
-status: in_progress
+status: done
 owner: engineering
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 canonical_ref: none
 ---
 
@@ -80,4 +80,4 @@ The final same-image fixture command exited zero with 52 authenticated pinned pr
 | Interactive roster | 9 | 6 | 4118 | 2475 |
 | PDF | — | 5 | 1780 | 2001 |
 
-One tool call per fixture; these are local observations, not production latency targets. No tokenizer or provider-cost savings are claimed. Server commit fc4823f037db76b6b36d48722832b7be33cc9ce4 is pushed to its feature branch. Containers and task-started Docker Desktop were closed. Explicitly authorized toolkit publication/consumer adoption is being completed separately from production rollout.
+One tool call per fixture; these are local observations, not production latency targets. No tokenizer or provider-cost savings are claimed. Server commit fc4823f037db76b6b36d48722832b7be33cc9ce4 is pushed to its feature branch. Containers and task-started Docker Desktop were closed. Toolkit @patrick3131/pi-packages@0.1.4 is published and publicly verified by release CI run 39683079053. Agent adoption pins that exact version in its own work package; production rollout is separate.
