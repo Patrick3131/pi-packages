@@ -32,6 +32,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "./config";
 import { registerCrawlTool } from "./features/crawl/crawlTool";
+import { registerCrawlInteractTool } from "./features/crawl/crawlInteractTool";
 import { registerCrawlReadTool } from "./features/crawl/crawlReadTool";
 import {
   cleanupCrawlSessions,
@@ -59,6 +60,7 @@ export default function (pi: ExtensionAPI) {
 
   registerCrawlTool(pi, config);
   registerCrawlReadTool(pi, config);
+  registerCrawlInteractTool(pi, config);
 
   pi.registerCommand("crawl-status", {
     description: "Check service health on demand; add extractor to check optional Python extraction",
@@ -136,3 +138,6 @@ export default function (pi: ExtensionAPI) {
     },
   });
 }
+
+export { executeCrawlInteract } from "./features/crawl/crawlCapabilities";
+export { crawlInteractToolDefinition } from "./features/crawl/crawlInteractToolDefinition";

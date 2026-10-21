@@ -8,7 +8,8 @@ export function registerCrawlTool(pi: ExtensionAPI, config: Crawl4AIConfig): voi
   pi.registerTool(defineTool({
     ...crawlToolDefinition,
     async execute(_id, params, signal, onUpdate, ctx) {
-      return executeCrawl(params, config, { signal, onUpdate, cwd: ctx?.cwd ?? process.cwd() });
+      const result = await executeCrawl(params, config, { signal, onUpdate, cwd: ctx?.cwd ?? process.cwd() });
+      return { ...result, structuredOutput: result.details.evidence };
     },
   }));
 }

@@ -1,8 +1,9 @@
+import { formatContentForSave } from "./content";
 /**
  * Save crawl results to disk.
  */
 
-import { mkdirSync, mkdtempSync, writeFileSync, renameSync, realpathSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, renameSync, realpathSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
 import { createHash } from "node:crypto";
 import type { CrawlResult, CrawlFormat, DeepCrawlStrategyType, MarkdownGenerationResult } from "./types";
@@ -90,7 +91,7 @@ export function containedArtifactPath(sessionDir: string, file: string): string 
   return target;
 }
 
-export function writeCrawlArtifact(sessionDir: string, file: string, content: string): string {
+export function writeCrawlArtifact(sessionDir: string, file: string, content: string | Uint8Array): string {
   const path = containedArtifactPath(sessionDir, file);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, { encoding: "utf8", flag: "wx" });
@@ -100,51 +101,15 @@ export function writeCrawlArtifact(sessionDir: string, file: string, content: st
 /**
  * Format content for saving based on format type.
  */
-export function formatContentForSave(
-  result: CrawlResult,
-  format: CrawlFormat,
-  options?: { preferFitMarkdown?: boolean }
-): string {
-  if (!result.success) {
-    return `# Error: ${result.url}\n\n${result.error_message || "Unknown error"}`;
-  }
-
-  switch (format) {
-    case "html":
-      return result.html ?? "";
-    case "links": {
-      const internal = result.links?.internal || [];
-      const external = result.links?.external || [];
-      const lines = [
-        `# Links from ${result.url}`,
-        "",
-        `## Internal Links (${internal.length})`,
-        ...internal.map((l) => `- [${l.text}](${l.href})`),
-        "",
-        `## External Links (${external.length})`,
-        ...external.map((l) => `- [${l.text}](${l.href})`),
-      ];
-      return lines.join("\n");
-    }
-    case "markdown":
-    default:
-      // Prefer fit_markdown (main content) when available and requested
-      if (typeof result.markdown === "object" && result.markdown !== null) {
-        const md = result.markdown as MarkdownGenerationResult;
-        if (options?.preferFitMarkdown !== false && md.fit_markdown?.trim()) {
-          return md.fit_markdown;
-        }
-        return md.raw_markdown ?? "";
-      }
-      return result.markdown ?? "";
-  }
-}
+export { formatContentForSave } from "./content";
 
 /**
  * Metadata saved alongside crawl results.
  */
 export interface CrawlManifestPage {
   url: string;
+  evidence?: import("./evidence").PageEvidence;
+  originalMarkdownFile?: string;
   file: string;
   outlineFile?: string;
   metaFile?: string;
@@ -253,9 +218,11 @@ export function createSessionDirName(startUrl: string, timestamp: Date): string 
  * @returns Path to the session directory, or null if save is disabled
  */
 export interface SaveCrawlOptions {
+  /** Core publishes only after final delivery provenance is computed. */
+  deferManifest?: boolean;
   preferFitMarkdown?: boolean;
   sessionDir?: string;
-  artifacts?: Array<{ sourceContent?: string; rawHtmlFile?: string; filter?: CrawlManifestPage["filter"]; extractor?: CrawlManifestPage["extractor"] }>;
+  artifacts?: Array<{ originalMarkdownFile?: string; originalMarkdownContent?: string; sourceContent?: string; rawHtmlFile?: string; filter?: CrawlManifestPage["filter"]; extractor?: CrawlManifestPage["extractor"] }>;
   /** When set and enabled, prune old sessions under outputDir after save. */
   retention?: RetentionPolicy;
   /** Effective request values recorded in the manifest. */
@@ -265,6 +232,7 @@ export interface SaveCrawlOptions {
 }
 
 export interface SavedCrawlPage {
+  evidence?: import("./evidence").PageEvidence;
   /** Page URL as returned by crawl4ai. */
   url: string;
   /** Path relative to the crawl session directory (also stored in the manifest). */
@@ -324,13 +292,14 @@ export function saveCrawlResultsDetailed(
     
     // Write content (prefer fit markdown when available)
     const content = formatContentForSave(result, format, {
-      preferFitMarkdown: options?.preferFitMarkdown !== false,
+      preferFitMarkdown: options?.preferFitMarkdown === true,
     });
     writeCrawlArtifact(sessionDir, relativePath, content);
     savedFiles.push(relativePath);
 
     const pageEntry: CrawlManifestPage = {
       url: result.url,
+      evidence: result.evidence,
       file: relativePath,
       success: result.success,
       // Failed pages record the reason; callers redact server diagnostics before saving.
@@ -340,6 +309,14 @@ export function saveCrawlResultsDetailed(
     };
 
     const artifact = options?.artifacts?.[index];
+    if (artifact?.originalMarkdownContent !== undefined) {
+      pageEntry.originalMarkdownFile = artifact.originalMarkdownFile ?? `${relativePath}.original.md`;
+      if (!artifact.originalMarkdownFile) writeCrawlArtifact(sessionDir, pageEntry.originalMarkdownFile, artifact.originalMarkdownContent);
+    }
+    if (result.evidence) for (const view of result.evidence.views) {
+      const file = view.kind === "requested" ? relativePath : view.kind === "original_html" ? artifact?.rawHtmlFile : view.kind === "original_markdown" ? pageEntry.originalMarkdownFile : undefined;
+      if (file) view.path = join(sessionDir, file);
+    }
     if (artifact?.sourceContent !== undefined) {
       pageEntry.sourceFile = `${relativePath}.source.${format === "text" ? "txt" : "md"}`;
       writeCrawlArtifact(sessionDir, pageEntry.sourceFile, artifact.sourceContent);
@@ -382,6 +359,7 @@ export function saveCrawlResultsDetailed(
     pages.push(pageEntry);
     pagePaths.push({
       url: result.url,
+      evidence: result.evidence,
       file: relativePath,
       path: fullPath,
       sourceFile: pageEntry.sourceFile,
@@ -419,7 +397,7 @@ export function saveCrawlResultsDetailed(
   
   const manifestPath = join(sessionDir, "crawl-manifest.json");
   const pendingManifest = writeCrawlArtifact(sessionDir, ".crawl-manifest.pending", JSON.stringify(manifest, null, 2));
-  renameSync(pendingManifest, manifestPath);
+  if (!options?.deferManifest) renameSync(pendingManifest, manifestPath);
 
   let cleanup: CleanupResult | undefined;
   // Only run when caller passes retention (crawl tool always does from config).
@@ -434,4 +412,15 @@ export function saveCrawlResultsDetailed(
     pagePaths,
     cleanup,
   };
+}
+
+/** Atomically finalize delivery provenance after the final human output is bounded. */
+export function finalizeCrawlEvidence(sessionDir: string, results: CrawlResult[]): void {
+  const manifestPath = containedArtifactPath(sessionDir, "crawl-manifest.json");
+  const initialPending = containedArtifactPath(sessionDir, ".crawl-manifest.pending");
+  const manifest = JSON.parse(readFileSync(existsSync(initialPending) ? initialPending : manifestPath, "utf8")) as CrawlManifest;
+  manifest.pages.forEach((page, index) => { page.evidence = results[index]?.evidence; });
+  const pending = writeCrawlArtifact(sessionDir, ".crawl-manifest.final.pending", JSON.stringify(manifest, null, 2));
+  renameSync(pending, manifestPath);
+  if (existsSync(initialPending)) unlinkSync(initialPending);
 }

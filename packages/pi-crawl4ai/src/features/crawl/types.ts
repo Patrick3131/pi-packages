@@ -1,3 +1,4 @@
+import type { AcquisitionOptions } from "./crawlCapabilities";
 /**
  * Types for the crawl feature.
  */
@@ -45,7 +46,7 @@ export interface DeepCrawlConfig {
 /**
  * Parameters for the crawl tool.
  */
-export interface CrawlToolParams {
+export interface CrawlToolParams extends AcquisitionOptions {
   bm25Query?: string;
   bm25Threshold?: number;
   extractor?: "trafilatura";
@@ -104,6 +105,10 @@ export interface MarkdownGenerationResult {
  * Result from a single URL crawl.
  */
 export interface CrawlResult {
+  evidence?: import("./evidence").PageEvidence;
+  cache_status?: "hit" | "miss" | "bypass" | "unknown";
+  media?: Record<string, unknown>;
+  tables?: unknown[];
   /** The URL that was crawled */
   url: string;
   /** Whether the crawl was successful */
@@ -117,6 +122,9 @@ export interface CrawlResult {
     internal: Array<{ href: string; text: string }>;
     external: Array<{ href: string; text: string }>;
   };
+  extraction_error?: { category: string; code: string; message: string; retryable?: boolean };
+  /** Server-owned per-item diagnostics from capability routes. */
+  error?: { category: string; code: string; message: string; retryable: boolean; operationOutcome?: string };
   /** Error message if crawl failed */
   error_message?: string;
   /** HTTP status code */
@@ -124,7 +132,19 @@ export interface CrawlResult {
   /** Response headers */
   response_headers?: Record<string, string>;
   /** Metadata extracted from the page */
+  document?: { originalBase64: string; sha256: string; pages: Array<{ pageNumber: number; text: string }>; metadata?: Record<string, unknown>; limitations?: string[] };
+  interaction?: { before?: { url?: string; html: string; metadata?: { snapshotId?: string; statusCode?: number | null; contentType?: string | null; [key: string]: unknown } }; after?: { url?: string; html: string; metadata?: Record<string, unknown> }; actions?: import("./crawlCapabilities").CrawlAction[]; results?: unknown[]; scriptHashes?: string[]; outcome: string };
+  redirected_url?: string;
+  selected_html?: string;
+  extracted_content?: unknown;
   metadata?: {
+    [key: string]: unknown;
+    acquisitionId?: string;
+    snapshotId?: string;
+    observedAt?: string;
+    cacheStatus?: "hit" | "miss" | "bypass" | "unknown";
+    callerScriptInfluenced?: boolean;
+    verifiedRedirects?: Array<{ from: string; to: string }>;
     title?: string;
     description?: string;
     keywords?: string[];

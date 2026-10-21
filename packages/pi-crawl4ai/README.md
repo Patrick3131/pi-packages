@@ -58,7 +58,7 @@ Saved bodies are not shortened to fit presentation limits. Query ranking and tru
 
 ### Browser controls and runtime gate
 
-`format` supports `markdown` (default), `html`, `links`, and `text` with Trafilatura. `waitFor` is a positive delay in milliseconds after rendering, not a CSS-selector wait. `bypassCache: true` requests bypass; omitted/false requests enabled caching. `jsCode` executes in the remote browser: only supply trusted, explicitly authorized code.
+`format` supports `markdown` (default), `html`, `links`, and `text` (broad HTML rendering without Python). `waitFor` is a positive delay in milliseconds after rendering, not a CSS-selector wait. `bypassCache: true` requests bypass; omitted/false requests enabled caching. Legacy `jsCode` on `crawl` is rejected with `unsupported_capability`; browser interaction uses the dedicated `crawl_interact` service path.
 
 Deep crawling requires one seed and supports `bfs`, `dfs`, `best-first`, integer `maxDepth`/`maxPages`, optional `includeExternal`, glob `includePatterns`/`excludePatterns`, and `allowedDomains`. Public `maxDepth: 1` is seed-only (translated to upstream depth zero). Default `maxPages` is 10. `scoreThreshold` requires best-first and a value in [0,1]. These are crawl bounds, distinct from the 20-entry display cap.
 
@@ -72,7 +72,7 @@ The configured deadline covers process-local pacing, fetch, response-body readin
 {"urls":["https://example.com/docs"],"bm25Query":"installation","bm25Threshold":1}
 ```
 
-Crawl-time BM25 supports **one URL, Markdown/text, no deep crawl**. `bm25Threshold` defaults to 1.0, must be finite and nonnegative, and requires a nonblank query. HTML/links/deep/multi-URL combinations fail preflight. Text also requires Trafilatura.
+Crawl-time BM25 supports **one URL, Markdown/text, no deep crawl**. `bm25Threshold` defaults to 1.0, must be finite and nonnegative, and requires a nonblank query. HTML/links/deep/multi-URL combinations fail preflight. Text needs no optional extractor.
 
 The shared Okapi scorer (k1=1.5, b=0.75) uses Unicode-aware tokens and heading sections/headingless paragraphs, respects fenced code and intact table/code blocks, and saves matching sections in source order. `crawl_read` reuses this scorer for positive query matches without another public threshold. No heading-ancestry or cross-section link/reference reconstruction is promised.
 
@@ -96,7 +96,7 @@ Or set `trafilatura.pythonPath` in JSON. Restart/reload after changing configura
 {"urls":["https://example.com/article"],"extractor":"trafilatura","format":"markdown","includeLinks":true}
 ```
 
-Trafilatura supports Markdown/text; `text` currently requires this extractor. Native tables/formatting are enabled, links default to false (`includeLinks` requires an extractor). It requires saving: `save: false` is rejected. It can precede single-page BM25; in that composition `sourceFile` contains the extracted pre-filter content, and `rawHtmlFile` preserves rendered HTML.
+Trafilatura is an optional, potentially lossy article view for Markdown/text. Native tables/formatting are enabled; `includeLinks` works for both ordinary output and the optional extractor. It requires saving: `save: false` is rejected. It can precede single-page BM25; in that composition `sourceFile` contains the extracted pre-filter content, and `rawHtmlFile` preserves rendered HTML.
 
 Rendered raw HTML is saved **before** extraction. Missing Python/dependency or extraction failure returns setup guidance and an exact original HTML reference, not a silent fallback. Basic crawling remains unaffected. Input/output are bounded, the same remaining crawl deadline applies, and cancellation terminates the process with a short force-kill grace period.
 
@@ -136,7 +136,7 @@ Rows read `1. <name>  <size> MB  <host> ×<pages>  <timestamp>`, with `unknown-h
 
 Saves use unique sessions/hashed URL filenames and publish the manifest last. `pages[]` maps URLs to primary files; optional `sourceFile`, `rawHtmlFile`, `filter` and `extractor` fields describe filtering/extraction artifacts. Generated/manifest artifact paths are checked for session containment, including symlink escape; the reader is **not a filesystem security sandbox**.
 
-New manifests also record provenance: `request` holds the effective values that shaped the crawl (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `jsCode: true` — the source is never persisted — `deepCrawl` with resolved `strategy`/`maxDepth`/`maxPages` and any filters, optional `bm25`, optional `extractor`), `service.baseUrl` is the endpoint with credentials removed, and a failed `pages[]` entry keeps a redacted `error` reason. The legacy top-level `deepCrawl` field is unchanged.
+New manifests also record provenance: `request` holds the effective values that shaped the crawl (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved `strategy`/`maxDepth`/`maxPages` and any filters, optional `bm25`, optional `extractor`), `service.baseUrl` is the endpoint with credentials removed, and a failed `pages[]` entry keeps a redacted `error` reason. The legacy top-level `deepCrawl` field is unchanged.
 
 Retention runs after saves on completed owned sessions only and protects the just-returned session during that pass. Defaults: 20 sessions, 7 days, soft 512 MiB; zero disables age/size rules. An oversized returned session survives that pass but may expire later; paths are not permanently pinned. Unrelated/incomplete directories are not cleaned.
 
@@ -184,3 +184,87 @@ Actual deep/filter success, an authorized child launch and interactive smoke rem
 ## License
 
 MIT
+
+## Evidence and consumer migration
+
+Ordinary Markdown now defaults to `raw_markdown`; set `preferFitMarkdown:true` only when a main-content view is intended. Ordinary text uses parse5 to retain card/list text without executing scripts. `includeLinks:true` retains useful targets without Python. Existing `pages[].file` remains the requested view, including filtered/article output.
+
+Saved HTML acquisitions additionally retain `rawHtmlFile` and `originalMarkdownFile` as separate originals; `sourceFile` still denotes the pre-BM25 view. Each page has additive `evidence` with a distinct acquisition identity, timestamp, HTTP status/content type, usability reasons, explicit unknown cache facts, and hashed view references. `details.evidence` is version 1 and its exported TypeBox schema is `CrawlEvidenceSchema`; this is shared by Coding Agent and `pi-packages/research`. Acquisition success does not imply useful evidence: known HTTP failures and empty content are diagnosed separately. Compact resource counts are metadata, not automatic article supplementation.
+
+`crawl_read` retains legacy modes and adds exact UTF-16 ranges, omitted-content information and revision-bound `nextCall` objects. On large minified documents, query reads center on actual matches. Pass the returned next call unchanged: the exact file hash and view identity prevent a changed artifact from silently becoming another source. `ReadEvidenceSchema` describes `details.evidence`; an outline alone has no source-text ranges. Legacy manifests remain readable with unknown original provenance rather than fabricated archives.
+
+The baseline PDF refusal (`unsupported_document`) means the configured document capability is required; it is distinct from optional Python article extraction. The capability package supplies remote PDF parsing. There is no local fetch/egress fallback and no automatic interaction retry. Consumer hosts must preserve stable error codes and corrective messages; the historical Melon host message-retention fix is already implemented there.
+
+### Operator acquisition, browser interaction and PDFs
+
+The owned discovery-services image provides `/acquire` and `/execute_js`. Enable
+its compatible client contract explicitly (no startup capability probing):
+
+```json
+{
+  "capabilities": { "acquisition": true, "interaction": true }
+}
+```
+
+Equivalent environment variables are `CRAWL4AI_ACQUISITION_ENABLED=true` and
+`CRAWL4AI_INTERACTION_ENABLED=true`. The normal `crawl` tool then uses `/acquire`
+for non-deep requests, including content-type-detected PDFs. Deep discovery keeps
+the existing bounded `/crawl` path. A server without these routes should leave
+these settings off; errors do not trigger a direct-fetch or local-browser fallback.
+
+`crawl` accepts `waitForSelector`, `selector`, `excludeSelector` and
+`extractionSchema: {name, baseSelector, fields:[{name, selector, type, attribute?}]}`.
+Selectors are CSS; an empty field selector selects the card itself. Field type is
+`text` or `attribute`. Selection/exclusions affect derived views while complete
+rendered HTML stays preserved from the same snapshot.
+
+`crawl_interact` is registered when interaction is enabled. For example:
+
+```json
+{
+  "url": "https://example.com/talent",
+  "actions": [
+    { "type": "click", "selector": "button.load-more" },
+    { "type": "waitForSelector", "selector": ".creator-card:nth-child(9)" }
+  ],
+  "scripts": ["() => Array.from(document.querySelectorAll('.creator-card')).map(el => el.textContent)"],
+  "extractionSchema": {
+    "name": "talent",
+    "baseSelector": ".creator-card",
+    "fields": [{ "name": "name", "selector": "h2", "type": "text" }]
+  }
+}
+```
+
+Each call uses a fresh isolated context. Click, scroll, delay, selector-wait and
+JavaScript/evaluate are supported. There is no persistent authenticated profile.
+Authentication, pinned operator egress, server capacity and execution deadlines
+still apply. A lost response leaves browser effects unconfirmed; automatic retry
+is forbidden. Closing the HTTP request does not prove server work has stopped.
+The generic tool executes authorized interactions; task guidance controls whether
+contact, forms or other business effects are authorized.
+
+Complete pre/post HTML, structured extraction and operation results are saved as
+separate views and returned with exact `crawl_read` references. Caller-script
+influence propagates to post-script DOM and derived views through server-owned
+metadata, regardless of what the script returns. Pre-script content retains its
+own URL/snapshot. Influenced material stays readable/searchable; it needs
+independent corroboration before a consumer treats it as website proof.
+
+Text PDFs retain original bytes/hash, page-numbered text and document metadata.
+Scanned/no-text, encrypted, oversized and inaccessible documents report explicit
+per-item outcomes. OCR is not included. PDF bytes never reach Trafilatura and
+network activity stays on the remote operator path. Cache/freshness facts remain
+unknown unless the service supplies them.
+
+After building the research bundle, an explicit fixture/deployment smoke records
+completeness, latency, call counts and model-visible characters:
+
+```sh
+node scripts/crawl-capability-smoke.mjs PAGE_URL ARTICLE_URL ROSTER_URL PDF_URL
+```
+
+Provide `CRAWL4AI_BASE_URL` and `CRAWL4AI_API_TOKEN` through the environment. The
+roster fixture uses `.card`; it runs JavaScript scrolling and structured card
+reads. The command cleans its artifacts and prints metrics rather than source
+content. It does not measure provider charges or assume token savings.

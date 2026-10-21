@@ -114,7 +114,7 @@ describe("buildBudgetedToolText", () => {
     expect(Buffer.byteLength(result.text)).toBeLessThanOrEqual(50 * 1024);
   });
   it("uses fixed inline defaults without claiming no-save recovery", () => {
-    expect(DEFAULT_PREVIEW_SETTINGS).toEqual({ maxCharsPerPage: 12000, maxCharsPerCall: 12000, returnMode: "auto", preferFitMarkdown: true });
+    expect(DEFAULT_PREVIEW_SETTINGS).toEqual({ maxCharsPerPage: 12000, maxCharsPerCall: 12000, returnMode: "auto", preferFitMarkdown: false });
     const results = [makePage("https://example.com", "x".repeat(50000))];
     const result = buildBudgetedToolText({ pages: toFormattedPages(results, "markdown", DEFAULT_PREVIEW_SETTINGS),
       budget: DEFAULT_PREVIEW_SETTINGS, decision: decideReturnMode({ requestedMode: "auto", saveRequested: false }),

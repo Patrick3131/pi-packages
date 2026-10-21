@@ -32,4 +32,9 @@ Use `No automated test needed` when the change has no material runtime risk. Do 
 
 ## Current Work
 
-- None.
+- [Crawl interaction and documents](work/2026-10-21-feature-crawl-interaction-and-documents.md) — verified server/client capabilities; authorized release handoff in progress.
+- [Melon Labs agent adoption](/Users/patrick/Development/melon-labs/docs/features/agents/work/2026-10-21-feature-agency-research-evidence-and-codemode.md) — source evidence, creator discovery and native Code Mode.
+
+## Completed
+
+- [Crawl content preservation and contract](finished/2026-10-21-bug-crawl-content-preservation-and-contract.md) — shared representation/read/error baseline; local checks and independent review passed.

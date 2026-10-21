@@ -18,6 +18,8 @@ import type { CrawlResult, CrawlToolParams } from "./types";
 import { existsSync, rmSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { urlToFilePath } from "./saveOutput";
+import { Value } from "typebox/value";
+import { CrawlEvidenceSchema } from "./evidence";
 import { MAX_RESPONSE_BYTES } from "./http";
 
 const TEST_SAVE_DIR = "./__test_crawl_save__";
@@ -65,15 +67,13 @@ afterEach(() => { rmSync(TEST_SAVE_DIR, { recursive: true, force: true }); resto
 
 describe("crawl reliability regressions", () => {
   it.each([
-    [{ includeLinks: true }, "includeLinks requires extractor=trafilatura"],
-    [{ format: "text" }, "text format requires extractor=trafilatura"],
     [{ urls: [URL, "https://example.org"], deepCrawl: { maxDepth: 1 } }, "Deep crawling requires exactly one start URL"],
   ])("preserves corrective preflight errors in both core and Pi adapter: %j", async (invalid, message) => {
     const fetchMock = respond();
     const raw = mergeConfigWithEnv({ outputDir: TEST_SAVE_DIR, retention: { enabled: false } });
     const config: Crawl4AIConfig = { baseUrl: raw.baseUrl, timeout: 1000, raw };
     for (const operation of [
-      () => executeCrawl({ urls: [URL], ...invalid } as CrawlToolParams, config, { cwd: process.cwd() }),
+      () => executeCrawl({ ...invalid } as CrawlToolParams, config, { cwd: process.cwd() }),
       () => invoke(invalid as Partial<CrawlToolParams>),
     ]) {
       await expect(operation()).rejects.toBeInstanceOf(CrawlValidationError);
@@ -93,9 +93,9 @@ describe("crawl reliability regressions", () => {
       const fetchMock = respond([{ ...PAGE, markdown: { raw_markdown: "RAW", fit_markdown: "FIT".repeat(10000), markdown_with_citations: "", references_markdown: "" } }]);
       const result = await invoke({ save: false, deepCrawl: { maxDepth: 1 } });
       expect(result.details.returnMode).toBe("inline");
-      expect(result.details.preview).toEqual({ maxCharsPerPage: 12000, maxCharsPerCall: 12000, returnMode: "auto", preferFitMarkdown: true });
-      expect(result.details.totalReturnedChars).toBe(12000);
-      expect(result.content[0].text).toContain("FIT"); expect(result.content[0].text).not.toContain("RAW");
+      expect(result.details.preview).toEqual({ maxCharsPerPage: 12000, maxCharsPerCall: 12000, returnMode: "auto", preferFitMarkdown: false });
+      expect(result.details.totalReturnedChars).toBe(3);
+      expect(result.content[0].text).toContain("RAW"); expect(result.content[0].text).not.toContain("FIT");
       const request = JSON.parse(fetchMock.mock.calls[0][1].body);
       expect(request.crawler_config.params.deep_crawl_strategy.params.max_pages).toBe(10);
       expect(result.details).not.toHaveProperty("tokenBudget");
@@ -251,10 +251,22 @@ describe("crawl reliability regressions", () => {
     expect(error.message).not.toContain("secret-token");
     expect(error.message.length).toBeLessThan(2100);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    for (const [status, code] of [[400, "validation_error"], [401, "provider_failure"], [403, "provider_failure"], [429, "provider_failure"]] as const) {
+      mockFetch({ ok: false, status, text: "API admission failed" });
+      await expect(invoke({}, tool)).rejects.toMatchObject({ code, status });
+    }
+    respond([{ url: URL, success: false, status_code: 403, error_message: "Website refused access" }]);
+    await expect(invoke({}, tool)).rejects.toMatchObject({ code: "website_blocked" });
   });
-  it("surfaces the actual untrusted deep strategy rejection without bypass", async () => {
-    const fetchMock = mockFetch({ ok: false, status: 400, text: "Rejected config: type 'BFSDeepCrawlStrategy' may not be constructed from an untrusted request" });
-    await expect(invoke({ deepCrawl: { maxDepth: 2 } })).rejects.toThrow("This server rejects deep-crawl configuration");
+  it.each([
+    ["Rejected config: type 'BFSDeepCrawlStrategy' may not be constructed from an untrusted request", "This server rejects deep-crawl configuration", true],
+    ["Rejected config: field 'js_code' is not permitted from an untrusted request", "JavaScript is not accepted on /crawl", false],
+    ["Rejected config: an unknown field from an untrusted request", "unknown field", false],
+  ])("classifies server refusal precisely: %s", async (message, explanation, deepAdvice) => {
+    const fetchMock = mockFetch({ ok: false, status: 400, text: message });
+    const error = await invoke({ deepCrawl: { maxDepth: 2 } }).catch((error: Error) => error);
+    expect(error.message).toContain(explanation);
+    expect(error.message.includes("This server rejects deep-crawl configuration")).toBe(deepAdvice);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("bounds streamed response bytes", async () => {
@@ -273,7 +285,7 @@ describe("crawl reliability regressions", () => {
     { deepCrawl: { maxDepth: 2, scoreThreshold: 0.1 } },
     { bm25Threshold: 1 }, { bm25Query: " " }, { bm25Query: "docs", format: "html" },
     { bm25Query: "docs", deepCrawl: { maxDepth: 2 } }, { bm25Query: "docs", urls: [URL, `${URL}/two`] },
-    { format: "text" }, { includeLinks: true }, { extractor: "trafilatura", save: false },
+    { jsCode: "document.title" }, { extractor: "trafilatura", save: false },
   ] as Partial<CrawlToolParams>[])('preflights incompatible/invalid params %j', async params => {
     const fetchMock = respond(); await expect(invoke(params)).rejects.toThrow(); expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -296,7 +308,7 @@ describe("crawl public contract and transport", () => {
     const result = await invoke({ deepCrawl: { maxDepth: 2 } });
     expect(result.details.deepCrawl).toEqual({ totalPages: 3, maxDepth: 2, maxPages: 10 });
     expect(result.content[0].text).toContain("Deep Crawl Results (3 pages"); expect(result.content[0].text).toContain("Depth 0 (1 pages)"); expect(result.content[0].text).toContain("Depth 1 (2 pages)");
-    expect(result.content[0].text).toContain(`[error] ${URL}/broken`); expect(result.content[0].text).toContain(`[ok] ${URL}`);
+    expect(result.content[0].text).toContain(`[acquisition failed] ${URL}/broken`); expect(result.content[0].text).toContain(`[ok] ${URL}`);
     const manifest = JSON.parse(readFileSync(result.details.manifestPath, "utf8"));
     expect(manifest.deepCrawl).toEqual({ maxDepth: 2, maxPages: 10 });
   });
@@ -319,12 +331,12 @@ describe("crawl public contract and transport", () => {
   });
   it("serializes native run config, seconds delay, JS, and enabled/bypass enums", async () => {
     const fetchMock = respond();
-    await invoke({ save: false, waitFor: 1800, jsCode: 'document.title="test"' });
+    await invoke({ save: false, waitFor: 1800 });
     let payload = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(payload.crawler_config.type).toBe("CrawlerRunConfig");
     expect(payload.crawler_config.params.delay_before_return_html).toBe(1.8);
     expect(payload.crawler_config.params.wait_for).toBeUndefined();
-    expect(payload.crawler_config.params.js_code).toEqual(['document.title="test"']);
+    expect(payload.crawler_config.params.js_code).toBeUndefined();
     expect(payload.crawler_config.params.cache_mode).toEqual({ type: "CacheMode", params: "enabled" });
     await invoke({ save: false, bypassCache: true });
     payload = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -351,7 +363,7 @@ describe("crawl public contract and transport", () => {
   });
   it("honors fit preference without serializing full bodies into details", async () => {
     respond([{ ...PAGE, markdown: { raw_markdown: "RAW body", fit_markdown: "FIT body", markdown_with_citations: "", references_markdown: "" } }]);
-    const fit = await invoke({ save: false }); expect(fit.content[0].text).toContain("FIT body"); expect(fit.details.results[0].usedFitMarkdown).toBe(true);
+    const fit = await invoke({ save: false, preferFitMarkdown: true }); expect(fit.content[0].text).toContain("FIT body"); expect(fit.details.results[0].usedFitMarkdown).toBe(true);
     const raw = await invoke({ save: false, preferFitMarkdown: false }); expect(raw.content[0].text).toContain("RAW body"); expect(raw.details.results[0].usedFitMarkdown).toBe(false);
     expect(JSON.stringify(raw.details)).not.toContain("RAW body");
   });
@@ -425,15 +437,14 @@ describe("crawl file-first output and extraction integration", () => {
       { ...PAGE, markdown: "# Docs\n\ndocumentation" },
       { url: `${URL}/broken`, success: false, error_message: `Bearer ${token} rejected <script>token=${token}</script>` },
     ]);
-    const result = await invoke({ waitFor: 1500, bypassCache: true, jsCode: `document.cookie = "token=${token}"`, deepCrawl: { maxDepth: 2, includeExternal: true, includePatterns: ["*/docs/*"], allowedDomains: ["example.com"] } }, tool);
+    const result = await invoke({ waitFor: 1500, bypassCache: true, deepCrawl: { maxDepth: 2, includeExternal: true, includePatterns: ["*/docs/*"], allowedDomains: ["example.com"] } }, tool);
     const raw = readFileSync(result.details.manifestPath, "utf8");
     const manifest = JSON.parse(raw);
     expect(manifest.request).toEqual({
       format: "markdown",
       bypassCache: true,
-      preferFitMarkdown: true,
+      preferFitMarkdown: false,
       waitFor: 1500,
-      jsCode: true,
       deepCrawl: { strategy: "bfs", maxDepth: 2, maxPages: 10, includeExternal: true, includePatterns: ["*/docs/*"], allowedDomains: ["example.com"] },
     });
     expect(manifest.deepCrawl).toEqual({ maxDepth: 2, maxPages: 10 });
@@ -471,9 +482,77 @@ describe("crawl file-first output and extraction integration", () => {
     expect(JSON.parse(readFileSync(result.details.manifestPath, "utf8")).request).toEqual({
       format: "text",
       bypassCache: false,
-      preferFitMarkdown: true,
+      preferFitMarkdown: false,
       bm25: { query: "documentation", threshold: 0 },
       extractor: { name: "trafilatura", includeLinks: true },
     });
   });
+});
+
+// Regression: broad views must retain the roster that article-oriented extraction drops.
+it("preserves nine-card broad text and separate original artifacts under bounded previews", async () => {
+  const cards = Array.from({ length: 9 }, (_, index) => `<div><a href="/creator/${index}">Creator ${index}</a><span>@handle${index}</span></div>`).join("");
+  const html = `<html><style>hidden</style><body>${cards}<script>secret()</script></body></html>`;
+  respond([{ ...PAGE, html, markdown: { raw_markdown: cards, fit_markdown: "Roster", markdown_with_citations: "", references_markdown: "" } }]);
+  const inline = await invoke({ format: "text", save: false, includeLinks: true });
+  expect(inline.content[0].text).toContain("Creator 8 (/creator/8)");
+  expect(inline.content[0].text).not.toContain("secret()");
+  const output = await invoke({ format: "text", maxCharsPerPage: 30 });
+  const manifest = JSON.parse(readFileSync(output.details.manifestPath, "utf8"));
+  expect(readFileSync(output.details.savedFiles[0].path, "utf8")).toContain("Creator 8");
+  expect(readFileSync(join(output.details.savedPath, manifest.pages[0].originalMarkdownFile), "utf8")).toBe(cards);
+  expect(readFileSync(output.details.savedFiles[0].rawHtmlPath, "utf8")).toBe(html);
+  expect(Value.Check(CrawlEvidenceSchema, output.details.evidence)).toBe(true);
+  expect(output.details.evidence.pages[0].cacheStatus).toBe("unknown");
+  expect(output.details.evidence.pages[0].views.map((view: any) => view.kind)).toEqual(["requested", "original_html", "original_markdown"]);
+  expect(manifest.pages[0].evidence.delivery).toEqual(output.details.evidence.pages[0].delivery);
+  respond([{ ...PAGE, markdown: "a\n".repeat(5000) }]);
+  const capped = await invoke({ returnMode: "inline" });
+  const delivery = capped.details.evidence.pages[0].delivery;
+  expect(delivery.ranges[0].end).toBeLessThan(10000);
+  expect(delivery.ranges[0].end).toBe(capped.details.totalReturnedChars);
+  const body = readFileSync(capped.details.savedFiles[0].path, "utf8");
+  const human = capped.content[0].text;
+  expect(human).toContain(body.slice(0, delivery.ranges[0].end));
+  expect(human).not.toContain(body.slice(0, delivery.ranges[0].end + 2));
+  expect(JSON.parse(readFileSync(capped.details.manifestPath, "utf8")).pages[0].evidence.delivery).toEqual(delivery);
+  respond([{ ...PAGE, status_code: 403, markdown: "Forbidden" }]);
+  const blocked = await invoke();
+  expect(blocked.details.results[0].success).toBe(true);
+  expect(blocked.details.partial).toBe(true);
+  expect(blocked.content[0].text).toContain("unusable HTTP 403");
+  expect(blocked.content[0].text).not.toContain("[ok]");
+});
+it("routes PDFs and textual resources without requiring article extraction", async () => {
+  respond([{ ...PAGE, url: "https://example.com/report.pdf?version=3", html: "binary" },
+    { ...PAGE, url: "https://example.com/download", response_headers: { "Content-Type": "application/pdf" } },
+    { ...PAGE, url: "https://example.com/data", response_headers: { "Content-Type": "application/json" }, html: "", markdown: '{"roster":["Ada"]}' }]);
+  const output = await invoke({ urls: [URL], format: "text" });
+  expect(output.details.partial).toBe(true);
+  expect(output.details.results.slice(0, 2).every((page: any) => page.evidence.usability === "unusable" && page.errorMessage.includes("unsupported_document"))).toBe(true);
+  expect(readFileSync(output.details.savedFiles[2].path, "utf8")).toContain("Ada");
+  const fetchMock = respond();
+  await expect(invoke({ urls: ["https://example.com/report.pdf?v=3"], format: "text", save: false })).rejects.toMatchObject({ code: "unsupported_capability", message: expect.stringContaining("unsupported_document") });
+  expect(fetchMock).not.toHaveBeenCalled();
+  const mixed = await invoke({ urls: [URL, "https://example.com/report.pdf?v=3"], format: "text", save: false });
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).urls).toEqual([URL]);
+  expect(mixed.details.partial).toBe(true);
+  expect(mixed.details.results[1].errorMessage).toContain("unsupported_document");
+});
+
+ it("reports delivery ranges against the same requested body for links, failures and unnormalized Markdown", async () => {
+  for (const fixture of [
+    { format: "links" as const, results: [{ ...PAGE, links: { internal: [{ href: "https://example.com/a", text: "A" }], external: [] } }] },
+    { format: "markdown" as const, results: [PAGE, { url: "https://example.com/failure", success: false, error_message: "Blocked" }] },
+    { format: "markdown" as const, results: [{ ...PAGE, markdown: "  # Title\n\n\n![Image](https://example.com/image.png)\n" }] },
+  ]) {
+    respond(fixture.results);
+    const output = await invoke({ format: fixture.format, returnMode: "inline", maxCharsPerPage: 70 });
+    const manifest = JSON.parse(readFileSync(output.details.manifestPath, "utf8"));
+    for (const [index, evidence] of output.details.evidence.pages.entries()) {
+      const requested = readFileSync(join(output.details.savedPath, manifest.pages[index].file), "utf8");
+      for (const range of evidence.delivery.ranges) expect(output.content[0].text).toContain(requested.slice(range.start, range.end));
+      expect(manifest.pages[index].evidence.delivery).toEqual(evidence.delivery);
+    }
+  }
 });

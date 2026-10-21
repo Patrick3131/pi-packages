@@ -6,7 +6,8 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { getDefaultOutputDir, containedArtifactPath } from "./saveOutput";
 import { listCrawlSessions } from "./cleanup";
-import { capToolText } from "./presentation";
+import { contentHash, jsonProjection, type ReadEvidence } from "./evidence";
+import { capToolText, capToolTextDetailed } from "./presentation";
 import {
   buildOutlineMarkdown,
   selectChunks,
@@ -26,6 +27,10 @@ export interface CrawlReadParams {
   maxChars?: number;
   offset?: number;
   limit?: number;
+  /** UTF-16 source offset for revision-bound continuation. */
+  charOffset?: number;
+  revision?: string;
+  viewId?: string;
 }
 
 export const DEFAULT_MAX_CHARS = 6000;
@@ -360,6 +365,7 @@ function formatChunksResult(options: {
   chunks: ReturnType<typeof selectChunks>;
   maxChars: number;
   totalChars: number;
+  positions?: number[];
 }): string {
   const { path, url, query, chunks, maxChars, totalChars } = options;
   if (chunks.length === 0) {
@@ -388,7 +394,9 @@ function formatChunksResult(options: {
     const heading = chunk.heading
       ? `## ${chunk.heading} (L${chunk.startLine}–${chunk.endLine}${chunk.score ? `, score ${chunk.score.toFixed(2)}` : ""})`
       : `## Section L${chunk.startLine}–${chunk.endLine}`;
-    parts.push(heading, "", chunk.text, "");
+    parts.push(heading, "");
+    options.positions?.push(parts.join("\n").length + 1);
+    parts.push(chunk.text, "");
   }
 
   parts.push(`Full file: ${path}`);
@@ -486,18 +494,39 @@ function resolveCrawlReadReference(
 export function executeCrawlRead(
   params: CrawlReadParams,
   options: { outputRoot: string; cwd?: string }
-): { text: string; details: Record<string, unknown> } {
+): { text: string; details: Record<string, unknown> & { evidence: ReadEvidence } } {
   for (const [name, value] of Object.entries({ maxChars: params.maxChars, offset: params.offset, limit: params.limit })) {
     if (value !== undefined && (!Number.isFinite(value) || value < (name === "maxChars" ? 0 : 1))) throw new Error(`${name} must be finite and nonnegative (line ranges start at 1)`);
   }
+  if (params.charOffset !== undefined && (!Number.isInteger(params.charOffset) || params.charOffset < 0)) throw new Error("charOffset must be a nonnegative integer");
   const result = executeCrawlReadContent(params, options);
   const path = typeof result.details.path === "string" ? result.details.path : "";
   const root = path && existsSync(path) ? findSessionRoot(path) : undefined;
   const timestamp = root ? readManifest(join(root, MANIFEST_NAME)).manifest?.timestamp : undefined;
   const rendered = (params.url || (params.path && isUrlReference(params.path))) && !result.details.error
     ? `Chosen file: ${path}\n${typeof timestamp === "string" ? `Saved at: ${timestamp}\n` : ""}${result.text}` : result.text;
-  const text = capToolText(rendered, path, params.maxChars ?? DEFAULT_MAX_CHARS);
-  return { text, details: { ...result.details, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } };
+  const cappedOutput = capToolTextDetailed(rendered, path, params.maxChars ?? DEFAULT_MAX_CHARS);
+  const text = cappedOutput.text;
+  const prefixLength = rendered.length - result.text.length;
+  const ranges = (Array.isArray(result.details.ranges) ? result.details.ranges : []) as ReadEvidence["ranges"];
+  const delivered = ranges.flatMap(range => {
+    const startInRendered = prefixLength + ((range as ReadEvidence["ranges"][number] & { renderedStart?: number }).renderedStart ?? -1);
+    if (startInRendered < 0 || startInRendered >= text.length) return [];
+    let length = 0;
+    while (length < range.text.length && startInRendered + length < cappedOutput.sourceChars && text[startInRendered + length] === range.text[length]) length++;
+    return length ? [{ start: range.start, end: range.start + length, unit: range.unit, text: range.text.slice(0, length) }] : [];
+  });
+  const revision = typeof result.details.revision === "string" ? result.details.revision : !result.details.error && path && existsSync(path) && statSync(path).isFile() ? contentHash(readFileSync(path, "utf8")) : "";
+  const viewId = `artifact:${revision}`;
+  const manifest = root ? readManifest(join(root, MANIFEST_NAME)).manifest : undefined;
+  const pageEvidence = Array.isArray(manifest?.pages) ? (manifest.pages as Array<Record<string, unknown>>).find(page =>
+    [page.file, page.rawHtmlFile, page.originalMarkdownFile, page.sourceFile, ...((page.evidence as { views?: Array<{path?: string}> } | undefined)?.views ?? []).map(view => view.path)].some(file => typeof file === "string" && resolve(root!, file) === path))?.evidence : undefined;
+  const sourceChars = typeof result.details.charCount === "number" ? result.details.charCount : 0;
+  const omitted = delivered.reduce((sum, range) => sum + range.end - range.start, 0) < sourceChars;
+  const lastEnd = delivered.length ? Math.max(...delivered.map(range => range.end)) : 0;
+  const evidence: ReadEvidence = { version: 1, path, revision, viewId, ranges: delivered, omitted,
+    nextCall: lastEnd > 0 && lastEnd < sourceChars ? { path, mode: "chunks", charOffset: lastEnd, revision, viewId, maxChars: params.maxChars ?? DEFAULT_MAX_CHARS, ...(params.query ? { query: params.query } : {}) } : null };
+  return jsonProjection({ text, details: { ...result.details, ...evidence, evidence, pageEvidence, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } });
 }
 
 function executeCrawlReadContent(
@@ -533,6 +562,35 @@ function executeCrawlReadContent(
     };
   }
 
+  const revision = contentHash(content);
+  const viewId = `artifact:${revision}`;
+  if ((params.revision && params.revision !== revision) || (params.viewId && params.viewId !== viewId)) {
+    return { text: "Error: source_revision_changed: artifact no longer matches the requested snapshot", details: { error: "source_revision_changed", path: absolutePath } };
+  }
+  if ((params.query && content.length > maxChars && !/^#{1,6}\s/m.test(content)) || (params.query && content.split("\n").some(line => line.length > maxChars)) || params.charOffset !== undefined) {
+    const offset = params.charOffset ?? 0;
+    const terms = params.query?.split(/\s+/).filter(Boolean) ?? [];
+    const hits = terms.flatMap(term => {
+      const matcher = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
+      matcher.lastIndex = offset;
+      const match = matcher.exec(content);
+      return match ? [{ index: match.index, length: match[0].length }] : [];
+    });
+    const firstHit = hits.sort((a, b) => a.index - b.index)[0];
+    const hit = firstHit?.index;
+    if (terms.length && hit === undefined) return { text: "No further matching text in this snapshot.", details: { path: absolutePath, revision, viewId, charCount: content.length, ranges: [], omitted: true, nextCall: null } };
+    const continuationOverhead = JSON.stringify({ path: absolutePath, mode: "chunks", query: params.query, charOffset: content.length, revision, viewId, maxChars }).length + 220;
+    const bodyBudget = Math.max(0, Math.min(45000, maxChars - continuationOverhead));
+    if (firstHit && bodyBudget < firstHit.length) return { text: "insufficient_budget: increase maxChars to return a complete query match and continuation metadata.", details: { path: absolutePath, revision, viewId, charCount: content.length, ranges: [], omitted: true, nextCall: null, error: "insufficient_budget" } };
+    const start = hit !== undefined ? Math.max(offset, hit - Math.floor(Math.max(0, bodyBudget - (firstHit?.length ?? 0)) / 3)) : offset;
+    const end = Math.min(content.length, start + bodyBudget);
+    const body = content.slice(start, end);
+    const nextCall = end < content.length && end > offset ? { path: absolutePath, mode: "chunks", query: params.query, charOffset: end, revision, viewId, maxChars } : null;
+    const header = `# crawl_read source excerpt\nUTF-16 [${start},${end}) of ${content.length}; revision ${revision}\n`;
+    return { text: header + body + (nextCall ? `\nNext call: crawl_read ${JSON.stringify(nextCall)}` : ""), details: { mode: "chunks", path: absolutePath, revision, viewId, charCount: content.length,
+      ranges: [{ start, end, unit: "utf16", text: body, renderedStart: header.length }], omitted: start > 0 || end < content.length, truncated: start > 0 || end < content.length, nextCall,
+      matchFound: terms.length ? hit !== undefined : undefined } };
+  }
   const isManifest = basename(absolutePath) === MANIFEST_NAME;
   const sidecars = isManifest
     ? { outline: undefined, meta: undefined }
@@ -586,7 +644,9 @@ function executeCrawlReadContent(
       query: params.query,
       maxChars,
     });
+    const positions: number[] = [];
     const text = formatChunksResult({
+      positions,
       path: relDisplay,
       url,
       query: params.query,
@@ -607,6 +667,11 @@ function executeCrawlReadContent(
         chunkCount: chunks.length,
         truncated: capped.truncated,
         charCount: content.length,
+        ranges: chunks.flatMap((c, index) => {
+          const exact = c.text.split("\n… [excerpt")[0];
+          const start = content.indexOf(exact, content.split("\n").slice(0, c.startLine - 1).join("\n").length);
+          return start >= 0 ? [{ start, end: start + exact.length, unit: "utf16", text: exact, renderedStart: positions[index] }] : [];
+        }),
         chunks: chunks.map((c) => ({
           id: c.id,
           heading: c.heading,
@@ -633,6 +698,7 @@ function executeCrawlReadContent(
     ]
       .filter(Boolean)
       .join("\n");
+    const startChar = content.split("\n").slice(0, windowed.startLine - 1).reduce((sum, line) => sum + line.length + 1, 0);
     const capped = { text: `${header}${windowed.text}`, truncated: false };
     return {
       text: capped.text,
@@ -644,6 +710,8 @@ function executeCrawlReadContent(
         startLine: windowed.startLine,
         endLine: windowed.endLine,
         totalLines: windowed.totalLines,
+        charCount: content.length,
+        ranges: [{ start: startChar, end: startChar + windowed.text.length, unit: "utf16", text: windowed.text, renderedStart: header.length }],
         truncated: capped.truncated,
         manifestPath: resolved.manifestPath,
       },
@@ -665,6 +733,7 @@ function executeCrawlReadContent(
   return {
     text: capped.text,
     details: {
+      ranges: [{ start: 0, end: content.length, unit: "utf16", text: content, renderedStart: header.length }],
       mode: "full",
       path: absolutePath,
       displayPath: relDisplay,

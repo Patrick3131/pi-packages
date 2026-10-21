@@ -23,6 +23,7 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
       return {
         content: [{ type: "text", text: result.text }],
         details: result.details,
+        structuredOutput: result.details.evidence,
       };
     },
   }));

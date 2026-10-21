@@ -14,7 +14,7 @@ The configured remote Crawl4AI browser/API service owns URL fetching, rendering 
 
 ```text
 crawl → validation/deadline → process-local pacing → POST /crawl
-  → validate/normalize response → optional saved rendered HTML + Trafilatura
+  → validate/normalize response → preserved original HTML/Markdown + optional article view
   → optional shared BM25 → complete save → compact paths/manifest or bounded inline
                                       ↓
                          crawl_read exact path / URL lookup
@@ -41,9 +41,9 @@ Stock upstream 0.9.4 rejects untrusted deep strategies. The operator-managed dis
 - `sourceFile`: pre-BM25 Markdown/text; `filter`: query, threshold and matched/total counts.
 - `rawHtmlFile`: rendered HTML saved before Trafilatura; `extractor`: name/includeLinks.
 
-Manifests record crawl provenance additively: `request` holds the effective values (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `jsCode` as a boolean only, `deepCrawl` with resolved strategy/depth/maxPages plus filters, optional `bm25`, optional `extractor`); `service.baseUrl` is written with URL userinfo stripped; failed `pages[]` entries keep a redacted `error`. `jsCode` source and configured tokens never reach disk, and the legacy top-level `deepCrawl` field remains for existing readers.
+Manifests record crawl provenance additively: `request` holds the effective values (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved strategy/depth/maxPages plus filters, optional `bm25`, optional `extractor`); `service.baseUrl` is written with URL userinfo stripped; failed `pages[]` entries keep a redacted `error`. `jsCode` source and configured tokens never reach disk, and the legacy top-level `deepCrawl` field remains for existing readers.
 
-For Trafilatura+BM25, sourceFile is extracted pre-filter content, not a second original Markdown archive; rawHtmlFile is the original recovery source. Extraction errors report that exact HTML path even before manifest publication. Ordinary unfiltered crawls need no source archives. URL resolution requires `pages[]` records; directories require a manifest rather than selecting an arbitrary Markdown file. Safe exact-page reads need neither a manifest nor a timestamp.
+For Trafilatura+BM25, sourceFile is extracted pre-filter content, not a second original Markdown archive; rawHtmlFile is the original recovery source. Extraction errors report that exact HTML path even before manifest publication. Saved acquisitions retain available original HTML and original service Markdown independently of requested output. URL resolution requires `pages[]` records; directories require a manifest rather than selecting an arbitrary Markdown file. Safe exact-page reads need neither a manifest nor a timestamp.
 
 Outlines/meta and paths remain session-relative in manifests. Generated/manifest paths reject traversal/symlink escape; this is not a whole-tool filesystem sandbox. Relative output/read paths use ctx.cwd. Exact printed page paths work directly; outline-first is optional.
 
@@ -57,7 +57,7 @@ Outlines/meta and paths remain session-relative in manifests. Generated/manifest
 
 `bm25.ts` implements one Unicode-aware Okapi scorer (k1=1.5, b=0.75). Fence-aware heading sections and headingless paragraphs preserve selected code/table blocks and source order, without a full AST or heading/reference reconstruction. Crawl BM25 requires one URL, Markdown/text and no deep crawl; threshold defaults to 1.0 (finite >=0, nonblank query required). Empty matches are a valid empty saved file with original references. Read queries reuse positive scoring with no public read threshold; ranking does not replace output caps.
 
-`trafilatura.ts` spawns one explicitly configured Python with HTML stdin, no shell/URL fetch/install. Supported setup is trafilatura>=2,<3. Native tables/formatting are enabled; includeLinks defaults false. Markdown/text only; text requires the extractor and extraction requires saving. The wrapper bounds input/output/stderr, observes the remaining crawl deadline, terminates then force-kills after a short grace and cleans listeners/timers. Missing dependency/failure is actionable, never a silent fallback. Native structure/table/link/image losses are documented; read preserved sources instead of heuristic supplementation.
+`trafilatura.ts` spawns one explicitly configured Python with HTML stdin, no shell/URL fetch/install. Supported setup is trafilatura>=2,<3. Native tables/formatting are enabled; includeLinks defaults false. Markdown/text only; ordinary text uses parse5 without Python, while explicit article extraction requires saving. The wrapper bounds input/output/stderr, observes the remaining crawl deadline, terminates then force-kills after a short grace and cleans listeners/timers. Missing dependency/failure is actionable, never a silent fallback. Native structure/table/link/image losses are documented; read preserved sources instead of heuristic supplementation.
 
 ## Configuration and resources
 
@@ -80,3 +80,13 @@ provider/network failures retain their separate transport behavior.
 Crawl tests run serially: subprocess deadline fixtures must not compete with
 parallel Jest workers for startup time. The root research export also exposes
 `listCrawlSessions` for host-owned artifact maintenance; it does not run cleanup.
+
+## Versioned evidence and targeted recovery
+
+`evidence.ts` owns TypeBox schemas and inferred types shared by research consumers. Each response page has acquisition identity, optional server-owned influence/redirect facts, explicit HTTP/cache unknowns, view hashes and optional delivery omission/ranges. Manifests retain page evidence and original references. `original_html`/`original_markdown` differ from the requested view and pre-BM25 source. Defaults use raw Markdown. Read details carry source-exact UTF-16 ranges and exact revision-bound continuations; changed files fail explicitly. Outlines do not claim returned source ranges. Resource counts reference their source view rather than modifying article content.
+
+Legacy jsCode calls fail preflight with unsupported_capability. HTTP field rejection distinguishes js_code from deep strategies; unknown refusals retain their diagnostics without guessed advice. Stable validation/unsupported/provider/transport codes are additive; no retry or alternate egress is introduced. A trusted injected acquisition hook allows the separate capability adapter to reuse the same validation/save/delivery core.
+
+## Operator capability routes
+
+Static `capabilities.acquisition` opts non-deep crawl into `/acquire` for CSS waits/selection/card extraction and content-type-aware PDFs. Deep traversal retains bounded `/crawl`. `capabilities.interaction` registers `crawl_interact` through `/execute_js` with typed actions and arbitrary browser JavaScript in an ephemeral server context. Shared execution/save/read envelopes and provenance are reused. Complete pre-script HTML keeps its own URL/snapshot; all post-script derived artifacts inherit server-owned influence markers and require independent corroboration for canonical facts. PDF bytes are bounded/hash-verified and saved beside page-numbered text; they never enter article extraction. No local browser/fetch, hidden model, capability negotiation, retry of uncertain effects or production rollout follows registration.

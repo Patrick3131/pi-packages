@@ -1,3 +1,4 @@
+import { formatContentForSave } from "./content";
 /** Fixed, bounded crawl previews and compact saved-page indexes. */
 
 // Fixed delivery caps match Pi's host limits without importing its runtime.
@@ -17,18 +18,21 @@ function truncateHead(text: string, limits: { maxBytes: number; maxLines: number
 }
 
 /** Apply host byte/line limits after reserving an exact recovery reference. */
-export function capToolText(text: string, pointer = "", maxChars = Number.MAX_SAFE_INTEGER): string {
-  if (maxChars <= 0) return "";
+export function capToolTextDetailed(text: string, pointer = "", maxChars = Number.MAX_SAFE_INTEGER): { text: string; sourceChars: number } {
+  if (maxChars <= 0) return { text: "", sourceChars: 0 };
   const footer = pointer ? `\n\n[Output may be omitted. Full artifact: ${pointer}]` : "\n\n[Output omitted; save=true to recover complete content.]";
   const capped = truncateHead(text.slice(0, maxChars), { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES });
-  if (!capped.truncated && text.length <= maxChars) return text;
+  if (!capped.truncated && text.length <= maxChars) return { text, sourceChars: text.length };
   const safeFooter = truncateHead(footer.slice(0, maxChars), { maxBytes: DEFAULT_MAX_BYTES, maxLines: DEFAULT_MAX_LINES }).content;
   const availableChars = Math.max(0, maxChars - safeFooter.length);
   const body = truncateHead(text.slice(0, availableChars), {
     maxBytes: Math.max(0, DEFAULT_MAX_BYTES - Buffer.byteLength(safeFooter)),
     maxLines: Math.max(0, DEFAULT_MAX_LINES - safeFooter.split("\n").length),
   }).content;
-  return body + safeFooter;
+  return { text: body + safeFooter, sourceChars: body.length };
+}
+export function capToolText(text: string, pointer = "", maxChars = Number.MAX_SAFE_INTEGER): string {
+  return capToolTextDetailed(text, pointer, maxChars).text;
 }
 import type { CrawlFormat, CrawlResult, MarkdownGenerationResult, ReturnMode } from "./types";
 
@@ -47,7 +51,7 @@ export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
   maxCharsPerPage: 12_000,
   maxCharsPerCall: 12_000,
   returnMode: "auto",
-  preferFitMarkdown: true,
+  preferFitMarkdown: false,
 };
 
 export interface FormattedPage {
@@ -61,7 +65,12 @@ export interface FormattedPage {
   title?: string;
   depth?: number;
   statusCode?: number;
+  usability?: "usable" | "unusable" | "unknown";
+  usabilityReasons?: string[];
+  renderedStart?: number;
+  visibleBodyChars?: number;
   errorMessage?: string;
+  error?: CrawlResult["error"];
 }
 
 export interface SavedPagePath {
@@ -89,10 +98,12 @@ export interface SlimResultDetail {
   depth?: number;
   parentUrl?: string;
   errorMessage?: string;
+  error?: CrawlResult["error"];
   /** Exact saved page path when this crawl was persisted. */
   filePath?: string;
   /** Path relative to the saved crawl session. */
   relativeFilePath?: string;
+  evidence?: import("./evidence").PageEvidence;
 }
 
 export interface ReturnModeDecision {
@@ -150,37 +161,10 @@ export function formatPageBody(
   format: CrawlFormat,
   preferFitMarkdown: boolean
 ): { content: string; usedFitMarkdown: boolean } {
-  if (!result.success) {
-    return {
-      content: `**Error crawling ${result.url}:** ${result.error_message || "Unknown error"}`,
-      usedFitMarkdown: false,
-    };
-  }
-
-  switch (format) {
-    case "html":
-      return {
-        content: result.html ?? "",
-        usedFitMarkdown: false,
-      };
-    case "links": {
-      const internal = result.links?.internal || [];
-      const external = result.links?.external || [];
-      const content = [
-        `### Internal Links (${internal.length})`,
-        ...internal.map((l) => `- [${l.text}](${l.href})`),
-        "",
-        `### External Links (${external.length})`,
-        ...external.map((l) => `- [${l.text}](${l.href})`),
-      ]
-        .filter(Boolean)
-        .join("\n");
-      return { content, usedFitMarkdown: false };
-    }
-    case "markdown":
-    default:
-      return extractMarkdownContent(result, preferFitMarkdown);
-  }
+  return {
+    content: formatContentForSave(result, format, { preferFitMarkdown }),
+    usedFitMarkdown: result.success && !["html", "links"].includes(format) && preferFitMarkdown && isMarkdownObject(result.markdown) && !!result.markdown.fit_markdown?.trim(),
+  };
 }
 
 /** Collapse excessive blank lines and optionally strip images. */
@@ -227,7 +211,7 @@ export function toFormattedPages(
       format,
       budget.preferFitMarkdown
     );
-    const content = normalizeContent(rawBody, { stripImages: format === "markdown" });
+    const content = rawBody;
     return {
       url: result.url,
       content,
@@ -239,6 +223,8 @@ export function toFormattedPages(
       title: result.metadata?.title,
       depth: result.metadata?.depth,
       statusCode: result.status_code,
+      usability: result.evidence?.usability,
+      usabilityReasons: result.evidence?.reasons,
       errorMessage: result.error_message,
     };
   });
@@ -299,8 +285,10 @@ export function slimResultDetails(
       depth: page.depth,
       parentUrl: raw?.metadata?.parent_url,
       errorMessage: page.errorMessage,
+      error: raw?.error,
       filePath: saved?.path,
       relativeFilePath: saved?.relativePath,
+      evidence: raw?.evidence,
     };
   });
 }
@@ -326,7 +314,7 @@ function formatIndexSections(
       const group = byDepth.get(depth) || [];
       sections.push(`### Depth ${depth} (${group.length} pages)`);
       for (const page of group) {
-        const status = page.success ? "ok" : "error";
+        const status = !page.success ? "acquisition failed" : page.usability === "unusable" ? `unusable${page.statusCode ? ` HTTP ${page.statusCode}` : ""}: ${(page.usabilityReasons ?? []).join(", ")}` : "ok";
         const title = page.title ? ` — ${page.title}` : "";
         sections.push(
           `- [${status}] ${page.url} (${page.originalChars} chars)${title}`
@@ -340,7 +328,7 @@ function formatIndexSections(
 
   return pages
     .map((page, index) => {
-      const status = page.success ? "ok" : "error";
+      const status = !page.success ? "acquisition failed" : page.usability === "unusable" ? `unusable${page.statusCode ? ` HTTP ${page.statusCode}` : ""}: ${(page.usabilityReasons ?? []).join(", ")}` : "ok";
       const title = page.title ? ` — ${page.title}` : "";
       return [
         `${index + 1}. [${status}] ${page.url} (${page.originalChars} chars)${title}`,
@@ -439,21 +427,32 @@ export function buildBudgetedToolText(options: {
     ? `\n\n*Some pages were truncated to maxCharsPerPage=${budget.maxCharsPerPage} / maxCharsPerCall=${budget.maxCharsPerCall}.${savedPath ? ` Full content is in the saved session; read crawl-manifest.json first or use its exact page paths with crawl_read.` : " Truncated inline text is not recoverable from disk; re-crawl with save=true for full text."}*`
     : "";
 
-  const body =
-    budgeted.length === 1
-      ? `## ${budgeted[0].url}\n\n${budgeted[0].content}${saveNotice}${truncationNote}`
-      : budgeted
-          .map((page, index) => `---\n## Result ${index + 1}: ${page.url}\n\n${page.content}`)
-          .join("\n\n") + saveNotice + truncationNote;
-
-  const text = capToolText([executionSummary, "", body].join("\n"), manifestPath);
+  const prefix = `${executionSummary}\n\n`;
+  let rawText = prefix;
+  for (const [index, page] of budgeted.entries()) {
+    const header = budgeted.length === 1 ? `## ${page.url}\n\n` : `${index ? "\n\n" : ""}---\n## Result ${index + 1}: ${page.url}\n\n`;
+    rawText += header;
+    page.renderedStart = rawText.length;
+    rawText += page.content;
+  }
+  rawText += saveNotice + truncationNote;
+  const capped = capToolTextDetailed(rawText, manifestPath);
+  const text = capped.text;
+  for (const [index, page] of budgeted.entries()) {
+    let exactPrefix = 0;
+    const original = pages[index].content;
+    while (exactPrefix < page.content.length && exactPrefix < original.length && page.content[exactPrefix] === original[exactPrefix]) exactPrefix++;
+    page.visibleBodyChars = Math.max(0, Math.min(exactPrefix, capped.sourceChars - page.renderedStart!));
+    page.returnedChars = page.visibleBodyChars;
+    page.truncated = page.visibleBodyChars < original.length;
+  }
   const totalReturnedChars = budgeted.reduce((sum, page) => sum + page.returnedChars, 0);
 
   return {
     text,
     totalOriginalChars,
     totalReturnedChars,
-    truncated: anyTruncated,
+    truncated: budgeted.some(page => page.truncated),
     pages: budgeted,
     mode: "inline",
     manifestPath,

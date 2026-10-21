@@ -1,9 +1,11 @@
+import { ReadEvidenceSchema } from "./evidence";
 import { Type } from "typebox";
 import { DEFAULT_MAX_CHARS } from "./crawlReadCore";
 
 export const crawlReadToolDefinition = {
 
     name: "crawl_read",
+    structuredOutputSchema: ReadEvidenceSchema,
     label: "Read Crawl Output",
     description:
       "Progressively read a saved crawl page without dumping the whole file into context. " +
@@ -20,6 +22,9 @@ export const crawlReadToolDefinition = {
       "Use mode=window or mode=full only when you need exact text; full is hard-capped by maxChars.",
     ],
     parameters: Type.Object({
+      charOffset: Type.Optional(Type.Integer({ minimum: 0, description: "UTF-16 character offset; use the exact nextCall returned by a previous read" })),
+      revision: Type.Optional(Type.String({ description: "Required artifact SHA-256 for continuation" })),
+      viewId: Type.Optional(Type.String({ description: "Exact view identity returned by a previous read" })),
       path: Type.Optional(
         Type.String({
           description:

@@ -80,10 +80,10 @@ Do **not** configure client-side proxy credentials. Proxy/egress belongs on the 
 ### Behavior and resources
 
 - Omitted save is file-first, even for small pages; auto returns exact references. save=false opts out; inline previews never truncate saved bodies. Keep fixed 12,000-character body previews, default 6,000-character reads and host byte/line limits. Presentation defaults are not JSON/env configuration; caller preview controls can lower crawl caps.
-- BM25 retains pre-filter source and valid empty selections. Trafilatura saves rendered raw HTML first; extraction is optional, local HTML-stdin only, with no dependency installation or silent fallback. Document native structure losses instead of heuristic repairs.
+- Ordinary text uses a declared HTML parser without Python; Markdown defaults raw. Saved acquisitions preserve original rendered HTML and service Markdown. BM25 retains pre-filter source and valid empty selections. Trafilatura saves rendered raw HTML first; extraction is optional, local HTML-stdin only, with no dependency installation or silent fallback. Document native structure losses instead of heuristic repairs.
 - Keep external /tools/presets/CLI activation authoritative. No lifecycle active-set mutations; crawl-status is on-demand, without startup network/subprocess probes.
 - Agent resources use package crawl4ai, model inherit and exactly crawl/crawl_read; no bash/subagent grants. Declare pi.subagents.agents in root Git and standalone manifests and include agents in npm files. Provider loading is distinct from discovery: document child extensions/subagentOnlyExtensions guidance, not machine-specific paths or shell fallback.
-- Keep deferred CSS/XPath/schema/provider engines, prompt templates, custom UI and capability registries out of this slice.
+- Keep shared evidence schemas and raw/source/view identity in the acquisition core. Selector/schema extraction and browser interaction belong to the explicit remote capability adapter; never add client browser/proxy fallback, prompt templates or custom UI.
 
 ### Testing
 

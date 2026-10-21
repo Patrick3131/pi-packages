@@ -80,6 +80,10 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
         : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
     apiToken: resolveApiToken(jsonConfig),
     retention: resolveRetention(jsonConfig),
+    capabilities: {
+      acquisition: jsonConfig?.capabilities?.acquisition ?? parseBoolean(process.env.CRAWL4AI_ACQUISITION_ENABLED, false),
+      interaction: jsonConfig?.capabilities?.interaction ?? parseBoolean(process.env.CRAWL4AI_INTERACTION_ENABLED, false),
+    },
     outputDir: resolveOutputDir(jsonConfig),
     trafilatura: { pythonPath: resolveEnvVars(jsonConfig?.trafilatura?.pythonPath ?? process.env.CRAWL4AI_TRAFILATURA_PYTHON ?? "") || undefined },
   };

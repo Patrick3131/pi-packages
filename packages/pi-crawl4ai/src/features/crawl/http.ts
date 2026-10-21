@@ -1,5 +1,9 @@
 import type { Crawl4AIConfig } from "../../config";
 
+export class CrawlOperationError extends Error {
+  constructor(readonly code: "validation_error" | "unsupported_capability" | "website_blocked" | "transport_failure" | "provider_failure", message: string, readonly status?: number) { super(message); this.name = "CrawlOperationError"; }
+}
+
 export const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
 
 /** One operation deadline, including queueing, body consumption and extraction. */
@@ -90,13 +94,18 @@ export async function fetchCrawlApi(config: Crawl4AIConfig, route: string, init:
     }), signal);
   } catch (error) {
     if (signal.aborted) throw signal.reason;
-    throw new Error(formatTransportError(error, config));
+    throw new CrawlOperationError("transport_failure", formatTransportError(error, config));
   }
   const text = await readBoundedBody(response, signal);
   if (!response.ok) {
-    const unsupported = /deep_crawl_strategy|untrusted request|BFSDeepCrawlStrategy|DFSDeepCrawlStrategy|BestFirstCrawlingStrategy/i.test(text)
+    const isJs = /js_code/i.test(text);
+    const isDeep = !isJs && /deep_crawl_strategy|BFSDeepCrawlStrategy|DFSDeepCrawlStrategy|BestFirstCrawlingStrategy/i.test(text);
+    const unsupported = isJs ? " JavaScript is not accepted on /crawl; use the configured crawl_interact capability." : isDeep
       ? " This server rejects deep-crawl configuration; use a single-page crawl or a deployment that supports trusted deep strategies. Do not bypass server security." : "";
-    throw new Error(`crawl4ai API error (${response.status}): ${redactError(text, config).slice(0, 1000)}${unsupported}`);
+    const capabilityRefusal = isJs || isDeep || ((route === "/acquire" || route === "/execute_js") && ([404, 405].includes(response.status) || /disabled|not enabled|not configured/i.test(text)));
+    // These statuses describe the API boundary, not the target website. Target
+    // blocks are identified from per-page HTTP outcomes instead.
+    throw new CrawlOperationError(capabilityRefusal ? "unsupported_capability" : [400, 422].includes(response.status) ? "validation_error" : "provider_failure", `crawl4ai API error (${response.status}): ${redactError(text, config).slice(0, 1000)}${unsupported}`, response.status);
   }
   return text;
 }

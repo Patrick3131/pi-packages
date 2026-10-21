@@ -45,7 +45,7 @@ describe("formatContentForSave", () => {
   it("saves full markdown and respects fit/raw selection", () => {
     expect(formatContentForSave(PAGE, "markdown")).toBe(PAGE.markdown);
     const page: CrawlResult = { ...PAGE, markdown: { raw_markdown: "RAW", fit_markdown: "FIT", markdown_with_citations: "", references_markdown: "" } };
-    expect(formatContentForSave(page, "markdown")).toBe("FIT"); expect(formatContentForSave(page, "markdown", { preferFitMarkdown: false })).toBe("RAW");
+    expect(formatContentForSave(page, "markdown", { preferFitMarkdown: true })).toBe("FIT"); expect(formatContentForSave(page, "markdown", { preferFitMarkdown: false })).toBe("RAW");
   });
   it("saves full HTML/text and every link, without presentation caps", () => {
     expect(formatContentForSave({ ...PAGE, html: "<html>source</html>" }, "html")).toBe("<html>source</html>");

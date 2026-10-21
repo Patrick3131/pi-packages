@@ -24,6 +24,8 @@ export interface Crawl4AIJsonConfig {
   /** Default directory for saved crawls (also used by auto-save / cleanup). */
   outputDir?: string;
   trafilatura?: { pythonPath?: string };
+  /** Static operator contract; no startup probes. */
+  capabilities?: { acquisition?: boolean; interaction?: boolean };
 }
 
 export interface ResolvedRetention {
@@ -43,6 +45,8 @@ export interface ResolvedConfig {
   /** Default crawl output root (./output-crawl4ai or env/config override). */
   outputDir: string;
   trafilatura?: { pythonPath?: string };
+  /** Static operator contract; no startup probes. */
+  capabilities?: { acquisition?: boolean; interaction?: boolean };
 }
 
 export interface Crawl4AIConfig {

@@ -11,6 +11,8 @@ jest.mock("@earendil-works/pi-coding-agent", () => {
   return { ...truncate, defineTool: (tool: unknown) => tool };
 }, { virtual: true });
 
+import { Value } from "typebox/value";
+import { ReadEvidenceSchema } from "./evidence";
 import { mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadConfig } from "../../config";
@@ -319,4 +321,32 @@ describe("registerCrawlReadTool", () => {
       registered[0].execute("tool-call-id", { path: "./__definitely-missing-crawl-page__.md" })
     ).rejects.toThrow(/not found/i);
   });
+});
+
+it("recovers late minified matches with revision-bound UTF-16 continuation", () => {
+  const directory = require("node:fs").mkdtempSync(require("node:path").join(require("node:os").tmpdir(), "crawl-late-"));
+  const path = require("node:path").join(directory, "source.html");
+  const content = "x".repeat(44000) + " CreatorAlpha " + "x".repeat(7000) + " CreatorBeta " + "x".repeat(35000);
+  require("node:fs").writeFileSync(path, content);
+  try {
+    const first = executeCrawlRead({ path, query: "CreatorAlpha CreatorBeta", maxChars: 2000 }, { outputRoot: directory });
+    expect(first.text).toContain("CreatorAlpha");
+    expect(Value.Check(ReadEvidenceSchema, first.details.evidence)).toBe(true);
+    expect(first.text).toContain("Next call: crawl_read");
+    const next = executeCrawlRead(first.details.nextCall as any, { outputRoot: directory });
+    expect(next.text).toContain("CreatorBeta");
+    const ranges = first.details.ranges as Array<{ start: number; end: number; text: string }>;
+    expect(content.slice(ranges[0].start, ranges[0].end)).toBe(ranges[0].text);
+    const small = executeCrawlRead({ path, query: "CreatorAlpha", maxChars: 540 }, { outputRoot: directory });
+    expect(small.text.includes("CreatorAlpha") || small.details.error === "insufficient_budget").toBe(true);
+    require("node:fs").writeFileSync(path, Array.from({ length: 85 }, (_, i) => "x".repeat(990) + (i === 70 ? " TargetCreator" : "")).join("\n"));
+    const multiline = executeCrawlRead({ path, query: "TargetCreator", maxChars: 2000 }, { outputRoot: directory });
+    expect(multiline.text).toContain("TargetCreator");
+    require("node:fs").writeFileSync(path, "same\nsame\nsame\nsame\n");
+    const repeated = executeCrawlRead({ path, mode: "window", offset: 3, limit: 1, maxChars: 2000 }, { outputRoot: directory });
+    expect((repeated.details.ranges as any[])[0].start).toBe(10);
+    expect((repeated.details.ranges as any[])[0].end).toBe(14);
+    require("node:fs").writeFileSync(path, content + "changed");
+    expect(executeCrawlRead(first.details.nextCall as any, { outputRoot: directory }).details.error).toBe("source_revision_changed");
+  } finally { require("node:fs").rmSync(directory, { recursive: true, force: true }); }
 });

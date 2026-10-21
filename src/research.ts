@@ -12,3 +12,14 @@ export { crawlToolDefinition } from "../packages/pi-crawl4ai/src/features/crawl/
 export { crawlReadToolDefinition } from "../packages/pi-crawl4ai/src/features/crawl/crawlReadToolDefinition";
 
 export { listCrawlSessions } from "../packages/pi-crawl4ai/src/features/crawl/cleanup";
+
+export { CrawlEvidenceSchema, PageEvidenceSchema, EvidenceViewSchema } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+export type { CrawlEvidence, PageEvidence } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+export { CrawlOperationError } from "../packages/pi-crawl4ai/src/features/crawl/http";
+
+export { executeCrawlInteract } from "../packages/pi-crawl4ai/src/features/crawl/crawlCapabilities";
+export type { CrawlInteractParams, CrawlAction, CardExtractionSchema } from "../packages/pi-crawl4ai/src/features/crawl/crawlCapabilities";
+export { crawlInteractToolDefinition } from "../packages/pi-crawl4ai/src/features/crawl/crawlInteractToolDefinition";
+
+export { ReadEvidenceSchema, SourceRangeSchema } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+export type { ReadEvidence } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
