@@ -32,9 +32,9 @@ Use `No automated test needed` when the change has no material runtime risk. Do 
 
 ## Current Work
 
-- [Melon Labs agent adoption](/Users/patrick/Development/melon-labs/docs/features/agents/work/2026-10-21-feature-agency-research-evidence-and-codemode.md) — source evidence, creator discovery and native Code Mode.
 
 ## Completed
 
-- [Crawl interaction and documents](finished/2026-10-21-feature-crawl-interaction-and-documents.md) — @patrick3131/pi-packages@0.1.4 released; source/server/browser/PDF acceptance and independent review passed.
+- [Melon Labs agent adoption](/Users/patrick/Development/melon-labs/docs/features/agents/work/finished/2026-10-21-feature-agency-research-evidence-and-codemode.md) — source evidence, creator discovery and native Code Mode.
+- [Crawl interaction and documents](finished/2026-10-21-feature-crawl-interaction-and-documents.md) — @patrick3131/pi-packages@0.1.5 released; source/server/browser/PDF acceptance and independent review passed.
 - [Crawl content preservation and contract](finished/2026-10-21-bug-crawl-content-preservation-and-contract.md) — shared representation/read/error baseline; local checks and independent review passed.

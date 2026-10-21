@@ -1,7 +1,7 @@
 ---
-status: in-progress
+status: done
 owner: engineering
-last_reviewed: 2026-10-21
+last_reviewed: 2026-10-22
 canonical_ref: none
 ---
 
@@ -112,7 +112,7 @@ Verified existing paths below are relative to the pi-packages repository. Any ne
 
 1. This baseline completes first, freezing additive structured output, original/view references, revision-bound read continuation and per-page errors.
 2. [Server/client capabilities](2026-10-21-feature-crawl-interaction-and-documents.md) extends that contract with selector waits/selection, structured extraction, explicit interaction and PDF parsing. Its server source is in discovery-services; its primary owner is this shared client package. No duplicate server work package is needed.
-3. [Melon Labs agent adoption](/Users/patrick/Development/melon-labs/docs/features/agents/work/2026-10-21-feature-agency-research-evidence-and-codemode.md) adopts an exact released bundle, registers stable original evidence and adds native Durable Code Mode.
+3. [Melon Labs agent adoption](/Users/patrick/Development/melon-labs/docs/features/agents/work/finished/2026-10-21-feature-agency-research-evidence-and-codemode.md) adopts an exact released bundle, registers stable original evidence and adds native Durable Code Mode.
 
 Preserve these dependencies even if helper locations change. Local implementation completion is separate from registry publication, server rollout and production agent activation; each external action requires its own concrete review/authorization.
 
