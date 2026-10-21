@@ -9,6 +9,7 @@ jest.mock("@earendil-works/pi-coding-agent", () => {
 
 import { mergeConfigWithEnv } from "../../config/loader";
 import type { Crawl4AIConfig } from "../../config";
+import { executeCrawlRead } from "./crawlReadCore";
 import { CrawlValidationError, executeCrawl } from "./crawlCore";
 import { registerCrawlTool } from "./crawlTool";
 import { resetRequestPacingState } from "./requestPacing";
@@ -117,6 +118,12 @@ describe("crawl reliability regressions", () => {
   it("accepts the authentic 0.9.4 cached response with nullable optional fields", async () => {
     mockFetch({ data: CACHED_RESPONSE_094 });
     const result = await invoke({ urls: [CACHED_RESPONSE_094.results[0].url] });
+    const cachedAt = new Date(CACHED_RESPONSE_094.results[0].cached_at * 1000).toISOString();
+    expect(result.details.evidence.pages[0]).toMatchObject({ cacheStatus: "hit", cachedAt });
+    const manifest = JSON.parse(readFileSync(result.details.manifestPath, "utf8"));
+    expect(manifest.pages[0].evidence.cachedAt).toBe(cachedAt);
+    const read = executeCrawlRead({ path: result.details.savedFiles[0].path, mode: "full" }, { cwd: process.cwd(), outputRoot: TEST_SAVE_DIR });
+    expect(read.details.pageEvidence).toMatchObject({ cacheStatus: "hit", cachedAt });
     expect(result.details.results[0]).toMatchObject({ success: true, title: "Allowed child marker" });
     expect(result.details.results[0].statusCode).toBeUndefined();
     expect(result.details.results[0].errorMessage).toBeUndefined();
@@ -504,6 +511,7 @@ it("preserves nine-card broad text and separate original artifacts under bounded
   expect(readFileSync(output.details.savedFiles[0].rawHtmlPath, "utf8")).toBe(html);
   expect(Value.Check(CrawlEvidenceSchema, output.details.evidence)).toBe(true);
   expect(output.details.evidence.pages[0].cacheStatus).toBe("unknown");
+  expect(output.details.evidence.pages[0].cachedAt).toBeNull();
   expect(output.details.evidence.pages[0].views.map((view: any) => view.kind)).toEqual(["requested", "original_html", "original_markdown"]);
   expect(manifest.pages[0].evidence.delivery).toEqual(output.details.evidence.pages[0].delivery);
   respond([{ ...PAGE, markdown: "a\n".repeat(5000) }]);

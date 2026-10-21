@@ -106,6 +106,8 @@ export interface MarkdownGenerationResult {
  */
 export interface CrawlResult {
   evidence?: import("./evidence").PageEvidence;
+  /** Upstream cache write time: Unix seconds or a service timestamp. */
+  cached_at?: number | string | null;
   cache_status?: "hit" | "miss" | "bypass" | "unknown";
   media?: Record<string, unknown>;
   tables?: unknown[];
