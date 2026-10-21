@@ -21,6 +21,8 @@ interface FixtureOptions {
 	branchEntries?: unknown[];
 	/** Simulates a delegated child session, which carries a parent session path. */
 	child?: boolean;
+	/** Pi's exposure per catalog name; anything unlisted is `direct`. */
+	exposures?: Record<string, string>;
 }
 
 function fixture(t: TestContext, options: FixtureOptions = {}) {
@@ -48,7 +50,8 @@ function fixture(t: TestContext, options: FixtureOptions = {}) {
 	} as unknown as ExtensionCommandContext;
 	const pi = {
 		appendEntry: () => undefined,
-		getAllTools: () => catalog.map((name) => ({ name, description: name, exposure: "direct" })),
+		getAllTools: () =>
+			catalog.map((name) => ({ name, description: name, exposure: options.exposures?.[name] ?? "direct" })),
 		getActiveTools: () => active,
 		setActiveTools: (names: string[]) => {
 			active = names;
@@ -114,12 +117,33 @@ test("a partial catalog cannot delete preferences it cannot see", async (t) => {
 });
 
 test("an explicit save records the current session set and preserves unknown keys", async (t) => {
-	const f = fixture(t, { active: ["read"] });
+	// The MCP server is connected with deferred exposure, so its tools are inactive
+	// without that being a decision. The save must not write them as `false`.
+	const f = fixture(t, { active: ["read"], exposures: { [mcpTool]: "deferred" } });
 	writeFileSync(f.path, `${JSON.stringify({ mcp__other__gone: true }, null, 2)}\n`);
 
 	await f.command()("save", f.ctx);
 
-	assert.deepEqual(JSON.parse(f.bytes() ?? "{}"), { mcp__other__gone: true, read: true, [mcpTool]: false });
+	assert.deepEqual(JSON.parse(f.bytes() ?? "{}"), { mcp__other__gone: true, read: true });
+});
+
+test("a save writes only decisions Pi enforces", async (t) => {
+	const f = fixture(t, {
+		catalog: ["read", "bash", "crawl", "tool_search", "mcp__admin__admin_save_brief", "mcp__admin__gone"],
+		active: ["read", "tool_search"],
+		exposures: {
+			crawl: "codemode",
+			"mcp__admin__admin_save_brief": "deferred",
+			"mcp__admin__gone": "hidden",
+		},
+	});
+
+	await f.command()("save", f.ctx);
+
+	// Declared-switch tools record their real state, on and off. `codemode`,
+	// `deferred`, and `hidden` tools record nothing: Pi reaches or withholds them by
+	// exposure, so an entry would be a decision this file cannot honor.
+	assert.deepEqual(JSON.parse(f.bytes() ?? "{}"), { bash: false, read: true, tool_search: true });
 });
 
 test("a missing file stays missing until an explicit save", async (t) => {

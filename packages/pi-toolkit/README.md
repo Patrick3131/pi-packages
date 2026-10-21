@@ -70,7 +70,7 @@ entry, exclude mentions with
 
 Existing behavior/configuration remains unchanged:
 
-- `<cwd>/.pi/tools.json`: saved project tool decisions, read-only apart from an explicit `/tools save`; a save merges and never prunes names this session cannot see.
+- `<cwd>/.pi/tools.json`: saved project tool decisions, read-only apart from an explicit `/tools save`; a save merges only declared-switch tools and never prunes names this session cannot see. Tools with `codemode`, `deferred`, or `hidden` exposure are reached or withheld by exposure, not by this file.
 - `<agent-dir>/presets.json` + `<cwd>/.pi/presets.json`: project names replace whole presets.
 - `preset-state`: shared recorded preset signal between tools/presets.
 - Skill syntax, input handling and autocomplete are unchanged.

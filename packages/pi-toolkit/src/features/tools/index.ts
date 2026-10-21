@@ -21,6 +21,7 @@ import {
 	formatToolSummary,
 	formatToolsDump,
 	formatUnavailableSaved,
+	isDeclaredSwitch,
 } from "./format.js";
 import {
 	getProjectToolsPath,
@@ -58,11 +59,13 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		return allTools.map((tool) => tool.name);
 	}
 
-	/** Tools this session may retarget on save: everything registered, minus unreachable ones. */
+	/**
+	 * Tools a save may record: only those where declaring them to the model is an
+	 * enforced decision. An inactive `deferred`, `codemode`, or `hidden` tool is not
+	 * a decision Pi can honor, so writing one would only add noise to the file.
+	 */
 	function savableToolNames(): string[] {
-		return allTools
-			.filter((tool) => tool.exposure !== "hidden")
-			.map((tool) => tool.name);
+		return allTools.filter(isDeclaredSwitch).map((tool) => tool.name);
 	}
 
 	function projectPath(cwd: string): string {
@@ -195,8 +198,17 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		let detailsMode = false;
 
 		/**
-		 * Status is read back from Pi after every change: a hidden tool cannot be
-		 * activated, and the picker must not claim it was.
+		 * Only tools whose active-set membership is an enforced decision appear here.
+		 * `codemode` and `deferred` tools stay reachable while inactive, and `hidden`
+		 * tools cannot be activated at all, so a row for them would offer a toggle Pi
+		 * ignores. Their exposure is set in configuration and reported by `/mcp`.
+		 */
+		const pickerTools = allTools.filter(isDeclaredSwitch);
+		const withheld = allTools.length - pickerTools.length;
+
+		/**
+		 * Status is read back from Pi after every change: the picker must not claim a
+		 * toggle took effect when Pi ignored it.
 		 */
 		function statusOf(tool: ToolInfo): string {
 			return detailsMode
@@ -205,9 +217,9 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		}
 
 		await ctx.ui.custom((tui, theme, _kb, done) => {
-			const items: SettingItem[] = allTools.map((tool) => ({
+			const items: SettingItem[] = pickerTools.map((tool) => ({
 				id: tool.name,
-				label: tool.exposure === "hidden" ? `${tool.name} (unavailable)` : tool.name,
+				label: tool.name,
 				description: statusOf(tool),
 				currentValue: enabledTools.has(tool.name) ? "enabled" : "disabled",
 				values: ["enabled", "disabled"],
@@ -238,7 +250,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 					// Read back what Pi accepted so the next render is honest.
 					enabledTools = new Set(pi.getActiveTools());
 					const item = items.find((candidate) => candidate.id === id);
-					const tool = allTools.find((candidate) => candidate.name === id);
+					const tool = pickerTools.find((candidate) => candidate.name === id);
 					if (item && tool) {
 						item.description = statusOf(tool);
 						item.currentValue = enabledTools.has(id) ? "enabled" : "disabled";
@@ -250,6 +262,16 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			);
 
 			container.addChild(settingsList);
+
+			if (withheld > 0) {
+				container.addChild(
+					new Text(
+						listTheme.hint(`  ${withheld} tools not listed · exposure set in /mcp · see /tools print`),
+						0,
+						0,
+					),
+				);
+			}
 
 			return {
 				render(width: number) {
@@ -265,7 +287,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 					if (data === "i" || data === "I") {
 						detailsMode = !detailsMode;
 						for (const item of items) {
-							const tool = allTools.find((candidate) => candidate.name === item.id);
+							const tool = pickerTools.find((candidate) => candidate.name === item.id);
 							if (tool) {
 								item.description = statusOf(tool);
 							}

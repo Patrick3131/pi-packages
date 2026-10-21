@@ -36,13 +36,13 @@ Pi package that registers `/tools` and project tool defaults.
 | Action | Effect |
 | --- | --- |
 | Enter/Space in `/tools` | This session only |
-| `s` in `/tools` | Merge the current session set into `.pi/tools.json` |
+| `s` in `/tools` | Merge this session's declared-switch decisions into `.pi/tools.json` |
 | `/tools save` | Same as `s` |
 | New session / `/preset` → `(none)` | Read `.pi/tools.json` |
 
-Saving updates only the tools that session registers and preserves every other
-key, so saving from a smaller catalog cannot drop preferences it cannot see.
-Other sessions are unaffected until they read the file.
+Saving merges: it rewrites only declared-switch tools (see Status reporting), and
+preserves every other key, so saving from a smaller catalog cannot drop
+preferences it cannot see. Other sessions are unaffected until they read the file.
 
 Defaults are applied to a fresh session only. A session that already has a tool
 set — resumed, forked, reloaded, or owned by a preset — keeps it, and a
@@ -50,16 +50,19 @@ delegated subagent session never reads or writes project preferences.
 
 ## Status reporting
 
-`/tools` and `/tools print` show how Pi says each tool can be reached rather than
-a plain on/off:
+The picker lists only tools where on/off is a decision Pi enforces — that is, tools
+declared to the model while active (`direct`, `model-only`). Everything else is
+reachability, which exposure decides:
 
 - `enabled` / `disabled` — declared to the model, or not.
 - `inactive (indirect via codemode|deferred)` — not declared, but still callable
-  from `codemode` scripts or `tool_search`.
+  from `codemode` scripts or `tool_search`. Those tools stay out of the picker;
+  the footer reports how many were withheld.
 - `unavailable (hidden)` — registered but unreachable; it cannot be toggled on.
 
-Toggles are read back from Pi after a change, so a tool that cannot be activated
-is never reported as enabled.
+`/tools print` always dumps the complete catalog with those statuses. Toggles are
+read back from Pi after a change, so a tool that cannot be activated is never
+reported as enabled, and exposure itself is managed in `.pi/mcp.json` or `/mcp`.
 
 ## Commands
 
@@ -67,7 +70,8 @@ is never reported as enabled.
 - `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
 - Bare `/tools` opens the interactive picker in the TUI and automatically
   prints the catalog in non-TUI clients such as Pi Web.
-- `/tools save` — merge the current session set into `.pi/tools.json`
+- `/tools save` — merge the current session's declared-switch decisions into
+  `.pi/tools.json`
 
 ## Install
 

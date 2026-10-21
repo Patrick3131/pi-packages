@@ -9,6 +9,7 @@ import {
 	formatToolSummary,
 	formatToolsDump,
 	formatUnavailableSaved,
+	isDeclaredSwitch,
 	toolStatus,
 	type ToolLike,
 } from "../../src/features/tools/format.js";
@@ -74,6 +75,19 @@ test("an inactive indirect tool is reported as reachable, not plainly disabled",
 test("a hidden tool is unavailable rather than toggleable", () => {
 	assert.equal(toolStatus({ ...crawl, exposure: "hidden" }, { enabled: false }), "unavailable (hidden)");
 	assert.match(formatToolDetails({ ...crawl, exposure: "hidden" }, { enabled: false }), /exposure: hidden/);
+});
+
+test("only a declared-switch exposure is a real on/off decision", () => {
+	// Declared to the model while active, so the session toggle is enforced.
+	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "direct" }), true);
+	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "model-only" }), true);
+	// Pi's registration default, and what a catalog without exposure metadata means.
+	assert.equal(isDeclaredSwitch(crawl), true);
+	// Reachable while inactive, so "off" is not a decision: tool_search or a script
+	// can still reach them, and activation has no effect on a hidden tool.
+	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "codemode" }), false);
+	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "deferred" }), false);
+	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "hidden" }), false);
 });
 
 test("formatToolsDump lists every tool without sending extra metadata", () => {

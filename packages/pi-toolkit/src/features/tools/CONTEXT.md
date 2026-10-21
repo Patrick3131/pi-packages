@@ -44,7 +44,7 @@ no appending of new names as `false`, no pruning of names this catalog lacks.
 ## Writing
 
 `/tools save` merges: it starts from the file on disk, rewrites only the
-non-hidden tools this session registers (to that session's active state), and
+declared-switch tools this session registers (to that session's active state), and
 preserves every other key. Saving from a smaller catalog therefore cannot drop
 preferences it had no evidence to judge. The write is atomic (same-directory
 temp file plus rename) and last-writer-wins; this is not a cross-process merge
@@ -55,8 +55,10 @@ stays missing until an explicit save.
 
 ## Reporting
 
-`/tools` and `/tools print` label status from Pi's metadata: `exposure`
-separates declared tools from indirectly reachable ones (`codemode`, `deferred`)
-and from `hidden` tools that cannot be activated at all, and toggles are read
-back from `getActiveTools()`. Names saved in the file but not registered in this
-session are listed separately as unavailable.
+`/tools` lists only tools whose active-set membership is an enforced decision
+(`direct`, `model-only`) and reports the rest as a count, because exposure — not
+this file, not the session toggle — decides whether `codemode` and `deferred` tools
+stay reachable and whether `hidden` ones stay inert. `/tools print` labels every
+registered tool from Pi's metadata for diagnosis, and toggles are read back from
+`getActiveTools()`. Names saved in the file but not registered in this session are
+listed separately as unavailable.

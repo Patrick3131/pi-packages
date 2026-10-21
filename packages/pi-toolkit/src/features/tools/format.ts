@@ -19,6 +19,20 @@ export interface ToolLike {
 /** Exposures whose tools stay callable without being declared to the model. */
 const INDIRECT_EXPOSURES = new Set(["codemode", "deferred"]);
 
+/**
+ * Exposures where the active-set toggle is a decision Pi enforces: the tool is
+ * declared to the model while active.
+ *
+ * `codemode` and `deferred` tools stay callable and discoverable while inactive,
+ * and `hidden` tools cannot be activated at all, so a picker row for them would
+ * offer a control that does nothing — and a saved decision the file cannot honor.
+ */
+const DECLARED_SWITCH_EXPOSURES = new Set(["direct", "model-only"]);
+
+/** Whether declaring this tool to the model is a real, enforced decision. */
+export function isDeclaredSwitch(tool: ToolLike): boolean {
+	return tool.exposure === undefined || DECLARED_SWITCH_EXPOSURES.has(tool.exposure);
+}
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
