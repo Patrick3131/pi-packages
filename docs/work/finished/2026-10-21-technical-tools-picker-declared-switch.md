@@ -180,11 +180,13 @@ withheld count, the save scope, and an unchanged catalog dump.
 
 ## Rollout
 
-- Shipped as `2d3d393` on `main` in this repository.
+- Shipped on `main`: `2d3d393` carries the toolkit change, `428f5c8` records this
+  package.
 - Local consumer `~/.pi/agent` and remote consumer `/data/pi-agent` (melon-remote
-  Paseo host) were updated to `2d3d393` through `scripts/pi-sync.py
-  --toolkit-only --apply`; the remote run reported its `PI_SYNC_RESULT` marker and
-  the sync verified the installed revision.
+  Paseo host) were synced with `scripts/pi-sync.py --toolkit-only --apply`, which
+  checked out the published revision on both targets, verified it, and reported its
+  `PI_SYNC_RESULT` completion marker; a `diff -rq` confirmed the installed tools
+  feature is byte-identical to the tested source.
 - melon-labs dropped its 17 stale `mcp__*: false` keys (commit `c706192c4`); the
   other project `.pi/tools.json` files never carried any.
 - Active sessions need `/reload` or a restart to pick up the new extension code.
