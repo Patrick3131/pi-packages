@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-22
 canonical_ref: none
@@ -18,10 +18,12 @@ Move the existing Melon Labs Pi service configuration to each machine's global P
 
 ## Acceptance
 
-- [ ] AC1 Global config and sanitized restore/sync snapshot exist; secret handling is redacted, private and idempotent.
-- [ ] AC2 Actual local and remote Pi load all three crawl tools from global configuration without a project config; authenticated read acquisition works.
-- [ ] AC3 Melon project override is removed, guidance is current, changes committed/pushed and temporary operation tasks removed.
+- [x] AC1 Global config and sanitized restore/sync snapshot exist; secret handling is redacted, private and idempotent.
+- [x] AC2 Actual local and remote Pi load all three crawl tools from global configuration without a project config; authenticated read acquisition works.
+- [x] AC3 Melon project override is removed, guidance is current, changes committed/pushed and temporary operation tasks removed.
 
 ## Open Questions
 
 None
+
+Checklist: [implementation](2026-10-22-technical-global-crawl-config-to-do-list.md). Evidence: [validation](2026-10-22-technical-global-crawl-config-test.md).
