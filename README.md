@@ -270,7 +270,7 @@ MIT
 
 ## Research clients for other harnesses
 
-A pinned npm Git install exposes `pi-packages/research`: `searchSearxng`, `executeCrawl`, `executeCrawlRead` and their input/config types. Supply explicit provider env/config, cancellation and a private assignment cwd. Coding Agent tools use the same cores. The bundle has only Node built-in imports; no Coding Agent or TUI runtime is loaded. Build with `npm run build:research`. No local-machine source imports are required.
+The root package exposes the harness-neutral research clients `searchSearxng`, `executeCrawl`, `executeCrawlRead` and `executeCrawlInteract`, their input/config types and shared evidence schemas. Git consumers import `pi-packages/research`; registry consumers import `@patrick3131/pi-packages/research`. Supply explicit provider env/config, cancellation and a private assignment cwd. Operator acquisition/interaction requires the matching client capability flags and server routes; see [pi-crawl4ai setup](packages/pi-crawl4ai/README.md#configure-the-service-and-register-tools). Coding Agent tools use the same cores. The bundle has only Node built-in imports; no Coding Agent or TUI runtime is loaded. Build with `npm run build:research`. No local-machine source imports are required.
 
 ## Versioned npm releases
 

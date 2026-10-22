@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-09-30
+last_verified: 2026-10-22
 applies_to: /**
 inherits_from: none
 canonical_for: Package-specific working agreements
@@ -65,6 +65,8 @@ All configuration via environment variables or JSON (no hardcoded credentials):
 | `CRAWL4AI_TIMEOUT` | Request timeout (ms) | `60000` |
 | `CRAWL4AI_MIN_REQUEST_INTERVAL_MS` | Client request pacing | - |
 | `CRAWL4AI_OUTPUT_DIR` | Saved crawl root | `./output-crawl4ai` |
+| `CRAWL4AI_ACQUISITION_ENABLED` | Use compatible operator /acquire for non-deep pages and PDFs | `false` |
+| `CRAWL4AI_INTERACTION_ENABLED` | Register crawl_interact for compatible operator /execute_js | `false` |
 | `CRAWL4AI_TRAFILATURA_PYTHON` | Explicit Python executable with trafilatura>=2,<3 | Unset (optional) |
 
 Do **not** configure client-side proxy credentials. Proxy/egress belongs on the crawl4ai host.
@@ -92,7 +94,7 @@ Do **not** configure client-side proxy credentials. Proxy/egress belongs on the 
 - Use `global.mockFetch()` helper for fetch mocking
 - Run tests before committing
 - Run npm pack dry-run and actual installed pi-subagents discovery checks after resource changes; inspect model inheritance and the strict tool allowlist. Do not launch children without operator authorization.
-- Real API proof must not use a plain HTTPS fallback. Stock 0.9.4 rejects untrusted deep strategies; the operator discovery-services capability supports bounded non-streaming traversal without relaxing ordinary UNTRUSTED or SSRF/egress gates. Other deployments require their own runtime proof. HTTP abort is not proof of remote browser cancellation.
+- Real API proof must not use a plain HTTPS fallback. Deep support requires deployment proof; the operator discovery-services adapter verified on its 0.9.5 image supports bounded non-streaming traversal without relaxing ordinary UNTRUSTED or SSRF/egress gates. Other deployments require their own runtime proof. HTTP abort is not proof of remote browser cancellation.
 
 ## Change Policy
 

@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-09-30
+last_verified: 2026-10-22
 applies_to: /**
 inherits_from: none
 canonical_for: System architecture and data flow
@@ -13,14 +13,16 @@ canonical_for: System architecture and data flow
 The configured remote Crawl4AI browser/API service owns URL fetching, rendering and egress/proxy. The client retains bearer auth and never sends proxy credentials/settings. Basic tools require neither local Python/browser nor pi-subagents.
 
 ```text
-crawl → validation/deadline → process-local pacing → POST /crawl
+crawl → validation/deadline → pacing → POST /crawl (ordinary/deep)
+                                      or /acquire (configured non-deep)
+crawl_interact → configured /execute_js → isolated pre/post snapshots
   → validate/normalize response → preserved original HTML/Markdown + optional article view
   → optional shared BM25 → complete save → compact paths/manifest or bounded inline
                                       ↓
                          crawl_read exact path / URL lookup
 ```
 
-`src/index.ts` registers typed `crawl` / `crawl_read` and on-demand status/session/cleanup commands. Registration performs no network/subprocess probes and does not alter the active tool set. `/tools`, presets and explicit CLI/child allowlists own activation. No persistent UI, prompts, automatic delegation or new extraction/provider/schema engine.
+`src/index.ts` registers typed `crawl` / `crawl_read`, capability-gated `crawl_interact`, and on-demand status/session/cleanup commands. Registration performs no network/subprocess probes and does not alter the active tool set. `/tools`, presets and explicit CLI/child allowlists own activation. No persistent UI, automatic delegation, local browser or hidden model/provider calls. Selector/schema extraction is provided by the configured remote capability.
 
 ## Transport and service contract
 
@@ -28,7 +30,7 @@ crawl → validation/deadline → process-local pacing → POST /crawl
 
 `waitFor` maps milliseconds to `delay_before_return_html` seconds. Cache uses typed `CacheMode` enabled/bypass. Deep traversal uses typed BFS/DFS/best-first strategies and filter chains; public maxDepth=1 maps to upstream zero (seed only).
 
-Stock upstream 0.9.4 rejects untrusted deep strategies. The operator-managed discovery-services deployment exposes narrowly validated, non-streaming server-owned strategies while preserving ordinary UNTRUSTED loading, SSRF/DNS pinning and operator egress. Operator attempts/frontiers/deadlines are bounded; deep streaming/raw-regex filters are unsupported. Other deployments still need genuine runtime proof; health/unit/package checks are insufficient.
+Deep support is deployment-specific. The operator-managed discovery-services adapter, verified on its 0.9.5 image, exposes narrowly validated, non-streaming server-owned strategies while preserving ordinary UNTRUSTED loading, SSRF/DNS pinning and operator egress. Operator attempts/frontiers/deadlines are bounded; deep streaming/raw-regex filters are unsupported. Other deployments still need genuine runtime proof; health/unit/package checks are insufficient.
 
 ## File-first policy and presentation
 
@@ -61,7 +63,7 @@ Outlines/meta and paths remain session-relative in manifests. Generated/manifest
 
 ## Configuration and resources
 
-JSON search: working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` per directory. Prefer `.pi/crawl4ai.json` for project setup. Env fallback/defaults and `${ENV_VAR}` substitution apply. Keys include url/apiToken/timeoutMs/minRequestIntervalMs/outputDir, retention and `trafilatura.pythonPath` (`CRAWL4AI_TRAFILATURA_PYTHON`). See README/.env.example for setup.
+JSON search: working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` per directory. Prefer `.pi/crawl4ai.json` for project setup. Env fallback/defaults and `${ENV_VAR}` substitution apply. The first matching file wins; files are not merged across directories. Capability flags default false: acquisition selects /acquire for non-deep calls; interaction registers crawl_interact. Tool defaults/presets only activate registered tools and must include the desired names. Keys include url/apiToken/timeoutMs/minRequestIntervalMs/outputDir, retention, capabilities and `trafilatura.pythonPath` (`CRAWL4AI_TRAFILATURA_PYTHON`). See README/.env.example for setup.
 
 `agents/{scrape,crawl,extract}.md` declare package crawl4ai, model inherit, exactly crawl/crawl_read and no nested subagents. Root Git and standalone npm discovery uses `pi.subagents.agents`; npm files include agents and dist. Model inference is labelled and facts are source-backed, not schema-validated extraction. Named tools do not load their provider: foreground children need operator-configured extensions/subagentOnlyExtensions, while background children can use normal discovery. No hardcoded machine paths, installer, global symlinks or fallback shell tools.
 
