@@ -32,7 +32,7 @@ Optional agents are discovered separately by pi-subagents through `pi.subagents.
 
 ## Configure the service and register tools
 
-JSON is searched in the working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` in each directory. Prefer `.pi/crawl4ai.json` for project configuration. The first matching file wins; JSON files are not merged across directories. Its values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
+JSON is searched in the working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` in each directory. Use `~/.pi/agent/extensions/crawl4ai.json` for shared service defaults across projects; add `.pi/crawl4ai.json` only for an intentional project override. The first matching file wins; JSON files are not merged across directories. Its values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
 
 For the compatible operator service (`/acquire` and `/execute_js`), use:
 

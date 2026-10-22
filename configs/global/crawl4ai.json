@@ -1,0 +1,15 @@
+{
+  "url": "http://10.8.0.1:11235",
+  "apiToken": "${CRAWL4AI_API_TOKEN}",
+  "outputDir": "./output-crawl4ai",
+  "retention": {
+    "enabled": true,
+    "maxSessions": 500,
+    "maxAgeDays": 7,
+    "maxTotalMb": 512
+  },
+  "capabilities": {
+    "acquisition": true,
+    "interaction": true
+  }
+}

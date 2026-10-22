@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, statSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -22,6 +22,8 @@ test('restore removes obsolete layers without overwriting credentials or re-inst
   const f = fixture(t);
   writeFileSync(join(f.agent, 'settings.json'), JSON.stringify({ defaultProvider: 'personal', packages: ['npm:pi-mcp-adapter', 'git:github.com/StanleyOneG/pi-compact', 'git:github.com/Patrick3131/pi-packages', 'npm:personal-extension'] }));
   writeFileSync(join(f.agent, 'mcp-auth.json'), 'private-existing-auth');
+  const privateCrawl = JSON.stringify({ apiToken: 'private-crawl-fixture-token' });
+  writeFileSync(join(f.agent, 'extensions/crawl4ai.json'), privateCrawl);
   writeFileSync(join(f.agent, 'extensions/minimal-mode.ts'), 'retired');
   writeFileSync(join(f.agent, 'mcp-adapter.json'), '{}');
   const result = f.run();
@@ -36,6 +38,13 @@ test('restore removes obsolete layers without overwriting credentials or re-inst
   assert.ok(sharedPackage.extensions.includes('!packages/pi-keepalive/**'));
   assert.equal(sharedPackage.skills, undefined);
   assert.equal(readFileSync(join(f.agent, 'mcp-auth.json'), 'utf8'), 'private-existing-auth');
+  assert.equal(readFileSync(join(f.agent, 'extensions/crawl4ai.json'), 'utf8'), privateCrawl);
+  assert.ok(!result.stdout.includes('private-crawl-fixture-token'));
+  const forced = f.run(['--force']);
+  assert.equal(forced.status, 0, forced.stderr);
+  assert.equal(readFileSync(join(f.agent, 'extensions/crawl4ai.json'), 'utf8'), privateCrawl);
+  assert.ok(!forced.stdout.includes('private-crawl-fixture-token'));
+  assert.equal(statSync(join(f.agent, 'extensions/crawl4ai.json')).mode & 0o777, 0o600);
   assert.equal(existsSync(join(f.agent, 'mcp-adapter.json')), false);
   assert.equal(existsSync(join(f.agent, 'extensions/minimal-mode.ts')), false);
   assert.equal(existsSync(join(f.agent, 'extensions/mcp-policy.ts')), true);

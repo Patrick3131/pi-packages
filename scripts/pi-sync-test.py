@@ -1,4 +1,6 @@
 import importlib.util
+import io
+from contextlib import redirect_stdout
 import json
 from pathlib import Path
 import tempfile
@@ -35,14 +37,14 @@ class SyncTest(unittest.TestCase):
             (agent / "settings.json").write_text(json.dumps(settings))
             (snapshot / "settings.json").write_text(json.dumps(settings))
             for name in sync.FILES:
-                (snapshot / name).write_text("published\n")
+                (snapshot / name).write_text(json.dumps({"apiToken": "${CRAWL4AI_API_TOKEN}"}) if name == "crawl4ai.json" else "published\n")
             (snapshot / "agents").mkdir()
             (snapshot / "agents/researcher.md").write_text("agent")
             (agent / "presets.json").write_text("old\n")
             (agent / "auth.json").write_text("secret")
             args = SimpleNamespace(agent_dir=str(agent), pi_bin_dir="", revision="abc",
                                    apply=False, accept_config=False, require_approval=False)
-            with patch.object(sync.shutil, "which", return_value="/bin/pi"), patch.object(sync, "run") as run, patch.object(sync.subprocess, "check_output", return_value="abc\n"):
+            with patch.dict(sync.os.environ, {"CRAWL4AI_API_TOKEN": "fixture-token"}), patch.object(sync.shutil, "which", return_value="/bin/pi"), patch.object(sync, "run") as run, patch.object(sync.subprocess, "check_output", return_value="abc\n"):
                 sync.target(args, root)
                 run.assert_not_called()
                 self.assertEqual((agent / "presets.json").read_text(), "old\n")
@@ -60,6 +62,40 @@ class SyncTest(unittest.TestCase):
             self.assertEqual(list(agent.glob("presets.json.bak.*"))[0].read_text(), "old\n")
             self.assertEqual(sync.changes(snapshot, agent), [])
             self.assertTrue((agent / "extensions/subagent/worktree-setup.mjs").stat().st_mode & 0o100)
+
+    def test_crawl_credentials_are_target_local_redacted_and_private(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            snapshot, agent = root / "snapshot", root / "agent"
+            snapshot.mkdir()
+            (agent / "extensions").mkdir(parents=True)
+            config = {"url": "http://crawl.example", "apiToken": "${CRAWL4AI_API_TOKEN}",
+                      "capabilities": {"acquisition": True, "interaction": True}}
+            (snapshot / "crawl4ai.json").write_text(json.dumps(config))
+            path = agent / "extensions/crawl4ai.json"
+            with patch.dict(sync.os.environ, {}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "Provide CRAWL4AI_API_TOKEN"):
+                    sync.crawl_content(snapshot, agent)
+            path.write_text(json.dumps({**config, "apiToken": "old-private-fixture-token"}))
+            path.chmod(0o644)
+            with patch.dict(sync.os.environ, {"CRAWL4AI_API_TOKEN": "new-private-fixture-token"}):
+                content = sync.crawl_content(snapshot, agent)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                sync.show([(path, content)])
+                sync.write_changes([(path, content)])
+            self.assertNotIn("old-private-fixture-token", output.getvalue())
+            self.assertNotIn("new-private-fixture-token", output.getvalue())
+            self.assertEqual(json.loads(path.read_text())["apiToken"], "new-private-fixture-token")
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            backup = next(path.parent.glob("crawl4ai.json.bak.*"))
+            self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(json.loads(backup.read_text())["apiToken"], "old-private-fixture-token")
+            with patch.dict(sync.os.environ, {}, clear=True):
+                self.assertEqual(sync.crawl_content(snapshot, agent), content)
+            (snapshot / "crawl4ai.json").write_text(json.dumps({**config, "apiToken": "accidental-secret"}))
+            with self.assertRaisesRegex(RuntimeError, "snapshot must use"):
+                sync.crawl_content(snapshot, agent)
 
     def test_both_preflight_before_apply_and_remote_transport(self):
         events = []

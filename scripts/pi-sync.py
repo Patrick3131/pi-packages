@@ -13,9 +13,11 @@ from datetime import datetime, timezone
 
 SOURCE = "git:github.com/Patrick3131/pi-packages"
 URL = "https://github.com/Patrick3131/pi-packages.git"
-# Deliberately excludes MCP endpoints, model preferences, credentials and sessions.
+# Excludes MCP endpoints, model preferences, provider credentials and sessions.
+# The crawl snapshot has only a placeholder; its service token stays target-local.
 FILES = {
     "presets.json": "presets.json",
+    "crawl4ai.json": "extensions/crawl4ai.json",
     "APPEND_SYSTEM.md": "APPEND_SYSTEM.md",
     "mcp-policy.ts": "extensions/mcp-policy.ts",
     "worktree-setup.mjs": "extensions/subagent/worktree-setup.mjs",
@@ -41,6 +43,21 @@ def merged_settings(current, snapshot):
     return result
 
 
+def crawl_content(snapshot, agent):
+    desired = json.loads((snapshot / "crawl4ai.json").read_text())
+    if desired.get("apiToken") != "${CRAWL4AI_API_TOKEN}":
+        raise RuntimeError("Crawl4AI snapshot must use the CRAWL4AI_API_TOKEN placeholder")
+    installed = agent / FILES["crawl4ai.json"]
+    current = json.loads(installed.read_text()) if installed.exists() else {}
+    token = os.environ.get("CRAWL4AI_API_TOKEN", "").strip()
+    if not token:
+        token = current.get("apiToken", "")
+    if not isinstance(token, str) or not token.strip() or token.startswith("${"):
+        raise RuntimeError("Provide CRAWL4AI_API_TOKEN on this target; no private installed credential is available")
+    desired["apiToken"] = token
+    return json.dumps(desired, indent=2) + "\n"
+
+
 def changes(snapshot, agent):
     settings_path = agent / "settings.json"
     current = json.loads(settings_path.read_text())
@@ -54,8 +71,9 @@ def changes(snapshot, agent):
         files["agents/" + item.name] = "agents/" + item.name
     for src, dest in files.items():
         path = agent / dest
-        content = (snapshot / src).read_text()
-        if not path.exists() or path.read_text() != content:
+        content = crawl_content(snapshot, agent) if src == "crawl4ai.json" else (snapshot / src).read_text()
+        private_mode_needed = src == "crawl4ai.json" and path.exists() and path.stat().st_mode & 0o077
+        if not path.exists() or path.read_text() != content or private_mode_needed:
             planned.append((path, content))
     return planned
 
@@ -63,6 +81,14 @@ def changes(snapshot, agent):
 def show(planned):
     for path, content in planned:
         old = path.read_text() if path.exists() else ""
+        if path.name == "crawl4ai.json":
+            def redacted(text):
+                value = json.loads(text) if text else {}
+                if "apiToken" in value:
+                    value["apiToken"] = "<configured; redacted>" if value["apiToken"] else "<missing>"
+                return json.dumps(value, indent=2) + "\n" if text else ""
+            old, content = redacted(old), redacted(content)
+            print(f"{path}: credential contents redacted; installed copy/backups are private", flush=True)
         print("".join(difflib.unified_diff(old.splitlines(True), content.splitlines(True),
                                          fromfile=str(path), tofile=str(path) + " (published)")), flush=True)
 
@@ -73,14 +99,19 @@ def write_changes(planned):
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             backup = path.with_name(path.name + ".bak." + stamp)
-            shutil.copy2(path, backup)
+            if path.name == "crawl4ai.json":
+                backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with path.open("rb") as source_file, os.fdopen(backup_fd, "wb") as backup_file:
+                    shutil.copyfileobj(source_file, backup_file)
+            else:
+                shutil.copy2(path, backup)
             print("Backup:", backup, flush=True)
         # Same-directory replace avoids truncating an existing config on failure.
         fd, temp = tempfile.mkstemp(dir=path.parent)
         try:
             with os.fdopen(fd, "w") as handle:
                 handle.write(content)
-            os.chmod(temp, path.stat().st_mode & 0o777 if path.exists() else 0o600)
+            os.chmod(temp, 0o600 if path.name == "crawl4ai.json" else path.stat().st_mode & 0o777 if path.exists() else 0o600)
             os.replace(temp, path)
         finally:
             if os.path.exists(temp):

@@ -142,6 +142,18 @@ fi
 copy_file "$ROOT/settings.json" "$AGENT_DIR/settings.json"
 python3 "$ROOT/migrate-toolkit.py" --agent-dir "$AGENT_DIR" --apply
 copy_file "$ROOT/presets.json" "$AGENT_DIR/presets.json"
+# Existing installed Crawl4AI files may contain private credentials. Never print
+# their diff or overwrite them through a generic --force restore.
+if [[ -e "$AGENT_DIR/extensions/crawl4ai.json" ]]; then
+	[[ -f "$AGENT_DIR/extensions/crawl4ai.json" ]] || { echo "Crawl4AI config is not a regular file" >&2; exit 1; }
+	chmod 600 "$AGENT_DIR/extensions/crawl4ai.json"
+	echo "Kept existing private Crawl4AI config; use pi-sync for reviewed updates"
+else
+	mkdir -p "$AGENT_DIR/extensions"
+	cp "$ROOT/crawl4ai.json" "$AGENT_DIR/extensions/crawl4ai.json"
+	chmod 600 "$AGENT_DIR/extensions/crawl4ai.json"
+	echo "Wrote global Crawl4AI template; provide CRAWL4AI_API_TOKEN or run pi-sync"
+fi
 copy_file "$ROOT/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 copy_file "$ROOT/mcp-policy.ts" "$AGENT_DIR/extensions/mcp-policy.ts"
 copy_file "$ROOT/mcp.json" "$AGENT_DIR/mcp.json"

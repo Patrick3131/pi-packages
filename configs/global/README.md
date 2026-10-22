@@ -8,6 +8,7 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 | --- | --- |
 | `settings.json` | `~/.pi/agent/settings.json` |
 | `presets.json` | `~/.pi/agent/presets.json` |
+| `crawl4ai.json` | `~/.pi/agent/extensions/crawl4ai.json` |
 | `APPEND_SYSTEM.md` | `~/.pi/agent/APPEND_SYSTEM.md` |
 | `mcp.json` | `~/.pi/agent/mcp.json` |
 | `mcp-policy.ts` | `~/.pi/agent/extensions/mcp-policy.ts` |
@@ -20,6 +21,29 @@ Sanitized copy of the personal Pi coding-agent setup. This is **not** a publishe
 `pi-subagents`, `pi-goal`, `pi-open-tui`, and the search/edit stack
 `@ff-labs/pi-fff` + `pi-tool-discipline` + `pi-better-edit`. It
 does **not** include secrets.
+
+`crawl4ai.json` holds the shared operator service URL, enabled acquisition and
+interaction, relative output directory and retention defaults. Project crawl
+configs override it because the extension uses the first matching config file;
+remove redundant project copies to inherit the global settings. Output remains
+relative to each tool's working directory.
+
+The tracked snapshot contains `${CRAWL4AI_API_TOKEN}`, never a credential.
+`pi-sync` resolves that token from each target's environment, or preserves its
+existing private installed token when the environment does not supply one. It
+refuses a target with neither. Installed config and credential-bearing backups
+are mode 0600; previews redact token values. This allows local Pi to work outside
+a project with `.env`. Fresh restore writes the placeholder template; provide the
+environment token or run sync to materialize a private installed copy. Restore
+preserves an existing Crawl4AI config even with `--force`, without printing its
+diff. No secret is backed up into this repository.
+
+After publishing the snapshot, run `./scripts/pi-sync --check`, review both target
+previews, then `./scripts/pi-sync --apply --accept-config` for the reviewed changes.
+For a crawler-only move, proceed only when those previews contain the crawler
+config alone. Existing presets, personal settings and sessions stay untouched.
+Use each target's own credential environment; never pass secrets in command-line
+arguments. Reload active Pi sessions afterward; no service restart is required.
 
 `mcp.json` configures native MCP with no global servers and disables automatic
 codemode activation. Server endpoints belong in the trusted project's `.pi/mcp.json`.
@@ -109,7 +133,7 @@ new syncing are needed. The package provides:
 
 - `packages/pi-toolkit` — `/preset`, `/tools`, `$` skill mentions, and My Pi HTML `/overview`; independently filterable feature entry points
 - `packages/pi-searxng` — `web_search_searxng` (off by default)
-- `packages/pi-crawl4ai` — `crawl` / `crawl_read`
+- `packages/pi-crawl4ai` — `crawl` / `crawl_read` and capability-gated `crawl_interact`
 - Toolkit feature paths are `packages/pi-toolkit/src/features/{presets,tools,skill-mentions,overview}/index.ts`.
 - `packages/pi-delegation` — standing delegation policy, appended to the
   system prompt only when the `subagent` tool is active in the session
