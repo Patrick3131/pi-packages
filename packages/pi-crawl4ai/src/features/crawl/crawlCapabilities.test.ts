@@ -86,3 +86,68 @@ it("round-trips bounded original PDF bytes and page provenance, rejecting a mism
   mockFetch({ data: { success: true, results: [{ ...response, document: { ...document, sha256: "wrong" } }] } });
   await expect(executeCrawl({ urls: [url] }, config(), { cwd })).rejects.toThrow("Invalid or oversized original PDF artifact");
 });
+
+it("checkpoints complete chunks before dispatch and keeps the absolute remaining service budget", async () => {
+  const urls = Array.from({ length: 7 }, (_, index) => `${url}/${index}`);
+  const startedAt = Date.now();
+  let now = startedAt;
+  const clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+  const committed: string[] = [];
+  const timeouts: number[] = [];
+  global.fetch = jest.fn(async (_input, init) => {
+    const body = JSON.parse(String(init?.body));
+    timeouts.push(body.timeoutMs);
+    if (timeouts.length === 2) {
+      expect(committed).toEqual(urls.slice(0, 3));
+      return { ok: true, text: async () => JSON.stringify({ success: false, results: body.urls.map((target: string) => ({ url: target, success: false, error: { category: "timeout", code: "deadline_exceeded", message: "Service deadline exceeded", phase: "navigation", retryable: false } })) }) } as Response;
+    }
+    return { ok: true, text: async () => JSON.stringify({ success: true, results: body.urls.map((target: string) => ({ ...page(), url: target })) }) } as Response;
+  });
+  try {
+    const result = await executeCrawl({ urls }, config(), { cwd, acquisitionTimeoutMs: 1500, onCheckpoint: async (chunk, signal) => {
+      expect(signal.aborted).toBe(false);
+      const manifest = JSON.parse(readFileSync(chunk.details.manifestPath!, "utf8"));
+      expect(manifest.pages).toHaveLength(3);
+      committed.push(...chunk.details.evidence.pages.map(value => value.url));
+      now += 400;
+    } });
+    expect(timeouts).toEqual([1500, 1100]);
+    expect(result.details.evidence.pages.map(value => value.url)).toEqual(urls.slice(0, 3));
+    expect(result.details.acquisition).toMatchObject({ complete: false, unattemptedUrls: urls.slice(6), failure: { code: "timeout", serverCode: "deadline_exceeded", category: "timeout", phase: "navigation", retryable: false } });
+    expect(result.details.partial).toBe(true);
+    expect(readFileSync(result.details.savedFiles[0].rawHtmlPath!, "utf8")).toContain("Original source");
+  } finally { clock.mockRestore(); }
+});
+
+it("honors cancellation at a committed checkpoint without another dispatch or checkpoint", async () => {
+  const urls = Array.from({ length: 6 }, (_, index) => `${url}/${index}`);
+  const fetchMock = mockFetch({ data: { success: true, results: urls.slice(0, 3).map(target => ({ ...page(), url: target })) } });
+  const controller = new AbortController();
+  let savedPath = "";
+  const checkpoint = jest.fn(chunk => { savedPath = chunk.details.savedFiles[0].rawHtmlPath; controller.abort(); });
+  await expect(executeCrawl({ urls }, config(), { cwd, signal: controller.signal, onCheckpoint: checkpoint })).rejects.toThrow(/cancelled/i);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(checkpoint).toHaveBeenCalledTimes(1);
+  expect(readFileSync(savedPath, "utf8")).toContain("Original source");
+});
+
+it("translates target failure vocabulary and preserves uncertain action diagnostics without replay", async () => {
+  for (const [category, canonical] of [["transport", "transport_failure"], ["website_block", "website_blocked"], ["timeout", "timeout"]]) {
+    const fetchMock = mockFetch({ data: { success: false, results: [{ url, success: false, error: { category, code: "safe_service_code", phase: "probe", message: "Safe diagnostic", retryable: true } }] } });
+    await expect(executeCrawl({ urls: [url] }, config(), { cwd })).rejects.toMatchObject({ code: canonical, category: canonical, phase: "probe", serverCode: "safe_service_code", retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  }
+  const fetchMock = mockFetch({ data: { success: false, results: [{ url, success: false, error: { category: "timeout", code: "deadline_exceeded", phase: "action", message: "Effects uncertain", retryable: true, operationOutcome: "unconfirmed" } }] } });
+  await expect(executeCrawlInteract({ url, actions: [{ type: "click", selector: "button" }] }, config(), { cwd })).rejects.toMatchObject({ code: "interaction_unconfirmed", category: "timeout", serverCode: "deadline_exceeded", phase: "action", operationOutcome: "unconfirmed", retryable: false });
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it("keeps mixed operator results partial and bounds/redacts safe diagnostics", async () => {
+  mockFetch({ data: { success: false, results: [page(), { url: `${url}/failed`, success: false, error: { category: "timeout", code: "deadline_exceeded", phase: "invented_phase", retryable: false, message: "Safe message fixture-token" } }] } });
+  const result = await executeCrawl({ urls: [url, `${url}/failed`] }, config(), { cwd });
+  expect(result.details.partial).toBe(true);
+  expect(result.details.evidence.pages[0].usability).toBe("usable");
+  expect(result.details.results[1].error).toMatchObject({ category: "timeout", code: "deadline_exceeded", message: "Safe message [redacted]" });
+  expect(result.details.results[1].error).not.toHaveProperty("phase");
+  expect(JSON.stringify(result)).not.toContain("fixture-token");
+});

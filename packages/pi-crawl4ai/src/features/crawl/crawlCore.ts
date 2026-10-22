@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import type { Crawl4AIConfig } from "../../config";
 import type { CrawlFormat, CrawlToolParams, Crawl4AIResponse, DeepCrawlConfig } from "./types";
 import { applyRequestPacing } from "./requestPacing";
-import { createCrawlDeadline, fetchCrawlApi, redactError } from "./http";
+import { abortable, createCrawlDeadline, fetchCrawlApi, redactError } from "./http";
 import { finalizeCrawlEvidence, credentialFreeBaseUrl, resolveOutputDir, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath, formatContentForSave, type CrawlManifestRequest, type SaveCrawlOptions } from "./saveOutput";
 import { DEFAULT_PREVIEW_SETTINGS, buildBudgetedToolText, decideReturnMode, slimResultDetails, toFormattedPages, capToolText, capToolTextDetailed, type PreviewSettings } from "./presentation";
 import { filterMarkdownBm25 } from "./bm25";
@@ -158,10 +158,97 @@ function resolvePreviewSettings(params: CrawlToolParams): PreviewSettings {
   };
 }
 
-export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConfig, options: { cwd: string; signal?: AbortSignal; acquire?: (signal: AbortSignal) => Promise<unknown>; onUpdate?: (result: { content: { type: "text"; text: string }[]; details: undefined }) => void }) {
+export interface CrawlExecutionOptions {
+  cwd: string;
+  signal?: AbortSignal;
+  /** Absolute outer deadline, including completed-source checkpoints. */
+  deadlineAt?: number;
+  /** Work budget from operation start; strictly smaller than config.timeout. */
+  acquisitionTimeoutMs?: number;
+  onCheckpoint?: (result: CrawlExecutionResult, signal: AbortSignal) => Promise<void> | void;
+  acquire?: (signal: AbortSignal, acquisitionDeadlineAt: number) => Promise<unknown>;
+  onUpdate?: (result: { content: { type: "text"; text: string }[]; details: undefined }) => void;
+}
+export type CrawlExecutionResult = Awaited<ReturnType<typeof executeCrawlBatch>>;
+export interface CrawlAcquisitionProgress {
+  attemptedUrls: string[]; unattemptedUrls: string[]; complete: boolean;
+  failure?: import("./http").CrawlFailureData;
+}
+
+/** One clock across sequential chunks; publish finalized sources before dispatching more. */
+export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConfig, options: CrawlExecutionOptions) {
+  const startedAt = Date.now();
+  try { validateParams(params, config); }
+  catch (error) { if (error instanceof CrawlOperationError || error instanceof CrawlValidationError) throw error; throw new CrawlValidationError(error instanceof Error ? error.message : "Invalid crawl parameters"); }
+  const workMs = options.acquisitionTimeoutMs ?? Math.min(60000, config.timeout - Math.min(10000, config.timeout * 0.15));
+  if (!Number.isFinite(workMs) || workMs <= 0 || workMs >= config.timeout) throw new CrawlValidationError("acquisitionTimeoutMs must be positive and less than config.timeout");
+  if (options.deadlineAt !== undefined && !Number.isFinite(options.deadlineAt)) throw new CrawlValidationError("deadlineAt must be a finite absolute timestamp");
+  const deadlineAt = Math.min(startedAt + config.timeout, options.deadlineAt ?? Infinity);
+  if (deadlineAt <= startedAt) throw new CrawlOperationError("timeout", "Crawl deadline exhausted before dispatch");
+  const acquisitionDeadlineAt = Math.min(startedAt + workMs, deadlineAt - Math.min(1000, config.timeout * 0.1));
+  const operation = createCrawlDeadline(deadlineAt - startedAt, options.signal);
+  const chunks = !params.deepCrawl && !options.acquire && config.raw.capabilities?.acquisition && Array.isArray(params.urls)
+    ? Array.from({ length: Math.ceil(params.urls.length / 3) }, (_, index) => params.urls.slice(index * 3, index * 3 + 3)) : [params.urls];
+  const outputs: CrawlExecutionResult[] = [];
+  const attemptedUrls: string[] = [];
+  let failure: import("./http").CrawlFailureData | undefined;
+  try {
+    for (const urls of chunks) {
+      if (operation.signal.aborted) throw operation.signal.reason;
+      if (Date.now() >= acquisitionDeadlineAt) { failure = { code: "timeout", category: "timeout", retryable: false }; break; }
+      attemptedUrls.push(...urls);
+      let output: CrawlExecutionResult;
+      try {
+        output = await executeCrawlBatch({ ...params, urls }, config, { ...options, signal: operation.signal, deadlineAt, acquisitionDeadlineAt });
+      } catch (error) {
+        if (operation.signal.aborted || options.signal?.aborted || !outputs.length) throw error;
+        if (!(error instanceof CrawlOperationError)) throw error;
+        failure = { code: error.code, category: error.category, retryable: error.retryable, serverCode: error.serverCode, phase: error.phase, operationOutcome: error.operationOutcome };
+        break;
+      }
+      outputs.push(output);
+      if (operation.signal.aborted) throw operation.signal.reason;
+      // Cancellation remains authoritative: callbacks receive the same signal via
+      // the owning host and must check it immediately before durable writes.
+      if (options.onCheckpoint) await abortable(Promise.resolve(options.onCheckpoint(output, operation.signal)), operation.signal);
+      if (operation.signal.aborted) throw operation.signal.reason;
+    }
+    if (!outputs.length) throw new CrawlOperationError("timeout", "Acquisition budget exhausted before dispatch");
+    const unattemptedUrls = params.urls.slice(attemptedUrls.length);
+    const acquisition: CrawlAcquisitionProgress = { attemptedUrls, unattemptedUrls, complete: !failure && !unattemptedUrls.length, failure };
+    const first = outputs[0];
+    const joinedText = outputs.map(output => output.content[0].text).join("\n\n") + (failure ? "\nPartial acquisition: remaining work did not complete; accepted saved sources remain available." : "");
+    const aggregateOutput = capToolTextDetailed(joinedText);
+    let position = 0;
+    const deliveredChunks = outputs.map(output => {
+      const delivered = position + output.content[0].text.length <= aggregateOutput.sourceChars;
+      position += output.content[0].text.length + 2;
+      return delivered;
+    });
+    const aggregatePages = outputs.flatMap((output, index) => output.details.evidence.pages.map(page => deliveredChunks[index] ? page : {
+      ...page, delivery: { ranges: [], omitted: true, nextCall: page.delivery?.nextCall ? { ...page.delivery.nextCall, charOffset: 0 } : null },
+    }));
+    return jsonProjection({
+      ...first,
+      content: [{ type: "text" as const, text: aggregateOutput.text }],
+      details: { ...first.details,
+        evidence: { version: 1 as const, pages: aggregatePages },
+        results: outputs.flatMap(output => output.details.results),
+        savedFiles: outputs.flatMap(output => output.details.savedFiles ?? []),
+        manifestPaths: outputs.flatMap(output => output.details.manifestPath ? [output.details.manifestPath] : []),
+        partial: !!failure || !!unattemptedUrls.length || outputs.some(output => output.details.partial), acquisition,
+        totalOriginalChars: outputs.reduce((sum, output) => sum + output.details.totalOriginalChars, 0),
+        totalReturnedChars: outputs.reduce((sum, output, index) => sum + (deliveredChunks[index] ? output.details.totalReturnedChars : 0), 0),
+        truncated: aggregateOutput.text !== joinedText || outputs.some(output => output.details.truncated),
+      },
+    });
+  } finally { operation.dispose(); }
+}
+
+async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig, options: CrawlExecutionOptions & { acquisitionDeadlineAt: number }) {
       try { validateParams(params, config); }
       catch (error) { if (error instanceof CrawlOperationError) throw error; throw new CrawlValidationError(error instanceof Error ? error.message : "Invalid crawl parameters"); }
-      const operation = createCrawlDeadline(config.timeout, options.signal);
+      const operation = createCrawlDeadline(Math.max(1, Math.min(config.timeout, (options.deadlineAt ?? Infinity) - Date.now())), options.signal);
       const budget = resolvePreviewSettings(params);
       const format = params.format ?? "markdown";
       const effectiveRequest = effectiveCrawlRequest(params, format, budget.preferFitMarkdown);
@@ -174,7 +261,10 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
       try {
         if (operation.signal.aborted) throw operation.signal.reason;
         options.onUpdate?.({ content: [{ type: "text", text: "Waiting for crawl service…" }], details: undefined });
-        const pacing = await applyRequestPacing(config, operation.signal);
+        const queue = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
+        let pacing: Awaited<ReturnType<typeof applyRequestPacing>>;
+        try { pacing = await applyRequestPacing(config, queue.signal); }
+        finally { queue.dispose(); }
         const crawlerParams: Record<string, unknown> = {
           cache_mode: { type: "CacheMode", params: params.bypassCache ? "bypass" : "enabled" },
         };
@@ -184,19 +274,22 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
         const unsupportedPdfUrls = !config.raw.capabilities?.acquisition && !options.acquire ? params.urls.filter(url => /\.pdf$/i.test(new URL(url).pathname)) : [];
         const supportedUrls = params.urls.filter(url => !unsupportedPdfUrls.includes(url));
         if (!supportedUrls.length) throw new CrawlOperationError("unsupported_capability", "unsupported_document: PDF extraction requires the document capability on the configured crawl service");
-        const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal) : undefined);
+        const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal, options.acquisitionDeadlineAt) : undefined);
         const raw = acquire ? undefined : await fetchCrawlApi(config, "/crawl", {
           method: "POST",
           body: JSON.stringify({ urls: supportedUrls, crawler_config: { type: "CrawlerRunConfig", params: crawlerParams } }),
         }, operation.signal);
         let data: unknown;
-        if (acquire) data = await acquire(operation.signal);
+        if (acquire) data = await acquire(operation.signal, options.acquisitionDeadlineAt);
         else try { data = JSON.parse(raw!); } catch { throw new CrawlOperationError("provider_failure", "Malformed crawl4ai JSON response"); }
         validateCrawlResponse(data);
         for (const url of unsupportedPdfUrls) data.results.push({ url, success: false, error_message: "unsupported_document: PDF extraction requires the document capability on the configured crawl service" });
         if (data.results.every(result => !result.success)) throw new CrawlOperationError(data.results.every(result => result.status_code === 403 || result.status_code === 429) ? "website_blocked" : "provider_failure", `All pages failed: ${data.results.map(result => `${result.url}: ${result.error_message ?? "Unknown error"}`).join("; ")}`);
         // Redact server-provided diagnostics before either rendering or persistence.
-        for (const result of data.results) if (result.error_message) result.error_message = redactError(result.error_message, config);
+        for (const result of data.results) {
+          if (result.error_message) result.error_message = redactError(result.error_message, config);
+          if (result.error) result.error.message = redactError(result.error.message, config);
+        }
         let partial = data.results.some(result => !result.success);
         options.onUpdate?.({ content: [{ type: "text", text: "Saving complete crawl content…" }], details: undefined });
         for (const [index, result] of data.results.entries()) {
@@ -233,10 +326,19 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
             artifact.originalMarkdownFile = `${index}-${urlToFilePath(result.url, "markdown")}.original.md`;
             writeCrawlArtifact(sessionDir, artifact.originalMarkdownFile, originalMarkdown);
 
+            const derivation = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
             try {
+              if (Date.now() >= options.acquisitionDeadlineAt) throw new CrawlOperationError("timeout", "Acquisition derivation budget exhausted", undefined, { phase: "derivation" });
               if (!result.html) throw new Error("Server returned no rendered HTML");
-              result.markdown = await extractWithTrafilatura({ pythonPath: config.raw.trafilatura!.pythonPath!, html: result.html, format: format === "text" ? "text" : "markdown", includeLinks: params.includeLinks, signal: operation.signal, deadline: operation.deadline });
-            } catch (error) { throw new Error(`Trafilatura extraction failed: ${error instanceof Error ? error.message : String(error)}`); }
+              result.markdown = await extractWithTrafilatura({ pythonPath: config.raw.trafilatura!.pythonPath!, html: result.html, format: format === "text" ? "text" : "markdown", includeLinks: params.includeLinks, signal: derivation.signal, deadline: options.acquisitionDeadlineAt });
+            } catch (error) {
+              if (operation.signal.aborted) throw operation.signal.reason;
+              if (derivation.signal.aborted || (error instanceof CrawlOperationError && error.code === "timeout")) {
+                result.success = false;
+                result.error_message = "Acquisition derivation deadline exceeded; original HTML preserved";
+                result.error = { category: "timeout", code: "deadline_exceeded", phase: "derivation", retryable: false, message: result.error_message };
+              } else throw new Error(`Trafilatura extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+            } finally { derivation.dispose(); }
             artifact.extractor = { name: "trafilatura", includeLinks: params.includeLinks ?? false };
           }
           if (params.bm25Query) {
@@ -303,8 +405,12 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
           },
         });
       } catch (error) {
-        if (error && typeof error === "object" && "operationOutcome" in error) throw error;
-        throw new CrawlOperationError(error instanceof CrawlOperationError ? error.code : operation.signal.aborted ? "transport_failure" : "provider_failure", `Crawl failed: ${redactError(error instanceof Error ? error.message : String(error), config)}${recoveryHtmlPath ? `. Original HTML: ${recoveryHtmlPath}` : ""}`, error instanceof CrawlOperationError ? error.status : undefined);
+        if (error && typeof error === "object" && "operationOutcome" in error && error.operationOutcome === "unconfirmed") {
+          if (error instanceof Error) error.message = redactError(error.message, config);
+          throw error;
+        }
+        throw new CrawlOperationError(error instanceof CrawlOperationError ? error.code : operation.signal.aborted ? "transport_failure" : "provider_failure", `Crawl failed: ${redactError(error instanceof Error ? error.message : String(error), config)}${recoveryHtmlPath ? `. Original HTML: ${recoveryHtmlPath}` : ""}`, error instanceof CrawlOperationError ? error.status : undefined,
+          error instanceof CrawlOperationError ? { serverCode: error.serverCode, phase: error.phase, retryable: error.retryable, operationOutcome: error.operationOutcome } : {});
       } finally { operation.dispose(); }
 
 }

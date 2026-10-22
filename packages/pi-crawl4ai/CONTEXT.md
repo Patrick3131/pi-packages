@@ -94,3 +94,21 @@ Legacy jsCode calls fail preflight with unsupported_capability. HTTP field rejec
 Static `capabilities.acquisition` opts non-deep crawl into `/acquire` for CSS waits/selection/card extraction and content-type-aware PDFs. Deep traversal retains bounded `/crawl`. `capabilities.interaction` registers `crawl_interact` through `/execute_js` with typed actions and arbitrary browser JavaScript in an ephemeral server context. Shared execution/save/read envelopes and provenance are reused. Complete pre-script HTML keeps its own URL/snapshot; all post-script derived artifacts inherit server-owned influence markers and require independent corroboration for canonical facts. PDF bytes are bounded/hash-verified and saved beside page-numbered text; they never enter article extraction. No local browser/fetch, hidden model, capability negotiation, retry of uncertain effects or production rollout follows registration.
 
 Cache facts are independent of acquisition timestamps: optional `cachedAt` normalizes the service's `cached_at` (Unix seconds or timestamp string) to ISO time and remains null when unavailable. A cache hit never implies fresh content. The value survives saved manifests and progressive reads.
+
+## Shared research acquisition lifecycle
+
+The harness-neutral execution options own one absolute remaining deadline and an
+awaited completed-chunk checkpoint. Operator acquisitions use sequential groups
+of three URLs, preserving each finalized session and its source evidence before
+the next request. Client completion/persistence headroom stays outside the
+service work budget (host defaults 60/70/75 seconds for work/client/outer).
+Cancellation prevents new dispatch/checkpoints; the owning host checks the
+provided checkpoint signal before state writes. Classified later failures return
+accepted earlier chunks plus explicit acquisition progress. Interaction effects
+are never automatically replayed.
+
+`crawl_read` attaches bounded typed `manifestMetadata` to read details/evidence.
+Its revision-bound page continuation is separate from presentation caps and body
+continuation. It exposes original view identities without parsing partial JSON
+text or introducing another store. Service errors translate transport/block
+aliases while retaining safe code, observed phase and uncertain-effect metadata.

@@ -1,7 +1,30 @@
 import type { Crawl4AIConfig } from "../../config";
 
+export type CrawlErrorCategory = "validation_error" | "unsupported_capability" | "website_blocked" | "transport_failure" | "provider_failure" | "timeout" | "resource_limit" | "unsupported_document" | "interaction";
+export type CrawlPhase = "probe" | "queue" | "navigation" | "readiness" | "action" | "derivation" | "response";
+export interface CrawlFailureData { code: string; category: string; retryable: boolean; serverCode?: string; phase?: CrawlPhase; operationOutcome?: "unconfirmed" }
 export class CrawlOperationError extends Error {
-  constructor(readonly code: "validation_error" | "unsupported_capability" | "website_blocked" | "transport_failure" | "provider_failure", message: string, readonly status?: number) { super(message); this.name = "CrawlOperationError"; }
+  readonly category: CrawlErrorCategory;
+  readonly retryable: boolean;
+  readonly serverCode?: string;
+  readonly phase?: CrawlPhase;
+  readonly operationOutcome?: "unconfirmed";
+  constructor(readonly code: CrawlErrorCategory, message: string, readonly status?: number, data: Partial<CrawlFailureData> = {}) {
+    super(message); this.name = "CrawlOperationError"; this.category = code;
+    this.retryable = data.retryable ?? false; this.serverCode = data.serverCode;
+    this.phase = data.phase; this.operationOutcome = data.operationOutcome;
+  }
+}
+export function translateCrawlFailure(error: { category?: string; code?: string; retryable?: boolean; phase?: string; operationOutcome?: string }, message: string): CrawlOperationError {
+  const aliases: Record<string, CrawlErrorCategory> = { transport: "transport_failure", website_block: "website_blocked" };
+  const category = aliases[error.category ?? ""] ?? error.category;
+  const known = ["validation_error", "unsupported_capability", "website_blocked", "transport_failure", "provider_failure", "timeout", "resource_limit", "unsupported_document", "interaction"];
+  const phase = ["probe", "queue", "navigation", "readiness", "action", "derivation", "response"].includes(error.phase ?? "") ? error.phase as CrawlPhase : undefined;
+  return new CrawlOperationError(known.includes(category ?? "") ? category as CrawlErrorCategory : "provider_failure", message, undefined, {
+    serverCode: typeof error.code === "string" ? error.code.slice(0, 128) : undefined, phase,
+    retryable: error.retryable === true && error.operationOutcome !== "unconfirmed",
+    operationOutcome: error.operationOutcome === "unconfirmed" ? "unconfirmed" : undefined,
+  });
 }
 
 export const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
@@ -11,10 +34,10 @@ export function createCrawlDeadline(timeout: number, caller?: AbortSignal): { si
   if (!Number.isFinite(timeout) || timeout <= 0) throw new Error("timeout must be positive and finite");
   const controller = new AbortController();
   const deadline = Date.now() + timeout;
-  const abort = () => controller.abort(new Error("Crawl cancelled"));
+  const abort = () => controller.abort(caller?.reason instanceof CrawlOperationError ? caller.reason : new Error("Crawl cancelled"));
   if (caller?.aborted) abort();
   else caller?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(() => controller.abort(new Error("Crawl deadline exceeded")), timeout);
+  const timer = setTimeout(() => controller.abort(new CrawlOperationError("timeout", "Crawl deadline exceeded")), timeout);
   return {
     signal: controller.signal,
     deadline,

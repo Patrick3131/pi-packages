@@ -6,7 +6,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { getDefaultOutputDir, containedArtifactPath } from "./saveOutput";
 import { listCrawlSessions } from "./cleanup";
-import { contentHash, jsonProjection, type ReadEvidence } from "./evidence";
+import { contentHash, jsonProjection, type ReadEvidence, type ManifestMetadata } from "./evidence";
 import { capToolText, capToolTextDetailed } from "./presentation";
 import {
   buildOutlineMarkdown,
@@ -29,6 +29,8 @@ export interface CrawlReadParams {
   limit?: number;
   /** UTF-16 source offset for revision-bound continuation. */
   charOffset?: number;
+  /** Page index in bounded typed manifest metadata. */
+  manifestOffset?: number;
   revision?: string;
   viewId?: string;
 }
@@ -499,6 +501,7 @@ export function executeCrawlRead(
     if (value !== undefined && (!Number.isFinite(value) || value < (name === "maxChars" ? 0 : 1))) throw new Error(`${name} must be finite and nonnegative (line ranges start at 1)`);
   }
   if (params.charOffset !== undefined && (!Number.isInteger(params.charOffset) || params.charOffset < 0)) throw new Error("charOffset must be a nonnegative integer");
+  if (params.manifestOffset !== undefined && (!Number.isInteger(params.manifestOffset) || params.manifestOffset < 0)) throw new Error("manifestOffset must be a nonnegative integer");
   const result = executeCrawlReadContent(params, options);
   const path = typeof result.details.path === "string" ? result.details.path : "";
   const root = path && existsSync(path) ? findSessionRoot(path) : undefined;
@@ -524,9 +527,11 @@ export function executeCrawlRead(
   const sourceChars = typeof result.details.charCount === "number" ? result.details.charCount : 0;
   const omitted = delivered.reduce((sum, range) => sum + range.end - range.start, 0) < sourceChars;
   const lastEnd = delivered.length ? Math.max(...delivered.map(range => range.end)) : 0;
-  const evidence: ReadEvidence = { version: 1, path, revision, viewId, ranges: delivered, omitted,
+  const manifestMetadata = basename(path) === MANIFEST_NAME && manifest && !result.details.error
+    ? boundedManifestMetadata(path, revision, manifest, params.manifestOffset ?? 0) : undefined;
+  const evidence: ReadEvidence = { manifestMetadata, version: 1, path, revision, viewId, ranges: delivered, omitted,
     nextCall: lastEnd > 0 && lastEnd < sourceChars ? { path, mode: "chunks", charOffset: lastEnd, revision, viewId, maxChars: params.maxChars ?? DEFAULT_MAX_CHARS, ...(params.query ? { query: params.query } : {}) } : null };
-  return jsonProjection({ text, details: { ...result.details, ...evidence, evidence, pageEvidence, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } });
+  return jsonProjection({ text, details: { ...result.details, ...evidence, evidence, manifestMetadata, pageEvidence, savedAt: timestamp, truncated: result.details.truncated === true || text !== rendered } });
 }
 
 function executeCrawlReadContent(
@@ -745,4 +750,30 @@ function executeCrawlReadContent(
       manifestPath: resolved.manifestPath,
     },
   };
+}
+
+/** Complete objects only: never parse or expose a capped JSON presentation. */
+function boundedManifestMetadata(path: string, revision: string, manifest: Record<string, unknown>, offset: number): ManifestMetadata {
+  const records = (Array.isArray(manifest.pages) ? manifest.pages : []) as Array<Record<string, unknown>>;
+  const pages: ManifestMetadata["pages"] = [];
+  let bytes = 0;
+  for (const record of records.slice(offset, offset + 20)) {
+    const evidence = record.evidence as import("./evidence").PageEvidence | undefined;
+    if (typeof record.url !== "string" || (evidence?.acquisitionId !== undefined && typeof evidence.acquisitionId !== "string") ||
+        (evidence?.views !== undefined && (!Array.isArray(evidence.views) || evidence.views.some(view => !view || [view.id, view.kind, view.sha256].some(value => typeof value !== "string") || (view.path !== undefined && typeof view.path !== "string"))))) {
+      throw new Error("invalid_manifest_metadata: malformed page identity or view reference");
+    }
+    const page = { url: typeof record.url === "string" ? record.url : "", acquisitionId: evidence?.acquisitionId,
+      views: (evidence?.views ?? []).map(view => ({ id: view.id, kind: view.kind, sha256: view.sha256,
+        ...(view.path ? { path: isAbsolute(view.path) ? view.path : resolve(dirname(path), view.path) } : {}) })) };
+    const size = Buffer.byteLength(JSON.stringify(page));
+    if (bytes + size > 32000) {
+      if (!pages.length) throw new Error("manifest_metadata_page_too_large: one page exceeds the bounded metadata contract");
+      break;
+    }
+    pages.push(page); bytes += size;
+  }
+  const nextOffset = offset + pages.length;
+  return { version: 1, path, revision, pages, totalPages: records.length, complete: nextOffset >= records.length,
+    nextCall: nextOffset < records.length ? { path, revision, manifestOffset: nextOffset } : null };
 }

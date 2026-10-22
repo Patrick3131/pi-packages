@@ -40,7 +40,15 @@ export function pageEvidence(result: CrawlResult, content: string): PageEvidence
 }
 
 export const SourceRangeSchema = Type.Object({ start: Type.Integer({ minimum: 0 }), end: Type.Integer({ minimum: 0 }), unit: Type.Literal("utf16"), text: Type.String() });
+export const ManifestMetadataSchema = Type.Object({
+  version: Type.Literal(1), path: Type.String(), revision: Type.String(), totalPages: Type.Integer(), complete: Type.Boolean(),
+  pages: Type.Array(Type.Object({ url: Type.String(), acquisitionId: Type.Optional(Type.String()),
+    views: Type.Array(Type.Object({ id: Type.String(), kind: Type.String(), sha256: Type.String(), path: Type.Optional(Type.String()) })) })),
+  nextCall: Type.Union([Type.Object({ path: Type.String(), revision: Type.String(), manifestOffset: Type.Integer() }), Type.Null()]),
+});
+export type ManifestMetadata = Static<typeof ManifestMetadataSchema>;
 export const ReadEvidenceSchema = Type.Object({
+  manifestMetadata: Type.Optional(ManifestMetadataSchema),
   version: Type.Literal(1), path: Type.String(), revision: Type.String(), viewId: Type.String(), ranges: Type.Array(SourceRangeSchema), omitted: Type.Boolean(),
   nextCall: Type.Union([Type.Object({ path: Type.String(), mode: Type.Literal("chunks"), charOffset: Type.Integer(), revision: Type.String(), viewId: Type.String(), maxChars: Type.Number(), query: Type.Optional(Type.String()) }), Type.Null()]),
 });

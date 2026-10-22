@@ -23,3 +23,8 @@ export { crawlInteractToolDefinition } from "../packages/pi-crawl4ai/src/feature
 
 export { ReadEvidenceSchema, SourceRangeSchema } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
 export type { ReadEvidence } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+
+export type { CrawlExecutionOptions, CrawlExecutionResult, CrawlAcquisitionProgress } from "../packages/pi-crawl4ai/src/features/crawl/crawlCore";
+export { ManifestMetadataSchema } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+export type { ManifestMetadata } from "../packages/pi-crawl4ai/src/features/crawl/evidence";
+export type { CrawlFailureData, CrawlPhase, CrawlErrorCategory } from "../packages/pi-crawl4ai/src/features/crawl/http";

@@ -2,7 +2,7 @@
 import type { Crawl4AIConfig } from "../../config";
 import type { CrawlToolParams } from "./types";
 import { executeCrawl, CrawlValidationError, validateCrawlResponse } from "./crawlCore";
-import { CrawlOperationError, fetchCrawlApi } from "./http";
+import { CrawlOperationError, fetchCrawlApi, translateCrawlFailure } from "./http";
 
 export interface CardExtractionSchema {
   name: string;
@@ -35,10 +35,12 @@ export interface CrawlInteractParams extends AcquisitionOptions {
 
 export class CrawlInteractionError extends Error {
   readonly code = "interaction_unconfirmed";
-  readonly category = "transport_failure";
+  readonly category: string;
+  readonly serverCode?: string;
+  readonly phase?: import("./http").CrawlPhase;
   readonly retryable = false;
   readonly operationOutcome = "unconfirmed";
-  constructor(message: string) { super(message); this.name = "CrawlInteractionError"; }
+  constructor(message: string, failure?: CrawlOperationError) { super(message); this.name = "CrawlInteractionError"; this.category = failure?.category ?? "transport_failure"; this.serverCode = failure?.serverCode; this.phase = failure?.phase; }
 }
 
 export function acquisitionRequest(params: CrawlToolParams & AcquisitionOptions, timeoutMs: number) {
@@ -54,9 +56,11 @@ export function acquisitionRequest(params: CrawlToolParams & AcquisitionOptions,
   };
 }
 
-export async function acquirePages(params: CrawlToolParams & AcquisitionOptions, config: Crawl4AIConfig, signal: AbortSignal): Promise<unknown> {
+export async function acquirePages(params: CrawlToolParams & AcquisitionOptions, config: Crawl4AIConfig, signal: AbortSignal, acquisitionDeadlineAt = Date.now() + Math.min(60000, config.timeout - Math.min(10000, config.timeout * 0.15))): Promise<unknown> {
+  const remaining = Math.floor(acquisitionDeadlineAt - Date.now());
+  if (remaining < 100) throw new CrawlOperationError("timeout", "Acquisition budget exhausted before dispatch");
   return parseResponse(await fetchCrawlApi(config, "/acquire", {
-    method: "POST", body: JSON.stringify(acquisitionRequest(params, config.timeout)),
+    method: "POST", body: JSON.stringify(acquisitionRequest(params, remaining)),
   }, signal));
 }
 
@@ -67,16 +71,23 @@ function parseResponse(raw: string, expectedInteractionUrl?: string): unknown {
   if (!data || typeof data !== "object" || !("results" in data) || !Array.isArray(data.results)) throw new Error("Malformed acquisition response envelope");
   if (expectedInteractionUrl && (data.results.length !== 1 || !data.results[0] || typeof data.results[0] !== "object" || data.results[0].url !== expectedInteractionUrl || typeof data.results[0].success !== "boolean" || (!data.results[0].success && (!data.results[0].error || typeof data.results[0].error.code !== "string" || typeof data.results[0].error.message !== "string")))) throw new CrawlInteractionError("Interaction response does not identify exactly one confirmed requested operation; do not automatically replay");
   for (const result of data.results) {
-    if (result && typeof result === "object" && result.error && typeof result.error.message === "string") result.error_message = result.error.message;
+    if (result && typeof result === "object" && result.error && typeof result.error.message === "string") {
+      const translated = translateCrawlFailure(result.error, result.error.message);
+      result.error = { category: translated.category, code: translated.serverCode ?? translated.code,
+        message: translated.message, retryable: translated.retryable,
+        ...(translated.phase ? { phase: translated.phase } : {}),
+        ...(translated.operationOutcome ? { operationOutcome: translated.operationOutcome } : {}) };
+      result.error_message = translated.message;
+    }
   }
   if (data.results.length && data.results.every(result => result?.success === false)) {
     const first = data.results[0].error;
     const message = data.results.map(result => `${result.url}: ${result.error_message ?? "Acquisition failed"}`).join("; ");
-    if (first?.operationOutcome === "unconfirmed") throw new CrawlInteractionError(message);
-    const category = first?.category;
-    throw new CrawlOperationError(["unsupported_capability", "website_blocked", "transport_failure", "provider_failure"].includes(category) ? category : "provider_failure", message);
+    if (first?.operationOutcome === "unconfirmed") throw new CrawlInteractionError(message, translateCrawlFailure(first, message));
+    throw translateCrawlFailure(first ?? {}, message);
   }
-  return data;
+  // Operator envelopes use all-success; shared crawl core accepts mixed results.
+  return { ...data, success: data.results.some(result => result?.success === true) };
 }
 
 export function validateAcquisitionOptions(params: AcquisitionOptions): void {
@@ -94,7 +105,7 @@ export function validateAcquisitionOptions(params: AcquisitionOptions): void {
   }
 }
 
-export async function executeCrawlInteract(params: CrawlInteractParams, config: Crawl4AIConfig, options: { cwd: string; signal?: AbortSignal }) {
+export async function executeCrawlInteract(params: CrawlInteractParams, config: Crawl4AIConfig, options: import("./crawlCore").CrawlExecutionOptions) {
   validateAcquisitionOptions(params);
   if (!config.raw.capabilities?.interaction) throw new CrawlValidationError("Interaction capability is not configured; enable capabilities.interaction for the compatible operator service");
   if (typeof params.url !== "string") throw new CrawlValidationError("url must be an HTTP(S) URL");
@@ -110,12 +121,12 @@ export async function executeCrawlInteract(params: CrawlInteractParams, config: 
   const { url, actions, scripts, waitForSelector, selector, excludeSelector, extractionSchema, ...delivery } = params;
   return executeCrawl({ ...delivery, urls: [url] }, config, {
     ...options,
-    acquire: async signal => {
+    acquire: async (signal, acquisitionDeadlineAt) => {
       if (signal.aborted) throw signal.reason;
       let raw: string;
       try {
         raw = await fetchCrawlApi(config, "/execute_js", {
-          method: "POST", body: JSON.stringify({ url, actions, scripts, waitFor: waitForSelector, selector, excludeSelector, extractionSchema, timeoutMs: config.timeout }),
+          method: "POST", body: JSON.stringify({ url, actions, scripts, waitFor: waitForSelector, selector, excludeSelector, extractionSchema, timeoutMs: Math.max(100, Math.floor(acquisitionDeadlineAt - Date.now())) }),
         }, signal);
       } catch (error) {
         // A rejected HTTP response establishes failure; transport/disconnect cannot

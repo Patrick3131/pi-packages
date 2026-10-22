@@ -350,3 +350,30 @@ it("recovers late minified matches with revision-bound UTF-16 continuation", () 
     expect(executeCrawlRead(first.details.nextCall as any, { outputRoot: directory }).details.error).toBe("source_revision_changed");
   } finally { require("node:fs").rmSync(directory, { recursive: true, force: true }); }
 });
+
+describe("bounded manifest metadata", () => {
+  beforeEach(cleanup);
+  afterEach(cleanup);
+  it("returns complete typed pages and revision-bound continuation despite capped presentation JSON", () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    const path = resolve(TEST_DIR, "crawl-manifest.json");
+    const pages = Array.from({ length: 25 }, (_, index) => ({ url: `https://example.com/${index}`, file: `${index}.md`, evidence: {
+      acquisitionId: `acquisition-${index}`, views: [{ id: `original_html:hash-${index}`, kind: "original_html", sha256: `hash-${index}`, path: `${index}.raw.html` }],
+    } }));
+    writeFileSync(path, JSON.stringify({ version: 1, pages }));
+    const first = executeCrawlRead({ path, mode: "full", maxChars: 200 }, { outputRoot: TEST_DIR });
+    const metadata = first.details.evidence.manifestMetadata!;
+    expect(Value.Check(ReadEvidenceSchema, first.details.evidence)).toBe(true);
+    expect(first.details.truncated).toBe(true);
+    expect(metadata).toMatchObject({ totalPages: 25, complete: false });
+    expect(metadata.pages).toHaveLength(20);
+    expect(metadata.pages[0]).toMatchObject({ url: pages[0].url, acquisitionId: "acquisition-0", views: [{ id: "original_html:hash-0", sha256: "hash-0", path: resolve(TEST_DIR, "0.raw.html") }] });
+    const next = executeCrawlRead(metadata.nextCall!, { outputRoot: TEST_DIR });
+    const rest = next.details.evidence.manifestMetadata!;
+    expect(rest).toMatchObject({ totalPages: 25, complete: true, nextCall: null });
+    expect(rest.pages).toHaveLength(5);
+    expect(rest.pages[0].url).toBe(pages[20].url);
+    writeFileSync(path, JSON.stringify({ version: 1, pages: pages.slice(1) }));
+    expect(executeCrawlRead(metadata.nextCall!, { outputRoot: TEST_DIR }).details.error).toBe("source_revision_changed");
+  });
+});

@@ -22,6 +22,7 @@ export const crawlReadToolDefinition = {
       "Use mode=window or mode=full only when you need exact text; full is hard-capped by maxChars.",
     ],
     parameters: Type.Object({
+      manifestOffset: Type.Optional(Type.Integer({ minimum: 0, description: "Page offset from manifestMetadata.nextCall; read typed metadata instead of parsing presentation text" })),
       charOffset: Type.Optional(Type.Integer({ minimum: 0, description: "UTF-16 character offset; use the exact nextCall returned by a previous read" })),
       revision: Type.Optional(Type.String({ description: "Required artifact SHA-256 for continuation" })),
       viewId: Type.Optional(Type.String({ description: "Exact view identity returned by a previous read" })),

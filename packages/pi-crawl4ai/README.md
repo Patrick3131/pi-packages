@@ -345,3 +345,41 @@ The baseline PDF refusal (`unsupported_document`) means the configured document 
 ## License
 
 MIT
+
+### Harness deadline and checkpoint contract
+
+Research hosts set `config.timeout=70000`, `acquisitionTimeoutMs=60000` and an
+absolute `deadlineAt` at tool start plus 75000ms. The client finishes within the
+smaller of its configured timeout and that outer deadline. Smaller existing
+client timeouts retain proportional response headroom. `acquisitionTimeoutMs`
+must be positive and strictly smaller than `config.timeout`; every HTTP request
+receives only the remaining service work budget. Queueing, probes, sequential
+chunks and derivation never renew this clock. No POST or uncertain interaction
+is automatically retried.
+
+Non-deep acquisitions dispatch three URLs at a time. The awaited
+`onCheckpoint(result, signal)` callback receives complete finalized files and
+immutable evidence for each chunk before the next dispatch. A host can commit
+assignment-bound source references there; it must check the supplied signal
+immediately before durable writes. Caller cancellation stops callbacks and new
+dispatch; already committed references remain available through the normal
+reader. A later failure returns earlier chunks with `details.partial=true` and
+`details.acquisition` containing attempted URLs, unattempted URLs and a bounded
+classified failure. `manifestPaths` lists all chunk manifests; the singular
+`manifestPath`/`savedPath` identify the first chunk. Configure retention to retain
+all sources required by the owning assignment.
+
+Errors expose canonical `code`/`category`, `serverCode`, `retryable` and an observed
+`phase` when supplied by the service. Phases are probe, queue, navigation,
+readiness, action, derivation and response; absent means unknown. A timeout alone
+does not establish blocking. Unconfirmed interactions retain
+`operationOutcome=unconfirmed` and `retryable=false`.
+
+Manifest reads return `details.manifestMetadata` (also in structured read
+evidence): complete typed page/view references, acquisition IDs, view hashes,
+manifest revision, total count, completeness and an exact revision-bound
+`nextCall`. Metadata contains at most 20 pages and 32000 bytes per read; it is
+independent of capped presentation text. Follow `manifestOffset` continuation
+instead of parsing `mode=full` text as JSON. Legacy manifests can lack evidence
+identities; missing identities are never invented. Page bodies continue through
+the existing immutable progressive reader.

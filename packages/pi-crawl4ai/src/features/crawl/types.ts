@@ -126,7 +126,7 @@ export interface CrawlResult {
   };
   extraction_error?: { category: string; code: string; message: string; retryable?: boolean };
   /** Server-owned per-item diagnostics from capability routes. */
-  error?: { category: string; code: string; message: string; retryable: boolean; operationOutcome?: string };
+  error?: { category: string; code: string; message: string; retryable: boolean; phase?: import("./http").CrawlPhase; operationOutcome?: string };
   /** Error message if crawl failed */
   error_message?: string;
   /** HTTP status code */

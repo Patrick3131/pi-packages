@@ -41,6 +41,8 @@ export function restoreFetch(): void {
  * Clean up environment variables before each test
  */
 export function resetEnv(): void {
+  delete process.env.CRAWL4AI_ACQUISITION_ENABLED;
+  delete process.env.CRAWL4AI_INTERACTION_ENABLED;
   // Core config
   delete process.env.CRAWL4AI_BASE_URL;
   delete process.env.CRAWL4AI_TIMEOUT;
