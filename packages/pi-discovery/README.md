@@ -18,7 +18,7 @@ loadouts own their selection. Later /tools changes remain authoritative.
 | Configuration | Default |
 | --- | --- |
 | DISCOVERY_BASE_URL | http://10.8.0.1:18080 |
-| DISCOVERY_WEB_ANSWER_TIMEOUT_MS | 90000 |
+| DISCOVERY_WEB_ANSWER_TIMEOUT_MS | 310000 |
 | SEARXNG_URL | http://10.8.0.1:18089 |
 | SEARXNG_ENGINES | brave,duckduckgo |
 
@@ -30,7 +30,10 @@ are removed; update callers to DISCOVERY_WEB_SEARCH_ENABLED.
 ## Model tool
 
 web_answer accepts query (trimmed 1–8000 chars), instructions (max 4000),
-max_sources (integer 1–20, default 5), timeout_ms (5000–120000, default 60000).
+max_sources (integer 1–20, default 5), timeout_ms (5000–300000, default 180000).
+The total server budget includes queue time; the service defaults to two running
+requests and 32 waiting, with each Codex turn capped at 60 seconds. The default
+HTTP deadline covers even the maximum five-minute server budget.
 The HTTP deadline must be at least 5000 ms longer than the server deadline.
 Cancellation/deadline cover fetch and response body. Calls use redirect:error.
 The configured discovery URL is an http(s) origin, without credentials/path/query.

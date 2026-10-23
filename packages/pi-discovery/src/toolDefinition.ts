@@ -69,7 +69,7 @@ export const webAnswerToolDefinition = {
         Type.Integer({ minimum: 1, maximum: 20, default: 5 }),
       ),
       timeout_ms: Type.Optional(
-        Type.Integer({ minimum: 5000, maximum: 120000, default: 60000 }),
+        Type.Integer({ minimum: 5000, maximum: 300000, default: 180000 }),
       ),
     },
     { additionalProperties: false },

@@ -33,3 +33,7 @@ npm run typecheck --workspace=packages/pi-discovery
 Environment reads belong in src/config.ts. Default-off uses native ToolDefinition.defaultActive;
 project/preset/loadout ownership stays with Pi/toolkit. Answer validates wire data,
 keeps search evidence distinct from citations and never retries. Auth is server-owned.
+
+Keep the default HTTP timeout above the maximum exposed server budget. Queue
+waiting belongs to the total request deadline; execution is separately bounded
+by the service. Do not add client retries or admission predictions.

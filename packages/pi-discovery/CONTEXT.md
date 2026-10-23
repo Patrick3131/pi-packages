@@ -23,3 +23,8 @@ Live instance: Dokploy `Tools` / `discovery-services`, JSON on
 Environment reads belong in src/config.ts. Default-off uses native ToolDefinition.defaultActive;
 project/preset/loadout ownership stays with Pi/toolkit. Answer validates wire data,
 keeps search evidence distinct from citations and never retries. Auth is server-owned.
+
+Web answers default to a 180-second total server budget (up to 300 seconds)
+and a 310-second HTTP timeout. Server admission allows two running and 32 waiting
+requests; individual Codex turns remain capped at 60 seconds. Explicit HTTP
+timeout overrides must still exceed the requested server budget by five seconds.

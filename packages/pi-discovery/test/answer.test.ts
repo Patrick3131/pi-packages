@@ -43,7 +43,7 @@ test("A: request and production-shaped response; strict validation before quota"
           query: "Python",
           instructions: "briefly",
           max_sources: 2,
-          timeout_ms: 60000,
+          timeout_ms: 180000,
         });
         assert.equal(new Headers(init?.headers).has("authorization"), false);
         assert.ok(init?.signal);
@@ -51,6 +51,7 @@ test("A: request and production-shaped response; strict validation before quota"
       },
     },
   );
+  assert.equal(resolveDiscoveryConfig({}).timeoutMs, 310000);
   assert.equal(calls, 1);
   assert.equal(result.source_type, "search_results");
   assert.deepEqual(result.searches[0].queries, ["Python"]);
@@ -60,6 +61,7 @@ test("A: request and production-shaped response; strict validation before quota"
     { query: "x", max_sources: 1.2 },
     { query: "x", max_sources: 21 },
     { query: "x", timeout_ms: 4999 },
+    { query: "x", timeout_ms: 300001 },
     { query: "x", instructions: "x".repeat(4001) },
     { query: "x", context_size: "high" },
   ])
@@ -317,4 +319,20 @@ test("E: source evidence and rendering never mine answer prose", async () => {
   );
   assert.match(empty.text, /no_sources/);
   assert.match(empty.text, /No search results/);
+});
+
+test("maximum server budget fits the default HTTP deadline", async () => {
+  let observed = false;
+  await askWeb(
+    { query: "x", timeout_ms: 300000 },
+    {
+      env: {},
+      fetch: async (url, init) => {
+        observed = true;
+        assert.equal(JSON.parse(String(init?.body)).timeout_ms, 300000);
+        return fake(payload())(url, init);
+      },
+    },
+  );
+  assert.equal(observed, true);
 });

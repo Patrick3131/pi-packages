@@ -23,7 +23,7 @@ export function requestBody(
         ? params.instructions.trim()
         : null;
   const max_sources = params.max_sources === undefined ? 5 : params.max_sources,
-    timeout_ms = params.timeout_ms === undefined ? 60000 : params.timeout_ms;
+    timeout_ms = params.timeout_ms === undefined ? 180000 : params.timeout_ms;
   if (
     !query ||
     [...query].length > 8000 ||
@@ -34,7 +34,7 @@ export function requestBody(
     max_sources > 20 ||
     !integer(timeout_ms) ||
     timeout_ms < 5000 ||
-    timeout_ms > 120000
+    timeout_ms > 300000
   )
     throw new WebAnswerClientError("invalid_request");
   return {

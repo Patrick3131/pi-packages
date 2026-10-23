@@ -71,7 +71,7 @@ export function resolveDiscoveryConfig(env: NodeJS.ProcessEnv = process.env): {
     throw new WebAnswerClientError("invalid_request");
   const timeoutMs =
     env.DISCOVERY_WEB_ANSWER_TIMEOUT_MS === undefined
-      ? 90000
+      ? 310000
       : Number(env.DISCOVERY_WEB_ANSWER_TIMEOUT_MS);
   if (
     !Number.isSafeInteger(timeoutMs) ||
