@@ -58,7 +58,7 @@ export const webAnswerToolDefinition = {
   promptGuidelines: [
     "Use web_search_searxng to enumerate URLs and web_answer for research synthesis.",
     "Search results are evidence candidates, not annotated citations. Assess relevance; use crawl to verify pages before citing unsupported claims.",
-    "Answer prose URLs absent from the returned results are not verified evidence. Pay attention to gaps and empty results.",
+    "The retrieved list is capped and does not establish which links support the answer. Preserve inline links; assess their claims and pay attention to gaps.",
     "Avoid parallel bursts: each answer consumes shared account quota.",
   ],
   parameters: Type.Object(
@@ -66,7 +66,7 @@ export const webAnswerToolDefinition = {
       query: Type.String({ minLength: 1, maxLength: 8000 }),
       instructions: Type.Optional(Type.String({ maxLength: 4000 })),
       max_sources: Type.Optional(
-        Type.Integer({ minimum: 1, maximum: 20, default: 10 }),
+        Type.Integer({ minimum: 1, maximum: 20, default: 5 }),
       ),
       timeout_ms: Type.Optional(
         Type.Integer({ minimum: 5000, maximum: 120000, default: 60000 }),

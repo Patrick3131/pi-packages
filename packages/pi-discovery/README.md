@@ -30,7 +30,7 @@ are removed; update callers to DISCOVERY_WEB_SEARCH_ENABLED.
 ## Model tool
 
 web_answer accepts query (trimmed 1–8000 chars), instructions (max 4000),
-max_sources (integer 1–20, default 10), timeout_ms (5000–120000, default 60000).
+max_sources (integer 1–20, default 5), timeout_ms (5000–120000, default 60000).
 The HTTP deadline must be at least 5000 ms longer than the server deadline.
 Cancellation/deadline cover fetch and response body. Calls use redirect:error.
 The configured discovery URL is an http(s) origin, without credentials/path/query.
@@ -69,3 +69,11 @@ DISCOVERY_LIVE=1 npm test --workspace=packages/pi-discovery
 Default tests never call the network. Explicit live mode fails on unreachable
 services. Package replaces pi-searxng directly; no backward compatibility layer.
 Search implementation retains MIT attribution to pi-searxng-search.
+
+The answer keeps its inline links. The extra list is labeled retrieved results,
+may include uncited pages, and defaults to five entries (explicit max_sources up
+to 20 still works). Absence from this capped list says nothing about whether an
+inline link supports a claim. results_truncated describes list clipping only.
+Model-facing text and TUI include observed web-action count and server total
+time; actions can include search, open and find. Queries, token usage, detailed
+timings and client wall time remain available in details without cost estimates.

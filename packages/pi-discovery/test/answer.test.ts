@@ -283,10 +283,28 @@ test("E: source evidence and rendering never mine answer prose", async () => {
   assert.deepEqual(rendered.details.sources, result.sources);
   assert.equal(rendered.details.latencyMs, 23);
   assert.equal(rendered.details.answerChars, result.answer.length);
-  assert.doesNotMatch(rendered.text.split("Search results:")[1], /invented/);
+  assert.ok(rendered.text.startsWith(result.answer));
+  assert.match(rendered.text, /Web activity: 1 recorded action · 0.0 s server/);
+  const clipped = formatWebAnswer(
+    {
+      ...result,
+      answer: "Inline [source](https://outside-cap.example/)",
+      gaps: ["results_truncated"],
+    },
+    23,
+  );
+  assert.ok(
+    clipped.text.startsWith("Inline [source](https://outside-cap.example/)"),
+  );
+  assert.match(clipped.text, /results_truncated/);
+  assert.equal(clipped.details.usage, undefined);
+  assert.doesNotMatch(
+    rendered.text.split("Retrieved results—may include uncited pages:")[1],
+    /invented/,
+  );
   assert.equal(
     (await askWeb({ query: "x" }, { fetch: fake(data) })).sources.length,
-    10,
+    5,
   );
   assert.equal(
     (await askWeb({ query: "x", max_sources: 20 }, { fetch: fake(data) }))

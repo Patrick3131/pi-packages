@@ -111,6 +111,13 @@ export async function askWeb(
   }
 }
 
+export function webActivitySummary(
+  result: Pick<WebAnswerResult, "searches" | "timings">,
+): string {
+  const count = result.searches.length;
+  return `Web activity: ${count} recorded action${count === 1 ? "" : "s"} · ${(result.timings.total_ms / 1000).toFixed(1)} s server`;
+}
+
 export function formatWebAnswer(
   result: WebAnswerResult,
   latencyMs: number,
@@ -119,9 +126,14 @@ export function formatWebAnswer(
   const lines = [
     answer,
     "",
-    "Search results:",
+    webActivitySummary(result),
+    "",
+    "Retrieved results—may include uncited pages:",
     ...(result.sources.length
-      ? result.sources.map((s, i) => `${i + 1}. ${s.title ?? s.url} — ${s.url}`)
+      ? result.sources.map(
+          (s, i) =>
+            `${i + 1}. ${s.title && s.title !== s.url ? s.title + " — " : ""}${s.url}`,
+        )
       : ["No search results returned."]),
   ];
   if (result.gaps.length) lines.push("", "Gaps: " + result.gaps.join(", "));

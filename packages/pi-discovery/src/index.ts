@@ -2,7 +2,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { isSearxngEnabledByEnv, isWebAnswerEnabledByEnv } from "./config.js";
 import { searchSearxng } from "./search.js";
-import { askWeb, formatWebAnswer, WebAnswerClientError } from "./answer.js";
+import {
+  askWeb,
+  formatWebAnswer,
+  webActivitySummary,
+  WebAnswerClientError,
+} from "./answer.js";
 import {
   searxngToolDefinition,
   webAnswerToolDefinition,
@@ -98,10 +103,13 @@ export default function discovery(pi: ExtensionAPI): void {
         sources?: Array<{ url: string; title?: string }>;
         gaps?: string[];
         model?: string;
+        searches: import("./answer-types.js").WebAnswerResult["searches"];
+        timings: import("./answer-types.js").WebAnswerResult["timings"];
       };
       const lines = [
         `Web answer · ${d.model ?? "unknown model"} · ${d.sources?.length ?? 0} search results`,
       ];
+      lines.push(webActivitySummary(d));
       if (expanded)
         for (const source of d.sources ?? [])
           lines.push(`${source.title ?? source.url} — ${source.url}`);

@@ -22,8 +22,7 @@ export function requestBody(
       : typeof params.instructions === "string"
         ? params.instructions.trim()
         : null;
-  const max_sources =
-      params.max_sources === undefined ? 10 : params.max_sources,
+  const max_sources = params.max_sources === undefined ? 5 : params.max_sources,
     timeout_ms = params.timeout_ms === undefined ? 60000 : params.timeout_ms;
   if (
     !query ||
