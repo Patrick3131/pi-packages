@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-23
 canonical_ref: 1-2026-10-23-feature-pi-discovery-package.md
@@ -103,4 +103,11 @@ Local implementation evidence (2026-10-23): clean npm ci, root typecheck/test/
 build/build:research passed. New client/real Pi lifecycle tests pass, live
 production Luna + SearXNG check passed. Built research imports without host
 dependencies; pack inspection contains the new extension, no old package.
-Release 0.1.7, consumer pin and local/remote activation remain pending.
+Release 0.1.7, consumer pin and local/remote activation completed; evidence below.
+
+## Completion evidence — 2026-10-23
+
+Released 0.1.7 from a3d0230; release CI, local checks, consumer checks and both
+installed-session tool calls passed. Local global and melon-remote use the new
+package. Melon Labs pin update is local commit 3c512a797; no application deployment.
+See [full acceptance and operational caveats](1-2026-10-23-feature-pi-discovery-package.md#completion-evidence--2026-10-23).

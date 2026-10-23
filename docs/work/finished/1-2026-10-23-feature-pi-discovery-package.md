@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-23
 canonical_ref: none
@@ -11,8 +11,8 @@ canonical_ref: none
 
 Replace `pi-searxng` with `pi-discovery` and add
 `web_answer` for the deployed discovery-services API. Export its harness-neutral
-client and schema from `@patrick3131/pi-packages/research`. This is an
-implementation plan; implementation is in progress.
+client and schema from `@patrick3131/pi-packages/research`. This is a
+completed implementation; release and both installed targets are verified.
 
 ## Verified baseline — 2026-10-23
 
@@ -313,4 +313,48 @@ Local implementation evidence (2026-10-23): clean npm ci, root typecheck/test/
 build/build:research passed. New client/real Pi lifecycle tests pass, live
 production Luna + SearXNG check passed. Built research imports without host
 dependencies; pack inspection contains the new extension, no old package.
-Release 0.1.7, consumer pin and local/remote activation remain pending.
+Release 0.1.7, consumer pin and local/remote activation completed; evidence below.
+
+## Completion evidence — 2026-10-23
+
+- Implemented and published source `a3d0230f4ee1331bfacb14a5670d0ae69eeb7b0a`,
+  tag `v0.1.7`, registry `@patrick3131/pi-packages@0.1.7`.
+  [Release CI](https://github.com/Patrick3131/pi-packages/actions/runs/39972278634)
+  passed build/test/typecheck/pack/publish/public-registry verification.
+- Published integrity: `sha512-iwak41BI/pbTZI61BjLqro5lufl6VwbmEb/Cs7wOmVcGBIa2WZAIdydSHSH0o+2vRf1zbVL/5k77zwHjxWZxDA==`.
+- Clean npm ci and root typecheck/test/build/build:research passed locally.
+  Final discovery suite: 18 passed, 1 explicit-live check skipped; opt-in live
+  check separately passed production Luna + SearXNG. Real SDK lifecycle coverage
+  includes default/env/project, CLI, preset/history, child and later tool selection.
+  CI repeats the final suite. Existing crawler tests: 232 pass, 3 live skips.
+- Research bundle imports successfully from a temporary directory without host
+  dependencies. Registry pack includes pi-discovery and no old pi-searxng package;
+  lockfile/filesystem checks confirm deletion. New answer errors, descriptor and
+  client import successfully in the installed Melon Labs registry consumer.
+- Melon Labs dependency/lockfile update is local commit `3c512a797` on production,
+  exact registry 0.1.7/integrity match. Agent typecheck/build and all 66 tests pass.
+  Existing adapters need no changes for the selected final export names. No
+  Melon Labs application deployment or push of concurrent work was performed.
+- Local global Pi moved from e3acaea to a3d0230; melon-remote moved from ed5ee17
+  to a3d0230. Both use 0.1.7. Narrow pi-sync check/apply passed for both; settings
+  migration reported no changes, because neither target referenced the old path.
+  Remote apply reached terminal success with completion marker; task removed.
+- Fresh sessions loaded each actual installed package using the installed Pi 1.4
+  SDK and target-local global settings. Tests opted both tools in and invoked them
+  through the native nested-tool pipeline with synthetic assistant call context;
+  no model-generation request or persistent user transcript was created. Both tools
+  were registered and off by default. Existing interactive sessions can /reload.
+- Local global calls: Luna 3 sources in 4,902 ms; SearXNG 3 results.
+  Melon-remote calls: Luna 3 sources in 7,592 ms; SearXNG 3 results. The final
+  remote check reached terminal success/completion marker and removed its task.
+- Probe development initially lacked native assistant context, then used an
+  unsupported appendMessage helper in Pi 1.4. Corrected to supported mutable
+  message state. These failed probes are not acceptance passes. A remote probe
+  completed its calls but retained background timers; only its verified task-owned
+  Node PID was terminated, its terminal failed task removed, and the corrected
+  disposal/exit probe rerun to terminal success. No task process left running.
+- Existing remote pi-better-edit reports a malformed SQLite hash-store database
+  during startup. It did not prevent discovery checks; no third-party data repair
+  or unrelated settings/credential changes were made.
+- Runtime implementation/release/install revision remains a3d0230. This closeout
+  changes documentation only; no additional runtime release or sync is required.

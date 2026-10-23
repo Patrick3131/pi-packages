@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 owner: engineering
 last_reviewed: 2026-10-23
 canonical_ref: 1-2026-10-23-feature-pi-discovery-package.md
@@ -70,32 +70,32 @@ stage, compatibility shim or legacy aliases. Keep the final tree buildable.
 
 ## 5. Release and live acceptance
 
-- [ ] One explicit DISCOVERY_LIVE=1 check against production plus direct SearXNG
+- [x] One explicit DISCOVERY_LIVE=1 check against production plus direct SearXNG
       smoke; explicit live mode fails on unreachable service, no silent skip.
-- [ ] Choose a new exact root registry patch version; commit/push and use existing
+- [x] Choose a new exact root registry patch version; commit/push and use existing
       tagged release CI. Record source/version/workflow and artifact integrity.
-- [ ] Smoke the installed registry artifact for exports and extension paths;
+- [x] Smoke the installed registry artifact for exports and extension paths;
       reload a test Pi session and call each tool once with project opt-in.
-- [ ] Following Melon Labs' repository instructions, bump apps/agents from registry
+- [x] Following Melon Labs' repository instructions, bump apps/agents from registry
       0.1.6 to the newly published exact version, update its lockfile and adapt
       affected imports/config/tool adapters to the new contract; run affected
       checks/build. No requirement to preserve the previous adapter contract.
 ## 6. Update local global Pi and melon-remote
 
-- [ ] Inspect the local global Pi and configured melon-remote Pi/Paseo install;
+- [x] Inspect the local global Pi and configured melon-remote Pi/Paseo install;
       record their current source revision and discovery extension/config references.
-- [ ] Update any discovery-related package filters, removed extension paths and
+- [x] Update any discovery-related package filters, removed extension paths and
       enablement keys to the new package. Extend the existing narrow pi-sync
       migration only where required; no compatibility aliases or cache edits.
-- [ ] Run `./scripts/pi-sync --toolkit-only --check`, inspect both target previews,
+- [x] Run `./scripts/pi-sync --toolkit-only --check`, inspect both target previews,
       then `./scripts/pi-sync --toolkit-only --apply` for the published source.
       Verify both installed revisions; do not use --local-only or full restore.
-- [ ] For melon-remote, verify the temporary Dokploy task reaches terminal success
+- [x] For melon-remote, verify the temporary Dokploy task reaches terminal success
       with completion logs; no SSH/sudo or workspace scan. Preserve unrelated
       settings, credentials, models, MCP configuration and sessions on both targets.
-- [ ] Reload/start fresh on local global Pi and melon-remote; confirm pi-discovery
+- [x] Reload/start fresh on local global Pi and melon-remote; confirm pi-discovery
       loads and the removed pi-searxng extension is no longer referenced.
-- [ ] With both tools enabled in a test session on each target, run one web_answer
+- [x] With both tools enabled in a test session on each target, run one web_answer
       and one web_search_searxng call. Record installed revision, loaded tool names,
       network reachability and successful results separately for local and remote.
 
@@ -104,7 +104,7 @@ publication or a successful sync command alone is insufficient.
 
 ## 7. Closeout
 
-- [ ] Record verification, promote durable package docs, move these three files to
+- [x] Record verification, promote durable package docs, move these three files to
       docs/work/finished only after implementation/release acceptance is complete.
 
 ## Recovery
@@ -121,4 +121,11 @@ Local implementation evidence (2026-10-23): clean npm ci, root typecheck/test/
 build/build:research passed. New client/real Pi lifecycle tests pass, live
 production Luna + SearXNG check passed. Built research imports without host
 dependencies; pack inspection contains the new extension, no old package.
-Release 0.1.7, consumer pin and local/remote activation remain pending.
+Release 0.1.7, consumer pin and local/remote activation completed; evidence below.
+
+## Completion evidence — 2026-10-23
+
+Released 0.1.7 from a3d0230; release CI, local checks, consumer checks and both
+installed-session tool calls passed. Local global and melon-remote use the new
+package. Melon Labs pin update is local commit 3c512a797; no application deployment.
+See [full acceptance and operational caveats](1-2026-10-23-feature-pi-discovery-package.md#completion-evidence--2026-10-23).
