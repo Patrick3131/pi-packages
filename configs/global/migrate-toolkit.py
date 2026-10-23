@@ -17,6 +17,7 @@ def mapped(value):
     raw = value
     value = value.replace("\\", "/")
     original = value
+    value = value.replace("packages/pi-searxng", "packages/pi-discovery")
     for old, feature in FEATURES.items():
         prefix = "packages/" + old
         if prefix in value:

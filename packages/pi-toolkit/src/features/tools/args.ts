@@ -106,3 +106,8 @@ export function getToolsArgumentCompletions(
 		description: firstLine(tool.description) || undefined,
 	}));
 }
+
+/** CLI tool selection owns the initial loadout, ahead of project defaults. */
+export function cliOwnsTools(argv: readonly string[]): boolean {
+	return argv.some(arg => arg === "--tools" || arg.startsWith("--tools=") || arg === "--exclude-tools" || arg.startsWith("--exclude-tools=") || arg === "--no-tools" || arg.startsWith("--no-tools="));
+}

@@ -46,3 +46,6 @@ canonical_for: pi-tools package conventions
 npm test --workspace=packages/pi-toolkit
 npm run typecheck --workspace=packages/pi-toolkit
 ```
+
+Explicit CLI --tools/--exclude-tools/--no-tools selection owns startup ahead of
+project defaults. Discovery uses native defaultActive; no lifecycle filter.

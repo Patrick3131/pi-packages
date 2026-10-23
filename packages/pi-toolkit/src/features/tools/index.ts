@@ -15,7 +15,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo 
 import { CONFIG_DIR_NAME, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Box, Container, type SettingItem, SettingsList, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
-import { getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
+import { cliOwnsTools, getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import {
 	formatToolDetails,
 	formatToolSummary,
@@ -351,7 +351,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		refreshCatalog();
-		if (!sessionOwnsProjectPreferences(ctx) || presetOwnsTools(ctx)) {
+		if (cliOwnsTools(process.argv.slice(2)) || !sessionOwnsProjectPreferences(ctx) || presetOwnsTools(ctx)) {
 			return;
 		}
 		// Resume, fork, and reload re-declare their own loadout; only a session

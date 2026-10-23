@@ -80,3 +80,6 @@ pi install git:github.com/Patrick3131/pi-packages
 ```
 
 Do **not** also keep `~/.pi/agent/extensions/tools.ts`.
+
+Explicit CLI --tools/--exclude-tools/--no-tools selection owns startup ahead of
+project defaults. Discovery uses native defaultActive; no lifecycle filter.

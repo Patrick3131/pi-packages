@@ -1,6 +1,6 @@
 {
   "name": "@patrick3131/pi-packages",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Monorepo for Pi extensions",
   "workspaces": [
     "packages/*"
@@ -23,7 +23,7 @@
       "packages/pi-crawl4ai/src/index.ts",
       "packages/pi-delegation/src/index.ts",
       "packages/pi-toolkit/src/features/presets/index.ts",
-      "packages/pi-searxng/src/index.ts",
+      "packages/pi-discovery/src/index.ts",
       "packages/pi-toolkit/src/features/tools/index.ts",
       "packages/pi-toolkit/src/features/skill-mentions/index.ts",
       "packages/pi-toolkit/src/features/overview/index.ts",

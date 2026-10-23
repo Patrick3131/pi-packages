@@ -36,7 +36,7 @@ pi-packages/
 │   │   ├── src/features/     # Four separate extension entry points
 │   │   └── package.json
 │   │
-│   ├── pi-searxng/           # SearXNG web_search_searxng
+│   ├── pi-discovery/         # SearXNG search and Luna web_answer
 │   │   ├── src/
 │   │   └── package.json
 │   │

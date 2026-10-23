@@ -11,7 +11,7 @@ A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed 
 | [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate | Git package |
 | [pi-toolkit](./packages/pi-toolkit) | Everyday utilities: `/tools`, `/preset`, `$skill-name` mentions, and My Pi HTML `/overview` | Git package |
 | [pi-recap](./packages/pi-recap) | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`) | Git package |
-| [pi-searxng](./packages/pi-searxng) | Self-hosted SearXNG as `web_search_searxng` | Git package |
+| [pi-discovery](./packages/pi-discovery) | SearXNG search and Luna `web_answer` | Git package |
 | [paseo-melon](./paseo-melon) | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees | Paseo plugin |
 
 ## Installation

@@ -132,7 +132,7 @@ new syncing are needed. The package provides:
 - `packages/pi-work` — three shared operator skills and `/work`
 
 - `packages/pi-toolkit` — `/preset`, `/tools`, `$` skill mentions, and My Pi HTML `/overview`; independently filterable feature entry points
-- `packages/pi-searxng` — `web_search_searxng` (off by default)
+- `packages/pi-discovery` — `web_search_searxng` and `web_answer` (off by default)
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read` and capability-gated `crawl_interact`
 - Toolkit feature paths are `packages/pi-toolkit/src/features/{presets,tools,skill-mentions,overview}/index.ts`.
 - `packages/pi-delegation` — standing delegation policy, appended to the
@@ -286,3 +286,8 @@ the obsolete `minimal-mode.ts` tool overrides.
 1. Restart Pi or `/reload`
 2. `/login opencode-go` if credentials are missing
 3. `/preset` and `/tools` should exist
+
+Discovery package updates use the same narrow pi-sync path. It rewrites old
+packages/pi-searxng selectors/extension references to packages/pi-discovery,
+without changing unrelated settings. Reload both local/global and melon-remote
+Pi sessions and verify both tools after sync; publication is a separate gate.

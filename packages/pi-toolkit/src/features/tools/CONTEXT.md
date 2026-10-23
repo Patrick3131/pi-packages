@@ -62,3 +62,6 @@ stay reachable and whether `hidden` ones stay inert. `/tools print` labels every
 registered tool from Pi's metadata for diagnosis, and toggles are read back from
 `getActiveTools()`. Names saved in the file but not registered in this session are
 listed separately as unavailable.
+
+Explicit CLI --tools/--exclude-tools/--no-tools selection owns startup ahead of
+project defaults. Discovery uses native defaultActive; no lifecycle filter.
