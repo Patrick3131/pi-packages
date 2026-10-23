@@ -49,7 +49,6 @@ export interface DeepCrawlConfig {
 export interface CrawlToolParams extends AcquisitionOptions {
   bm25Query?: string;
   bm25Threshold?: number;
-  extractor?: "trafilatura";
   includeLinks?: boolean;
   /** URLs to crawl (single or multiple) */
   urls: string[];

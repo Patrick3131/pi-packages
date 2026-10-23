@@ -12,7 +12,7 @@ export const crawlReadToolDefinition = {
       "The path may be an exact page path, crawl-manifest.json, session directory, or page URL; " +
       "use url with a manifest/session path to resolve a page. " +
       "Modes: outline (default), chunks (optional query), window (line range), full (hard-capped). " +
-      "Prefer this over raw read for files under output-crawl4ai.",
+      "Optionally use extractor=trafilatura for an article view of retained HTML; originals remain available.",
     promptSnippet:
       "Read saved crawl pages or resolve a page URL through crawl-manifest.json via outline/chunks/window/full.",
     promptGuidelines: [
@@ -22,6 +22,9 @@ export const crawlReadToolDefinition = {
       "Use mode=window or mode=full only when you need exact text; full is hard-capped by maxChars.",
     ],
     parameters: Type.Object({
+      extractor: Type.Optional(Type.Literal("trafilatura", { description: "Extract an article from saved original HTML without refetching; may omit rosters and contact links" })),
+      format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("text")], { description: "Article format; default markdown" })),
+      includeLinks: Type.Optional(Type.Boolean({ description: "Keep link targets in the optional article view" })),
       manifestOffset: Type.Optional(Type.Integer({ minimum: 0, description: "Page offset from manifestMetadata.nextCall; read typed metadata instead of parsing presentation text" })),
       charOffset: Type.Optional(Type.Integer({ minimum: 0, description: "UTF-16 character offset; use the exact nextCall returned by a previous read" })),
       revision: Type.Optional(Type.String({ description: "Required artifact SHA-256 for continuation" })),

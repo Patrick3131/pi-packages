@@ -16,10 +16,10 @@ The configured remote Crawl4AI browser/API service owns URL fetching, rendering 
 crawl → validation/deadline → pacing → POST /crawl (ordinary/deep)
                                       or /acquire (configured non-deep)
 crawl_interact → configured /execute_js → isolated pre/post snapshots
-  → validate/normalize response → preserved original HTML/Markdown + optional article view
+  → validate/normalize response → preserved original HTML/Markdown
   → optional shared BM25 → complete save → compact paths/manifest or bounded inline
                                       ↓
-                         crawl_read exact path / URL lookup
+                         crawl_read exact path / URL lookup + optional retained-HTML article view
 ```
 
 `src/index.ts` registers typed `crawl` / `crawl_read`, capability-gated `crawl_interact`, and on-demand status/session/cleanup commands. Registration performs no network/subprocess probes and does not alter the active tool set. `/tools`, presets and explicit CLI/child allowlists own activation. No persistent UI, automatic delegation, local browser or hidden model/provider calls. Selector/schema extraction is provided by the configured remote capability.
@@ -41,11 +41,11 @@ Deep support is deployment-specific. The operator-managed discovery-services ada
 `saveOutput.ts` allocates unique sessions and bounded full-URL-hashed filenames, writes bodies/sidecars first and publishes the manifest atomically last. `pages[].file` stays the primary output. Optional feature metadata:
 
 - `sourceFile`: pre-BM25 Markdown/text; `filter`: query, threshold and matched/total counts.
-- `rawHtmlFile`: rendered HTML saved before Trafilatura; `extractor`: name/includeLinks.
+- `rawHtmlFile`: preserved rendered HTML, available for optional read-time article extraction. Legacy extractor metadata remains readable.
 
-Manifests record crawl provenance additively: `request` holds the effective values (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved strategy/depth/maxPages plus filters, optional `bm25`, optional `extractor`); `service.baseUrl` is written with URL userinfo stripped; failed `pages[]` entries keep a redacted `error`. `jsCode` source and configured tokens never reach disk, and the legacy top-level `deepCrawl` field remains for existing readers.
+Manifests record crawl provenance additively: `request` holds the effective values (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved strategy/depth/maxPages plus filters, optional `bm25`); `service.baseUrl` is written with URL userinfo stripped; failed `pages[]` entries keep a redacted `error`. `jsCode` source and configured tokens never reach disk, and the legacy top-level `deepCrawl` field remains for existing readers.
 
-For Trafilatura+BM25, sourceFile is extracted pre-filter content, not a second original Markdown archive; rawHtmlFile is the original recovery source. Extraction errors report that exact HTML path even before manifest publication. Saved acquisitions retain available original HTML and original service Markdown independently of requested output. URL resolution requires `pages[]` records; directories require a manifest rather than selecting an arbitrary Markdown file. Safe exact-page reads need neither a manifest nor a timestamp.
+Crawl-time BM25 preserves its unfiltered sourceFile. Trafilatura runs only after acquisition through crawl_read, adding a lossy article view to the existing manifest. Its failures report the retained HTML path without invalidating the manifest or other acquired pages. Saved acquisitions retain available original HTML and original service Markdown independently of requested output. URL resolution requires `pages[]` records; directories require a manifest rather than selecting an arbitrary Markdown file. Safe exact-page reads need neither a manifest nor a timestamp.
 
 Outlines/meta and paths remain session-relative in manifests. Generated/manifest paths reject traversal/symlink escape; this is not a whole-tool filesystem sandbox. Relative output/read paths use ctx.cwd. Exact printed page paths work directly; outline-first is optional.
 
@@ -59,7 +59,7 @@ Outlines/meta and paths remain session-relative in manifests. Generated/manifest
 
 `bm25.ts` implements one Unicode-aware Okapi scorer (k1=1.5, b=0.75). Fence-aware heading sections and headingless paragraphs preserve selected code/table blocks and source order, without a full AST or heading/reference reconstruction. Crawl BM25 requires one URL, Markdown/text and no deep crawl; threshold defaults to 1.0 (finite >=0, nonblank query required). Empty matches are a valid empty saved file with original references. Read queries reuse positive scoring with no public read threshold; ranking does not replace output caps.
 
-`trafilatura.ts` spawns one explicitly configured Python with HTML stdin, no shell/URL fetch/install. Supported setup is trafilatura>=2,<3. Native tables/formatting are enabled; includeLinks defaults false. Markdown/text only; ordinary text uses parse5 without Python, while explicit article extraction requires saving. The wrapper bounds input/output/stderr, observes the remaining crawl deadline, terminates then force-kills after a short grace and cleans listeners/timers. Missing dependency/failure is actionable, never a silent fallback. Native structure/table/link/image losses are documented; read preserved sources instead of heuristic supplementation.
+`trafilatura.ts` spawns one explicitly configured Python with HTML stdin, no shell/URL fetch/install. Supported setup is trafilatura>=2,<3. Native tables/formatting are enabled; includeLinks defaults false. Markdown/text only; ordinary text uses parse5 without Python. Optional crawl_read article extraction consumes retained HTML; crawl has no extractor option. The wrapper bounds input/output/stderr, observes the read invocation deadline, terminates then force-kills after a short grace and cleans listeners/timers. Missing dependency/failure is actionable, never a silent fallback. Native structure/table/link/image losses are documented; read preserved sources instead of heuristic supplementation.
 
 ## Configuration and resources
 
@@ -112,3 +112,5 @@ Its revision-bound page continuation is separate from presentation caps and body
 continuation. It exposes original view identities without parsing partial JSON
 text or introducing another store. Service errors translate transport/block
 aliases while retaining safe code, observed phase and uncertain-effect metadata.
+
+Read-time article extraction reuses the existing manifest evidence views. It preserves original view hashes, records a derived lossy view, and never changes acquisition success. The harness-neutral `executeCrawlRead` is asynchronous; hosts inject Python path, cancellation and deadline. Failed extraction leaves acquisition/source eligibility intact.

@@ -203,7 +203,7 @@ independent corroboration before a consumer treats it as website proof.
 
 Text PDFs retain original bytes/hash, page-numbered text and document metadata.
 Scanned/no-text, encrypted, oversized and inaccessible documents report explicit
-per-item outcomes. OCR is not included. Use ordinary `crawl` with `format: "text"` for PDFs; `extractor: "trafilatura"` is an HTML article option. PDF bytes never reach Trafilatura and
+per-item outcomes. OCR is not included. Use ordinary `crawl` with `format: "text"` for PDFs; `crawl_read` with `extractor: "trafilatura"` is an HTML article option. PDF bytes never reach Trafilatura and
 network activity stays on the remote operator path. Cache/freshness facts remain
 unknown unless the service supplies them.
 
@@ -248,14 +248,12 @@ export CRAWL4AI_TRAFILATURA_PYTHON="$HOME/.venvs/pi-crawl4ai/bin/python"
 Or set `trafilatura.pythonPath` in JSON. Restart/reload after changing configuration.
 
 ```json
-{"urls":["https://example.com/article"],"extractor":"trafilatura","format":"markdown","includeLinks":true}
+{"path":"https://example.com/article","extractor":"trafilatura","format":"markdown","includeLinks":true}
 ```
 
-Trafilatura is an optional, potentially lossy article view for Markdown/text. Native tables/formatting are enabled; `includeLinks` works for both ordinary output and the optional extractor. It requires saving: `save: false` is rejected. It can precede single-page BM25; in that composition `sourceFile` contains the extracted pre-filter content, and `rawHtmlFile` preserves rendered HTML.
+Trafilatura is an optional, potentially lossy article view in **crawl_read**, not crawl. First crawl normally, then pass the saved page path or URL to crawl_read with `extractor: "trafilatura"`. It reads retained HTML without fetching again, saves a derived view in the existing manifest, and returns normal revision-bound read continuations. Omit extractor on continuation calls; use the returned exact path/view and revision.
 
-Rendered raw HTML is saved **before** extraction. Missing Python/dependency or extraction failure returns setup guidance and an exact original HTML reference, not a silent fallback. Basic crawling remains unaffected. Input/output are bounded, the same remaining crawl deadline applies, and cancellation terminates the process with a short force-kill grace period.
-
-Native extraction can lose navigation, headings, tables, links, images and formatting; enabling tables/links is not a fidelity guarantee. Inspect preserved HTML or re-crawl ordinary Markdown when structure matters. There is no table/image supplementation or full Markdown parser. Ordinary saved crawls retain original HTML and service Markdown; a separate pre-BM25 `sourceFile` is only needed when filtering.
+Native tables/formatting are enabled; `includeLinks` controls article link targets. Missing Python or empty/failed extraction reports the original HTML path. Originals and sibling pages remain usable. Input/output and execution time are bounded; cancellation terminates the process. Native extraction can lose navigation, rosters, headings, tables, contact links, images and formatting; use ordinary reads or preserved HTML where those matter. No silent fallback or structure repair is added.
 
 ## Saved sessions and retention
 
@@ -272,9 +270,9 @@ No startup health requests, subprocess probes, persistent status footer or custo
 
 Rows read `1. <name>  <size> MB  <host> ×<pages>  <timestamp>`, with `unknown-host`/`?` when a manifest lacks usable URL or page metadata. A selector prints the numbered `URL → exact path` lines of that session, capped at 20 entries with an explicit `… and N more` remainder, plus the recorded request summary and the manifest path. The drill-down is sent as a `crawl-sessions` message so the model sees it (a follow-up "summarise 3" resolves); the plain list stays a notification. Unknown selectors error with the searched root, ambiguous prefixes list the matching session names, and neither prints another session's pages; selector errors stay notifications in UI mode and are sent as a message in headless runs.
 
-Saves use unique sessions/hashed URL filenames and publish the manifest last. `pages[]` maps URLs to primary files; optional `sourceFile`, `rawHtmlFile`, `filter` and `extractor` fields describe filtering/extraction artifacts. Generated/manifest artifact paths are checked for session containment, including symlink escape; the reader is **not a filesystem security sandbox**.
+Saves use unique sessions/hashed URL filenames and publish the manifest last. `pages[]` maps URLs to primary files; optional `sourceFile`, `rawHtmlFile` and `filter` fields describe preserved artifacts; read-time article views appear in page evidence. Generated/manifest artifact paths are checked for session containment, including symlink escape; the reader is **not a filesystem security sandbox**.
 
-New manifests also record provenance: `request` holds the effective values that shaped the crawl (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved `strategy`/`maxDepth`/`maxPages` and any filters, optional `bm25`, optional `extractor`), `service.baseUrl` is the endpoint with credentials removed, and a failed `pages[]` entry keeps a redacted `error` reason. The legacy top-level `deepCrawl` field is unchanged.
+New manifests also record provenance: `request` holds the effective values that shaped the crawl (`format`, `bypassCache`, `preferFitMarkdown`, optional `waitFor`, `deepCrawl` with resolved `strategy`/`maxDepth`/`maxPages` and any filters, optional `bm25`), `service.baseUrl` is the endpoint with credentials removed, and a failed `pages[]` entry keeps a redacted `error` reason. The legacy top-level `deepCrawl` field is unchanged.
 
 Retention runs after saves on completed owned sessions only and protects the just-returned session during that pass. Defaults: 20 sessions, 7 days, soft 512 MiB; zero disables age/size rules. An oversized returned session survives that pass but may expire later; paths are not permanently pinned. Unrelated/incomplete directories are not cleaned.
 

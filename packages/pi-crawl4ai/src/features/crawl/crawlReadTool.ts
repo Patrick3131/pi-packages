@@ -11,9 +11,12 @@ export function registerCrawlReadTool(pi: ExtensionAPI, config: Crawl4AIConfig):
     ...crawlReadToolDefinition,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (signal?.aborted) throw new Error("Crawl read cancelled");
-      const result = executeCrawlRead(params, {
+      const result = await executeCrawlRead(params, {
         outputRoot: config.raw.outputDir,
         cwd: ctx?.cwd ?? process.cwd(),
+        pythonPath: config.raw.trafilatura?.pythonPath,
+        signal,
+        deadlineAt: Date.now() + config.timeout,
       });
       if (result.details.error) {
         // Throw so Pi records missing paths as tool errors rather than successful

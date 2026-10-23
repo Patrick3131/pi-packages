@@ -52,24 +52,24 @@ export const webAnswerToolDefinition = {
   name: "web_answer",
   label: "Web answer",
   description:
-    "Web research answer with search results; usually takes seconds and consumes shared account quota.",
+    "Search the web and return a researched answer with source links. Use for discovery, factual questions, and finding relevant pages or profiles.",
   promptSnippet:
     "web_answer(query): synthesize a web research answer with search evidence",
   promptGuidelines: [
-    "Use web_search_searxng to enumerate URLs and web_answer for research synthesis.",
+    "Use web_answer for research and finding relevant URLs; raw search is optional when exposed.",
     "Search results are evidence candidates, not annotated citations. Assess relevance; use crawl to verify pages before citing unsupported claims.",
     "The retrieved list is capped and does not establish which links support the answer. Preserve inline links; assess their claims and pay attention to gaps.",
     "Avoid parallel bursts: each answer consumes shared account quota.",
   ],
   parameters: Type.Object(
     {
-      query: Type.String({ minLength: 1, maxLength: 8000 }),
-      instructions: Type.Optional(Type.String({ maxLength: 4000 })),
+      query: Type.String({ minLength: 1, maxLength: 8000, description: "The research question or information to find." }),
+      instructions: Type.Optional(Type.String({ maxLength: 4000, description: "Optional scope, desired details, dates, and answer format." })),
       max_sources: Type.Optional(
-        Type.Integer({ minimum: 1, maximum: 20, default: 5 }),
+        Type.Integer({ minimum: 1, maximum: 20, default: 5, description: "Maximum retrieved sources returned; not a research budget or exhaustive citation list." }),
       ),
       timeout_ms: Type.Optional(
-        Type.Integer({ minimum: 5000, maximum: 300000, default: 180000 }),
+        Type.Integer({ minimum: 5000, maximum: 300000, default: 180000, description: "Total server budget in milliseconds, including queue time." }),
       ),
     },
     { additionalProperties: false },

@@ -39,7 +39,6 @@ export const crawlToolDefinition = {
       preferFitMarkdown: Type.Optional(Type.Boolean()),
       bm25Query: Type.Optional(Type.String({ description: "Keep only matching sections; one URL, Markdown/text only; not with deepCrawl" })),
       bm25Threshold: Type.Optional(Type.Number({ minimum: 0, description: "Default 1; requires bm25Query" })),
-      extractor: Type.Optional(Type.Literal("trafilatura", { description: "Local Trafilatura extraction; requires saving" })),
-      includeLinks: Type.Optional(Type.Boolean({ description: "Keep useful link targets in ordinary output or the optional article view" })),
-    }),
+      includeLinks: Type.Optional(Type.Boolean({ description: "Keep useful link targets in ordinary output" })),
+    }, { additionalProperties: false }),
 };

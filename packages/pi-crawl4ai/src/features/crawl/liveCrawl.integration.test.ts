@@ -57,7 +57,7 @@ live("live Crawl4AI service contracts (deep/filter gate may fail on untrusted de
     expect(markdown.details.results[0].success).toBe(true);
     const saved = markdown.details.savedFiles[0];
     expect(readFileSync(saved.outlinePath, "utf8")).toContain("Root fixture marker");
-    const read = executeCrawlRead({ path: saved.path, query: "fixture", maxChars: 3000 }, { outputRoot: OUTPUT });
+    const read = await executeCrawlRead({ path: saved.path, query: "fixture", maxChars: 3000 }, { outputRoot: OUTPUT });
     expect(read.details.error).toBeUndefined(); expect(read.text).toContain("Root fixture marker");
     expect(markdown.content[0].text).toContain(markdown.details.manifestPath);
     expect(JSON.parse(readFileSync(markdown.details.manifestPath, "utf8")).pages[0].file).toBe(saved.file);

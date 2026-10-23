@@ -10,7 +10,6 @@ import { abortable, createCrawlDeadline, fetchCrawlApi, redactError } from "./ht
 import { finalizeCrawlEvidence, credentialFreeBaseUrl, resolveOutputDir, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath, formatContentForSave, type CrawlManifestRequest, type SaveCrawlOptions } from "./saveOutput";
 import { DEFAULT_PREVIEW_SETTINGS, buildBudgetedToolText, decideReturnMode, slimResultDetails, toFormattedPages, capToolText, capToolTextDetailed, type PreviewSettings } from "./presentation";
 import { filterMarkdownBm25 } from "./bm25";
-import { extractWithTrafilatura } from "./trafilatura";
 
 /** Preflight failures are correctable input errors, never website/provider failures. */
 export class CrawlValidationError extends Error {
@@ -66,7 +65,6 @@ function effectiveCrawlRequest(params: CrawlToolParams, format: CrawlFormat, pre
     ...(params.jsCode ? { jsCode: true } : {}),
     ...(params.deepCrawl ? { deepCrawl: effectiveDeepCrawlRequest(params.deepCrawl) } : {}),
     ...(params.bm25Query !== undefined ? { bm25: { query: params.bm25Query, threshold: params.bm25Threshold ?? 1 } } : {}),
-    ...(params.extractor ? { extractor: { name: params.extractor, includeLinks: params.includeLinks ?? false } } : {}),
   };
 }
 
@@ -100,13 +98,9 @@ function validateParams(params: CrawlToolParams, config: Crawl4AIConfig): void {
   if (typeof params.save === "string" && !params.save.trim()) throw new Error("Save directory must not be blank");
   if (params.bm25Query !== undefined && (!params.bm25Query.trim() || params.urls.length !== 1 || params.deepCrawl || !["markdown", "text"].includes(format))) throw new Error("BM25 requires a nonblank query, one URL, Markdown/text and no deep crawl");
   if (params.bm25Threshold !== undefined && (!params.bm25Query?.trim() || !Number.isFinite(params.bm25Threshold) || params.bm25Threshold < 0)) throw new Error("bm25Threshold requires a query and a finite nonnegative value");
-  if (params.extractor !== undefined && params.extractor !== "trafilatura") throw new Error("Unsupported extractor");
+  if ("extractor" in params) throw new Error("extractor is not supported by crawl; use crawl_read on the saved page");
   if (params.jsCode !== undefined) throw new CrawlOperationError("unsupported_capability", "jsCode is not supported on /crawl. Use crawl_interact for browser JavaScript with a configured interaction endpoint.");
-  if (params.extractor) {
-    if (!["markdown", "text"].includes(format)) throw new Error("Trafilatura supports Markdown/text only");
-    if (params.save === false) throw new Error("Trafilatura requires saving raw HTML; save=false is incompatible");
-    if (!config.raw.trafilatura?.pythonPath) throw new Error("Configure trafilatura.pythonPath or CRAWL4AI_TRAFILATURA_PYTHON with Python and trafilatura>=2,<3");
-  }
+
 }
 
 export function validateCrawlResponse(data: unknown): asserts data is Crawl4AIResponse {
@@ -312,34 +306,13 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
           const contentType = Object.entries(result.response_headers ?? {}).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
           if (!result.document && (/\.pdf$/i.test(new URL(result.url).pathname) || /application\/pdf/i.test(contentType))) {
             result.success = false; result.error_message = "unsupported_document: PDF extraction requires the document capability on the configured crawl service";
-          } else if (format === "text" && !params.extractor) {
+          } else if (format === "text") {
             result.markdown = result.html !== undefined && (!contentType || /html/i.test(contentType)) ? htmlToText(result.selected_html ?? result.html, params.includeLinks) : originalMarkdown || result.html || "";
           }
-          if (params.includeLinks && !params.extractor && format === "markdown" && result.links) {
+          if (params.includeLinks && format === "markdown" && result.links) {
             const body = formatContentForSave(result, format, { preferFitMarkdown: budget.preferFitMarkdown });
             const links = [...result.links.internal, ...result.links.external].filter(link => !body.includes(link.href));
             result.markdown = body + (links.length ? "\n\n" + links.map(link => `[${link.text}](${link.href})`).join("\n") : "");
-          }
-          if (params.extractor && result.success && !result.document) {
-            if (!outputDir) throw new Error("Trafilatura requires saved raw HTML");
-            sessionDir ??= createCrawlSession(outputDir, params.urls);
-            artifact.originalMarkdownFile = `${index}-${urlToFilePath(result.url, "markdown")}.original.md`;
-            writeCrawlArtifact(sessionDir, artifact.originalMarkdownFile, originalMarkdown);
-
-            const derivation = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
-            try {
-              if (Date.now() >= options.acquisitionDeadlineAt) throw new CrawlOperationError("timeout", "Acquisition derivation budget exhausted", undefined, { phase: "derivation" });
-              if (!result.html) throw new Error("Server returned no rendered HTML");
-              result.markdown = await extractWithTrafilatura({ pythonPath: config.raw.trafilatura!.pythonPath!, html: result.html, format: format === "text" ? "text" : "markdown", includeLinks: params.includeLinks, signal: derivation.signal, deadline: options.acquisitionDeadlineAt });
-            } catch (error) {
-              if (operation.signal.aborted) throw operation.signal.reason;
-              if (derivation.signal.aborted || (error instanceof CrawlOperationError && error.code === "timeout")) {
-                result.success = false;
-                result.error_message = "Acquisition derivation deadline exceeded; original HTML preserved";
-                result.error = { category: "timeout", code: "deadline_exceeded", phase: "derivation", retryable: false, message: result.error_message };
-              } else throw new Error(`Trafilatura extraction failed: ${error instanceof Error ? error.message : String(error)}`);
-            } finally { derivation.dispose(); }
-            artifact.extractor = { name: "trafilatura", includeLinks: params.includeLinks ?? false };
           }
           if (params.bm25Query) {
             const source = formatContentForSave(result, format, { preferFitMarkdown: budget.preferFitMarkdown });
@@ -352,7 +325,7 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
         for (const [index, result] of data.results.entries()) {
           const body = formatContentForSave(result, format, { preferFitMarkdown: budget.preferFitMarkdown });
           result.evidence = pageEvidence(result, body);
-          result.evidence.views.push(evidenceView("requested", body, !!params.extractor || !!params.bm25Query || !!params.selector || !!params.excludeSelector || budget.preferFitMarkdown));
+          result.evidence.views.push(evidenceView("requested", body, !!params.bm25Query || !!params.selector || !!params.excludeSelector || budget.preferFitMarkdown));
           if (result.html !== undefined) result.evidence.views.push(evidenceView("original_html", result.html));
           if (artifacts[index]?.originalMarkdownContent !== undefined) result.evidence.views.push(evidenceView("original_markdown", artifacts[index].originalMarkdownContent!));
           if (outputDir && (result.interaction || result.document || result.selected_html !== undefined || result.extracted_content !== undefined)) sessionDir ??= createCrawlSession(outputDir, params.urls);

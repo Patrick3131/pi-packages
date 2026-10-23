@@ -2,11 +2,13 @@
  * Progressive reader for saved crawl session pages.
  */
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { getDefaultOutputDir, containedArtifactPath } from "./saveOutput";
+import { extractWithTrafilatura } from "./trafilatura";
+import { getDefaultOutputDir, containedArtifactPath, writeCrawlArtifact, type CrawlManifestPage } from "./saveOutput";
 import { listCrawlSessions } from "./cleanup";
-import { contentHash, jsonProjection, type ReadEvidence, type ManifestMetadata } from "./evidence";
+import { contentHash, evidenceView, jsonProjection, type ReadEvidence, type ManifestMetadata } from "./evidence";
 import { capToolText, capToolTextDetailed } from "./presentation";
 import {
   buildOutlineMarkdown,
@@ -20,6 +22,9 @@ export type CrawlReadMode = "outline" | "chunks" | "window" | "full";
 export interface CrawlReadParams {
   /** Exact saved page path, crawl-manifest.json/session path, or a page URL. */
   path?: string;
+  extractor?: "trafilatura";
+  format?: "markdown" | "text";
+  includeLinks?: boolean;
   /** Resolve this URL through the manifest at path, or search saved sessions. */
   url?: string;
   mode?: CrawlReadMode;
@@ -493,7 +498,66 @@ function resolveCrawlReadReference(
   return { absolutePath: resolved.absolutePath };
 }
 
-export function executeCrawlRead(
+export async function executeCrawlRead(
+  params: CrawlReadParams,
+  options: { outputRoot: string; cwd?: string; pythonPath?: string; signal?: AbortSignal; deadlineAt?: number }
+): Promise<{ text: string; details: Record<string, unknown> & { evidence: ReadEvidence } }> {
+  options.signal?.throwIfAborted();
+  if (!params.extractor) return readSavedContent(params, options);
+  if (params.extractor !== "trafilatura") throw new Error("Unsupported extractor");
+  if (params.format && !["markdown", "text"].includes(params.format)) throw new Error("Trafilatura supports Markdown/text only");
+  if (!options.pythonPath) throw new Error("Configure trafilatura.pythonPath / CRAWL4AI_TRAFILATURA_PYTHON for optional crawl_read extraction");
+  const resolved = resolveCrawlReadReference(params, getDefaultOutputDir(options.outputRoot), options.cwd ?? process.cwd());
+  if (resolved.error) return readSavedContent(params, options);
+  const root = findSessionRoot(resolved.absolutePath);
+  if (!root) throw new Error("Article extraction requires a saved crawl manifest and original HTML");
+  const manifestPath = join(root, MANIFEST_NAME);
+  const manifest = readManifest(manifestPath).manifest!;
+  const pages = manifest.pages as CrawlManifestPage[];
+  const page = pages.find(page => [page.file, page.rawHtmlFile, page.originalMarkdownFile, ...(page.evidence?.views ?? []).map(view => view.path)]
+    .some(file => typeof file === "string" && resolve(root, file) === resolved.absolutePath));
+  if (!page?.rawHtmlFile || !page.evidence) throw new Error("Original HTML/evidence unavailable; read the preserved page without extractor");
+  const htmlPath = containedArtifactPath(root, page.rawHtmlFile);
+  const html = readFileSync(htmlPath, "utf8");
+  const original = page.evidence.views.find(view => view.kind === "original_html" && view.sha256 === contentHash(html));
+  if (!original) throw new Error("source_revision_changed: original HTML no longer matches its acquired snapshot");
+  // Validate a requested snapshot before deriving; continuation reads use the returned derived path without extractor.
+  const checked = readSavedContent({ ...params, extractor: undefined }, options);
+  if (checked.details.error) return checked;
+  let article: string;
+  try {
+    article = await extractWithTrafilatura({ pythonPath: options.pythonPath, html, format: params.format ?? "markdown", includeLinks: params.includeLinks,
+      signal: options.signal, deadline: options.deadlineAt ?? Date.now() + 30000 });
+    if (!article.trim()) throw new Error("Trafilatura found no extractable content");
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    throw new Error(`Article extraction failed; original remains available at ${htmlPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  options.signal?.throwIfAborted();
+  if (contentHash(readFileSync(htmlPath, "utf8")) !== original.sha256) throw new Error("source_revision_changed: original HTML changed during extraction");
+  const file = `${basename(page.rawHtmlFile)}.article-${contentHash(article)}.${params.format === "text" ? "txt" : "md"}`;
+  const path = containedArtifactPath(root, file);
+  if (!existsSync(path)) writeCrawlArtifact(root, file, article);
+  else if (contentHash(readFileSync(path, "utf8")) !== contentHash(article)) throw new Error("source_revision_changed: derived artifact was modified");
+  // Read the latest manifest after the await so concurrent derivations retain each other's views.
+  const latest = readManifest(manifestPath).manifest!;
+  const current = (latest.pages as CrawlManifestPage[]).find(item => item.evidence?.acquisitionId === page.evidence!.acquisitionId);
+  if (!current?.evidence) throw new Error("source_revision_changed: acquired page no longer exists");
+  const view = { ...evidenceView("trafilatura", article, true, path),
+    callerScriptInfluenced: original.callerScriptInfluenced ?? page.evidence.callerScriptInfluenced,
+    acquisitionId: original.acquisitionId, snapshotId: original.snapshotId, url: original.url,
+    statusCode: original.statusCode, contentType: original.contentType };
+  if (!current.evidence.views.some(item => item.id === view.id && item.path === path)) {
+    current.evidence.views.push(view);
+    latest.files = [...new Set([...(Array.isArray(latest.files) ? latest.files : []), file])];
+    const pending = writeCrawlArtifact(root, `.article-${randomUUID()}.pending`, JSON.stringify(latest, null, 2));
+    renameSync(pending, manifestPath);
+  }
+  const result = readSavedContent({ ...params, path, url: undefined, extractor: undefined, revision: undefined, viewId: undefined }, options);
+  return jsonProjection({ ...result, details: { ...result.details, derivation: { path: htmlPath, revision: original.sha256 }, originalView: original } });
+}
+
+function readSavedContent(
   params: CrawlReadParams,
   options: { outputRoot: string; cwd?: string }
 ): { text: string; details: Record<string, unknown> & { evidence: ReadEvidence } } {

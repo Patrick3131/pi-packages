@@ -28,3 +28,5 @@ Web answers default to a 180-second total server budget (up to 300 seconds)
 and a 310-second HTTP timeout. Server admission allows two running and 32 waiting
 requests; individual Codex turns remain capped at 60 seconds. Explicit HTTP
 timeout overrides must still exceed the requested server budget by five seconds.
+
+The shared answer descriptor explains question/instructions, returned-source cap and total server budget. It supports URL discovery without requiring a separate raw-search tool in every consumer.

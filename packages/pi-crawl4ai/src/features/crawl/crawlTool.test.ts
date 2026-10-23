@@ -122,7 +122,7 @@ describe("crawl reliability regressions", () => {
     expect(result.details.evidence.pages[0]).toMatchObject({ cacheStatus: "hit", cachedAt });
     const manifest = JSON.parse(readFileSync(result.details.manifestPath, "utf8"));
     expect(manifest.pages[0].evidence.cachedAt).toBe(cachedAt);
-    const read = executeCrawlRead({ path: result.details.savedFiles[0].path, mode: "full" }, { cwd: process.cwd(), outputRoot: TEST_SAVE_DIR });
+    const read = await executeCrawlRead({ path: result.details.savedFiles[0].path, mode: "full" }, { cwd: process.cwd(), outputRoot: TEST_SAVE_DIR });
     expect(read.details.pageEvidence).toMatchObject({ cacheStatus: "hit", cachedAt });
     expect(result.details.results[0]).toMatchObject({ success: true, title: "Allowed child marker" });
     expect(result.details.results[0].statusCode).toBeUndefined();
@@ -299,10 +299,10 @@ describe("crawl reliability regressions", () => {
 });
 
 describe("crawl public contract and transport", () => {
-  it("registers a typed schema, progressive guidance and BM25/extractor options", () => {
+  it("registers a typed schema, progressive guidance and BM25 options", () => {
     const tool = createTool();
     expect(tool.name).toBe("crawl"); expect(tool.parameters.properties.deepCrawl).toBeDefined();
-    expect(tool.parameters.properties.bm25Query).toBeDefined(); expect(tool.parameters.properties.extractor).toBeDefined();
+    expect(tool.parameters.properties.bm25Query).toBeDefined(); expect(tool.parameters.properties.extractor).toBeUndefined();
     expect(tool.promptSnippet).toContain("index"); expect(tool.promptSnippet).toContain("crawl_read");
   });
   it("crawls a single page without deep traversal", async () => {
@@ -463,36 +463,11 @@ describe("crawl file-first output and extraction integration", () => {
     const failedBody = readFileSync(result.details.savedFiles[1].path, "utf8");
     expect(failedBody).toContain("[redacted]"); expect(failedBody).not.toContain(token);
   });
-  it("requires configured Python before network activity and basic crawling needs none", async () => {
-    const fetchMock = respond(); await expect(invoke({ extractor: "trafilatura" })).rejects.toThrow("pythonPath"); expect(fetchMock).not.toHaveBeenCalled();
+  it("rejects removed crawl-time extraction before network activity", async () => {
+    const fetchMock = respond();
+    await expect(invoke({ extractor: "trafilatura" } as any)).rejects.toThrow("use crawl_read");
+    expect(fetchMock).not.toHaveBeenCalled();
     await expect(invoke({ save: false })).resolves.toBeDefined();
-  });
-  it("persists rendered HTML before missing executable errors and never silently falls back", async () => {
-    const html = "<html><article><h1>Original</h1><p>source</p></article></html>";
-    respond([{ ...PAGE, html }]);
-    const tool = createTool(60000, config => { config.raw.trafilatura = { pythonPath: "/__missing_python__" }; });
-    const error: Error = await invoke({ extractor: "trafilatura" }, tool).catch((error: Error) => error);
-    expect(error.message).toContain("Original HTML:");
-    const original = error.message.split("Original HTML: ")[1]; expect(readFileSync(original, "utf8")).toBe(html);
-    const session = readdirSync(TEST_SAVE_DIR)[0]; expect(existsSync(join(TEST_SAVE_DIR, session, "crawl-manifest.json"))).toBe(false);
-  });
-  it("wires configured stdin extractor to text plus BM25 with the original crawl deadline", async () => {
-    mkdirSync(TEST_SAVE_DIR, { recursive: true });
-    const executable = resolve(TEST_SAVE_DIR, "controlled-python");
-    writeFileSync(executable, `#!/usr/bin/env node\nlet input='';process.stdin.on('data',x=>input+=x);process.stdin.on('end',()=>{if(!input.includes('Rendered source'))process.exit(2);process.stdout.write('# Documentation\\n\\nUseful documentation table\\n\\n# Other\\n\\nPricing');});`, { mode: 0o755 });
-    respond([{ ...PAGE, html: "<html>Rendered source</html>" }]);
-    const tool = createTool(1000, config => { config.raw.trafilatura = { pythonPath: executable }; });
-    const result = await invoke({ extractor: "trafilatura", format: "text", bm25Query: "documentation", bm25Threshold: 0, includeLinks: true }, tool);
-    const saved = result.details.savedFiles[0]; expect(saved.path).toMatch(/\.txt$/); expect(readFileSync(saved.path, "utf8")).not.toContain("Pricing");
-    expect(readFileSync(saved.sourcePath, "utf8")).toContain("Pricing"); expect(readFileSync(saved.rawHtmlPath, "utf8")).toBe("<html>Rendered source</html>");
-    expect(saved.extractor).toEqual({ name: "trafilatura", includeLinks: true });
-    expect(JSON.parse(readFileSync(result.details.manifestPath, "utf8")).request).toEqual({
-      format: "text",
-      bypassCache: false,
-      preferFitMarkdown: false,
-      bm25: { query: "documentation", threshold: 0 },
-      extractor: { name: "trafilatura", includeLinks: true },
-    });
   });
 });
 

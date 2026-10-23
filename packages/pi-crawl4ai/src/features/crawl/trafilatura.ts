@@ -33,7 +33,7 @@ export interface TrafilaturaOptions {
   format: "markdown" | "text";
   includeLinks?: boolean;
   signal?: AbortSignal;
-  /** Absolute epoch milliseconds: pass the crawl's existing deadline, not a fresh timeout. */
+  /** Absolute epoch milliseconds: pass the read invocation's deadline, not a fresh timeout. */
   deadline: number;
 }
 
@@ -47,8 +47,8 @@ function abortError(message: string): Error {
 export async function extractWithTrafilatura(options: TrafilaturaOptions): Promise<string> {
   const { pythonPath, html, format, signal, deadline, includeLinks = false } = options;
   if (signal?.aborted) throw abortError("Trafilatura extraction aborted");
-  if (!Number.isFinite(deadline)) throw new Error("Trafilatura requires a finite crawl deadline");
-  if (deadline <= Date.now()) throw abortError("Trafilatura crawl deadline exceeded");
+  if (!Number.isFinite(deadline)) throw new Error("Trafilatura requires a finite extraction deadline");
+  if (deadline <= Date.now()) throw abortError("Trafilatura extraction deadline exceeded");
   if (!pythonPath.trim()) throw new Error("Configure trafilatura.pythonPath / CRAWL4AI_TRAFILATURA_PYTHON with a Python executable containing trafilatura>=2,<3");
   if (format !== "markdown" && format !== "text") throw new Error("Trafilatura supports only Markdown or text");
   if (Buffer.byteLength(html, "utf8") > MAX_INPUT_BYTES) throw new Error("Trafilatura HTML input exceeds the 20 MiB safety limit");
@@ -105,7 +105,7 @@ export async function extractWithTrafilatura(options: TrafilaturaOptions): Promi
       if (failure) { reject(failure); return; }
       if (code !== 0) {
         const preview = Buffer.concat(stderr).toString("utf8").replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "").trim().slice(0, 2000);
-        reject(new Error(`Trafilatura extraction failed (${exitSignal ?? code}): ${preview || "no diagnostics"}. Verify trafilatura>=2,<3 in the configured Python environment; read preserved originals.`));
+        reject(new Error(`Trafilatura extraction failed (${exitSignal ?? code}): ${preview || "no diagnostics"}. Read preserved originals.`));
         return;
       }
       resolve(Buffer.concat(stdout).toString("utf8"));
@@ -120,8 +120,8 @@ export async function extractWithTrafilatura(options: TrafilaturaOptions): Promi
     // Recheck after spawn/listener setup so cancellation in that interval cannot be missed.
     if (signal?.aborted) onAbort();
     const remaining = deadline - Date.now();
-    if (remaining <= 0) stop(abortError("Trafilatura crawl deadline exceeded"));
-    else deadlineTimer = setTimeout(() => stop(abortError("Trafilatura crawl deadline exceeded")), Math.min(remaining, 2_147_483_647));
+    if (remaining <= 0) stop(abortError("Trafilatura extraction deadline exceeded"));
+    else deadlineTimer = setTimeout(() => stop(abortError("Trafilatura extraction deadline exceeded")), Math.min(remaining, 2_147_483_647));
     if (!failure) child.stdin.end(html, "utf8");
   });
 }
