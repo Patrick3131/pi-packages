@@ -184,14 +184,19 @@ files: run the agents-only restore from that checkout, then `/reload` or start a
 fresh Pi session. On remote hosts, set `PI_CODING_AGENT_DIR=/data/pi-agent`.
 Verify user-scope discovery before deleting an identical project copy; retain
 intentional project-specific variants rather than replacing them by name alone.
-The researcher uses the host’s enabled search/crawl extensions; its `tools` list
-is an allowlist, not a provider installer. It also names the package’s bounded
-`crawl4ai.scrape`, `crawl4ai.crawl`, and `crawl4ai.extract` specialists so it can
-recommend one to its caller, but it has no subagent tool and cannot run them:
-the parent verifies provider availability and authorization, passes exact saved
-paths to reuse existing evidence, and treats the recommendation as a bounded
-handoff, not delegated work. Routine reads stay direct; CLI-based nested agent
-launches are not an alternative.
+The researcher uses the host’s enabled discovery and crawl extensions; its `tools`
+list is an allowlist, not a provider installer. It prefers `web_answer` for web
+research, falls back to `web_search_searxng` for raw URL enumeration or
+engine/date-scoped queries, verifies pages with `crawl`/`crawl_read`, and uses the
+capability-gated `crawl_interact` for JavaScript-rendered or interaction-gated
+pages. Repo inspection uses `ffgrep`/`fffind`/`ls`/`read`; it has no `edit` tool,
+so it cannot modify the user's repository.
+It also names the package’s bounded `crawl4ai.scrape`, `crawl4ai.crawl`, and
+`crawl4ai.extract` specialists so it can recommend one to its caller, but it has
+no subagent tool and cannot run them: the parent verifies provider availability
+and authorization, passes exact saved paths to reuse existing evidence, and
+treats the recommendation as a bounded handoff, not delegated work. Routine reads
+stay direct; CLI-based nested agent launches are not an alternative.
 This is a Pi subagent definition, not a Codex skill or a cross-host agent
 registration.
 
