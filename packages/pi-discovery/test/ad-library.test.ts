@@ -284,3 +284,36 @@ test("native structured output preserves full ads and normal resolution outcomes
     );
   }
 });
+
+test("dynamic copy shows representative provenance and hides unresolved legacy tokens", () => {
+  const output = formatAdLibrary({
+    ...result,
+    ads: [
+      {
+        ...result.ads[0],
+        headline: "Olive Tree",
+        body: null,
+        template_fields: ["headline", "body"],
+        representative_card_index: 0,
+        cards: [
+          {
+            headline: "Olive Tree",
+            landing_url: "https://brand.example/olive-tree",
+          },
+        ],
+      },
+    ],
+  } as never);
+  assert.match(output.text, /Headline: Olive Tree/);
+  assert.match(output.text, /representative creative card 1/);
+  assert.match(
+    output.text,
+    /Representative card landing: https:\/\/brand.example\/olive-tree/,
+  );
+  const legacy = formatAdLibrary({
+    ...result,
+    ads: [{ ...result.ads[0], headline: "{{product.name}}" }],
+  } as never);
+  assert.doesNotMatch(legacy.text, /product.name/);
+  assert.match(legacy.text, /unavailable: dynamic template/);
+});

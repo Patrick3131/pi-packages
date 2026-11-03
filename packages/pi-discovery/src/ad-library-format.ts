@@ -3,6 +3,7 @@ import type { AdLibraryAd, AdLibraryResult } from "./ad-library.js";
 const clean = (value: unknown, cap = 1000) => {
   if (typeof value !== "string" || !value.trim()) return "";
   const text = value.trim();
+  if (/\{\{[^{}]+\}\}/.test(text)) return "[unavailable: dynamic template]";
   return text.length > cap ? text.slice(0, cap) + "… [text shortened]" : text;
 };
 const link = (value: unknown) => (typeof value === "string" ? value : "");
@@ -104,12 +105,23 @@ export function formatAdLibrary(result: AdLibraryResult) {
     if (ad.headline) block.push(`Headline: ${clean(ad.headline)}`);
     if (ad.body) block.push(`Copy: ${clean(ad.body)}`);
     if (ad.cta) block.push(`CTA: ${clean(ad.cta, 300)}`);
+    if (ad.template_fields?.length) {
+      const index = ad.representative_card_index;
+      block.push(
+        index != null
+          ? `Dynamic copy: ${ad.template_fields.join(", ")} use representative creative card ${index + 1} where available; unresolved values are null. Other cards may differ.`
+          : `Dynamic copy unavailable: ${ad.template_fields.join(", ")}.`,
+      );
+      const selected = index != null ? ad.cards?.[index] : undefined;
+      if (selected?.landing_url)
+        block.push(`Representative card landing: ${selected.landing_url}`);
+    }
     const images = ad.images ?? [],
       videos = ad.videos ?? [],
       cards = ad.cards ?? [];
     if (images.length || videos.length || cards.length)
       block.push(
-        `Media: ${images.length} images, ${videos.length} videos, ${cards.length} carousel cards`,
+        `Media: ${images.length} images, ${videos.length} videos, ${cards.length} creative cards`,
       );
     for (const entry of images.slice(0, 2))
       if (image(entry)) block.push(`Image: ${image(entry)}`);
@@ -119,7 +131,7 @@ export function formatAdLibrary(result: AdLibraryResult) {
         block.push(`Video preview: ${entry.video_preview_image_url}`);
     }
     for (const [index, card] of cards.slice(0, 3).entries()) {
-      block.push(`Carousel card ${index + 1}: ${clean(card.headline, 300)}`);
+      block.push(`Creative card ${index + 1}: ${clean(card.headline, 300)}`);
       if (card.landing_url) block.push(`  Landing: ${card.landing_url}`);
       if (card.body) block.push(`  Copy: ${clean(card.body, 400)}`);
       if (card.cta) block.push(`  CTA: ${clean(card.cta, 200)}`);

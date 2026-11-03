@@ -1,6 +1,6 @@
 {
   "name": "pi-discovery",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pi discovery: SearXNG search and Luna web research answers",
   "type": "module",
   "scripts": {

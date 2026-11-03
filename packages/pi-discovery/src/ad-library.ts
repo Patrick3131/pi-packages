@@ -41,6 +41,8 @@ export interface AdLibraryAd {
   videos?: AdVideo[];
   cards?: AdCard[];
   creative_truncated?: boolean;
+  template_fields?: Array<"headline" | "body" | "description">;
+  representative_card_index?: number | null;
   [key: string]: unknown;
 }
 export interface AdLibraryResult {

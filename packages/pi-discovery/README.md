@@ -107,3 +107,9 @@ exposes all API-returned ads and metadata to codemode. Text previews are bounded
 and explicitly shortened; structured data remains available. Counts are samples,
 not total active inventory. Domain not-found/ambiguous outcomes preserve server
 codes and are normal lookup outcomes, never proof that a brand has no ads.
+
+API 0.3.1 resolves dynamic template copy using one representative card. Preserve
+`template_fields` and zero-based `representative_card_index` in structured
+output; the text formatter labels this source and shows its product landing
+URL separately. Unresolved copy is null. Legacy template strings are labelled
+unavailable in text previews. DCO cards may be variants, not carousel slides.

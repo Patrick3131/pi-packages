@@ -51,6 +51,19 @@ const outputSchema = Type.Object(
           landing_domain: optionalText,
           headline: optionalText,
           body: optionalText,
+          description: optionalText,
+          template_fields: Type.Optional(
+            Type.Array(
+              Type.Union([
+                Type.Literal("headline"),
+                Type.Literal("body"),
+                Type.Literal("description"),
+              ]),
+            ),
+          ),
+          representative_card_index: Type.Optional(
+            Type.Union([Type.Integer({ minimum: 0, maximum: 9 }), Type.Null()]),
+          ),
           images: Type.Optional(
             Type.Array(Type.Object(imageFields), { maxItems: 10 }),
           ),
