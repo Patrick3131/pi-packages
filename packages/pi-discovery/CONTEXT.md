@@ -30,3 +30,16 @@ requests; individual Codex turns remain capped at 60 seconds. Explicit HTTP
 timeout overrides must still exceed the requested server budget by five seconds.
 
 The shared answer descriptor explains question/instructions, returned-source cap and total server budget. It supports URL discovery without requiring a separate raw-search tool in every consumer.
+
+## Meta Ad Library
+
+`ad_library_keyword_ads` discovers advertisers by keyword; `ad_library_domain_ads`
+requires exactly one of `domain` or `page_id`. Both accept country, active_only,
+max_ads (1–300) and timeout_ms (5000–180000, default 120000). They default off;
+enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
+The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
+effective timeout includes 10000ms beyond the server budget. No client retries.
+Results expose receipts, resolved-page votes, partial results and truncation.
+Harness-neutral exports: `searchAdLibrary`, `adsForAdvertiser`, `formatAdLibrary`,
+`AdLibraryClientError`. Errors preserve safe server codes and Retry-After;
+caller abort remains AbortError. Live tests opt in with `DISCOVERY_LIVE=1`.

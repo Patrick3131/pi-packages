@@ -32,3 +32,6 @@ export type { CrawlFailureData, CrawlPhase, CrawlErrorCategory } from "../packag
 export { askWeb, formatWebAnswer, WebAnswerClientError } from "../packages/pi-discovery/src/answer.js";
 export type { WebAnswerParams, WebAnswerOptions, WebAnswerResult, WebAnswerDetails, WebAnswerErrorCode } from "../packages/pi-discovery/src/answer.js";
 export { webAnswerToolDefinition } from "../packages/pi-discovery/src/toolDefinition.js";
+
+export { searchAdLibrary, adsForAdvertiser, formatAdLibrary, AdLibraryClientError } from "../packages/pi-discovery/src/ad-library.js";
+export type { AdLibraryParams, AdLibraryOptions, AdLibraryResult } from "../packages/pi-discovery/src/ad-library.js";

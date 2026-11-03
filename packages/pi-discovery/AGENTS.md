@@ -14,7 +14,8 @@ SearXNG search and server-owned Luna research tools.
 
 ## Rules
 
-- Tools: `web_search_searxng` and `web_answer`; no additional provider surface.
+- Tools: `web_search_searxng`, `web_answer`, `ad_library_keyword_ads` and
+  `ad_library_domain_ads`. Ad Library talks only to the discovery API; no provider secrets.
 - Do not add `web_fetch`, Brave API search, or xAI search.
 - Default the tool **off**.
 - Default URL is the VPN bind, not localhost.
@@ -37,3 +38,7 @@ keeps search evidence distinct from citations and never retries. Auth is server-
 Keep the default HTTP timeout above the maximum exposed server budget. Queue
 waiting belongs to the total request deadline; execution is separately bounded
 by the service. Do not add client retries or admission predictions.
+
+Ad Library defaults off. Its HTTP timeout is max(configured 130000ms floor, server
+budget + 10000ms), supporting 180000ms requests with 190000ms client budgets.
+Preserve AbortError, sanitized server codes, receipts, partial and truncation.

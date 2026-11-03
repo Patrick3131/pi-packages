@@ -5,7 +5,7 @@ Direct SearXNG search (`web_search_searxng`) and server-owned Luna research
 Enable with project `.pi/tools.json`, explicit host selection or env defaults:
 
 ```json
-{"web_search_searxng": true, "web_answer": true}
+{ "web_search_searxng": true, "web_answer": true }
 ```
 
 ```bash
@@ -15,12 +15,12 @@ DISCOVERY_WEB_SEARCH_ENABLED=1 DISCOVERY_WEB_ANSWER_ENABLED=1 pi
 Project false overrides an env default; explicit CLI, presets, child and saved
 loadouts own their selection. Later /tools changes remain authoritative.
 
-| Configuration | Default |
-| --- | --- |
-| DISCOVERY_BASE_URL | http://10.8.0.1:18080 |
-| DISCOVERY_WEB_ANSWER_TIMEOUT_MS | 310000 |
-| SEARXNG_URL | http://10.8.0.1:18089 |
-| SEARXNG_ENGINES | brave,duckduckgo |
+| Configuration                   | Default               |
+| ------------------------------- | --------------------- |
+| DISCOVERY_BASE_URL              | http://10.8.0.1:18080 |
+| DISCOVERY_WEB_ANSWER_TIMEOUT_MS | 310000                |
+| SEARXNG_URL                     | http://10.8.0.1:18089 |
+| SEARXNG_ENGINES                 | brave,duckduckgo      |
 
 Private/VPN network access is required. No API bearer token or local Codex login.
 The discovery server owns account credentials and always selects gpt-6-luna.
@@ -53,9 +53,16 @@ caller cancellation remains AbortError.
 ## Harness-neutral export
 
 ```ts
-import { askWeb, formatWebAnswer, WebAnswerClientError } from '@patrick3131/pi-packages/research';
+import {
+  askWeb,
+  formatWebAnswer,
+  WebAnswerClientError,
+} from "@patrick3131/pi-packages/research";
 const started = Date.now();
-const answer = await askWeb({ query: 'Find the Python documentation' }, { signal });
+const answer = await askWeb(
+  { query: "Find the Python documentation" },
+  { signal },
+);
 const { text, details } = formatWebAnswer(answer, Date.now() - started);
 ```
 
@@ -80,3 +87,16 @@ inline link supports a claim. results_truncated describes list clipping only.
 Model-facing text and TUI include observed web-action count and server total
 time; actions can include search, open and find. Queries, token usage, detailed
 timings and client wall time remain available in details without cost estimates.
+
+## Meta Ad Library
+
+`ad_library_keyword_ads` discovers advertisers by keyword; `ad_library_domain_ads`
+requires exactly one of `domain` or `page_id`. Both accept country, active_only,
+max_ads (1–300) and timeout_ms (5000–180000, default 120000). They default off;
+enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
+The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
+effective timeout includes 10000ms beyond the server budget. No client retries.
+Results expose receipts, resolved-page votes, partial results and truncation.
+Harness-neutral exports: `searchAdLibrary`, `adsForAdvertiser`, `formatAdLibrary`,
+`AdLibraryClientError`. Errors preserve safe server codes and Retry-After;
+caller abort remains AbortError. Live tests opt in with `DISCOVERY_LIVE=1`.

@@ -81,3 +81,28 @@ export function resolveDiscoveryConfig(env: NodeJS.ProcessEnv = process.env): {
     throw new WebAnswerClientError("invalid_request");
   return { baseUrl: url.origin, timeoutMs };
 }
+
+export function isAdLibraryEnabledByEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return ["1", "true"].includes(
+    env.DISCOVERY_AD_LIBRARY_ENABLED?.trim().toLowerCase() ?? "",
+  );
+}
+export function resolveAdLibraryConfig(env: NodeJS.ProcessEnv = process.env): {
+  baseUrl: string;
+  timeoutMs: number;
+} {
+  const baseUrl = resolveDiscoveryConfig({
+    ...env,
+    DISCOVERY_WEB_ANSWER_TIMEOUT_MS: "310000",
+  }).baseUrl;
+  const timeoutMs = Number(env.DISCOVERY_AD_LIBRARY_TIMEOUT_MS ?? 130000);
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > 2147483647
+  )
+    throw new Error("Invalid ad library timeout.");
+  return { baseUrl, timeoutMs };
+}
