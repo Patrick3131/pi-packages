@@ -42,3 +42,10 @@ by the service. Do not add client retries or admission predictions.
 Ad Library defaults off. Its HTTP timeout is max(configured 130000ms floor, server
 budget + 10000ms), supporting 180000ms requests with 190000ms client budgets.
 Preserve AbortError, sanitized server codes, receipts, partial and truncation.
+
+Ad Library model-visible output includes landing domains/URLs, page IDs, ad copy
+and supplied image/video/carousel previews. Native outputSchema/structuredContent
+exposes all API-returned ads and metadata to codemode. Text previews are bounded
+and explicitly shortened; structured data remains available. Counts are samples,
+not total active inventory. Domain not-found/ambiguous outcomes preserve server
+codes and are normal lookup outcomes, never proof that a brand has no ads.

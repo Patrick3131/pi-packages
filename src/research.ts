@@ -35,3 +35,5 @@ export { webAnswerToolDefinition } from "../packages/pi-discovery/src/toolDefini
 
 export { searchAdLibrary, adsForAdvertiser, formatAdLibrary, AdLibraryClientError } from "../packages/pi-discovery/src/ad-library.js";
 export type { AdLibraryParams, AdLibraryOptions, AdLibraryResult } from "../packages/pi-discovery/src/ad-library.js";
+
+export type { AdLibraryAd, AdImage, AdVideo, AdCard } from "../packages/pi-discovery/src/ad-library.js";

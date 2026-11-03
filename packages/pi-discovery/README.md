@@ -100,3 +100,10 @@ Results expose receipts, resolved-page votes, partial results and truncation.
 Harness-neutral exports: `searchAdLibrary`, `adsForAdvertiser`, `formatAdLibrary`,
 `AdLibraryClientError`. Errors preserve safe server codes and Retry-After;
 caller abort remains AbortError. Live tests opt in with `DISCOVERY_LIVE=1`.
+
+Ad Library model-visible output includes landing domains/URLs, page IDs, ad copy
+and supplied image/video/carousel previews. Native outputSchema/structuredContent
+exposes all API-returned ads and metadata to codemode. Text previews are bounded
+and explicitly shortened; structured data remains available. Counts are samples,
+not total active inventory. Domain not-found/ambiguous outcomes preserve server
+codes and are normal lookup outcomes, never proof that a brand has no ads.

@@ -9,10 +9,38 @@ export interface AdLibraryParams {
   max_ads?: number;
   timeout_ms?: number;
 }
+export interface AdImage {
+  original_image_url?: string | null;
+  resized_image_url?: string | null;
+  watermarked_resized_image_url?: string | null;
+}
+export interface AdVideo {
+  video_hd_url?: string | null;
+  video_sd_url?: string | null;
+  video_preview_image_url?: string | null;
+  watermarked_video_hd_url?: string | null;
+  watermarked_video_sd_url?: string | null;
+}
+export interface AdCard extends AdImage, AdVideo {
+  headline?: string | null;
+  body?: string | null;
+  description?: string | null;
+  caption?: string | null;
+  cta?: string | null;
+  cta_type?: string | null;
+  landing_url?: string | null;
+  landing_domain?: string | null;
+}
 export interface AdLibraryAd {
   archive_id: string;
   page_id: string | null;
   page_name: string | null;
+  landing_url?: string | null;
+  landing_domain?: string | null;
+  images?: AdImage[];
+  videos?: AdVideo[];
+  cards?: AdCard[];
+  creative_truncated?: boolean;
   [key: string]: unknown;
 }
 export interface AdLibraryResult {
@@ -268,27 +296,4 @@ export function adsForAdvertiser(
     throw new AdLibraryClientError("invalid_request");
   return searchAdLibrary(params, options);
 }
-export function formatAdLibrary(result: AdLibraryResult) {
-  const advertisers = [
-    ...new Map(
-      result.ads.map((a) => [a.page_id, a.page_name ?? a.page_id ?? "Unknown"]),
-    ).values(),
-  ];
-  const summary =
-    `Meta ads · ${result.ads.length} ads · ${advertisers.length} advertisers · ${result.mode}: ${result.query}` +
-    (result.truncated ? ` · truncated (${result.truncation.join(", ")})` : "") +
-    (result.partial ? " · partial" : "");
-  return {
-    text: [
-      summary,
-      ...(result.resolved_page
-        ? [
-            `Resolved: ${result.resolved_page.page_name ?? ""} (${result.resolved_page.page_id}), ${result.resolved_page.votes}/${result.resolved_page.total} votes`,
-          ]
-        : []),
-      ...advertisers,
-    ].join("\n"),
-    summary,
-    details: { ...result, requestId: result.id },
-  };
-}
+export { formatAdLibrary } from "./ad-library-format.js";

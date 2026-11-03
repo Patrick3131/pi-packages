@@ -160,3 +160,127 @@ test("tool failures surface isError and sanitized server metadata", async (t) =>
     "ad_library_disabled",
   );
 });
+
+test("model-visible ads include domains, page IDs, copy and creative URLs", () => {
+  const rich = {
+    ...result,
+    ads: [
+      {
+        archive_id: "1",
+        page_id: "2",
+        page_name: "Brand",
+        landing_url: "https://brand.example/product",
+        body: "Ad copy",
+        headline: "Headline",
+        images: [{ original_image_url: "https://cdn.example/image.jpg" }],
+        videos: [
+          {
+            video_hd_url: "https://cdn.example/video.mp4",
+            video_preview_image_url: "https://cdn.example/preview.jpg",
+          },
+        ],
+        cards: [
+          {
+            headline: "Card product",
+            body: "Card copy",
+            landing_url: "https://shop.brand.example/card",
+            resized_image_url: "https://cdn.example/card.jpg",
+          },
+        ],
+      },
+    ],
+  } as Parameters<typeof formatAdLibrary>[0];
+  const output = formatAdLibrary(rich);
+  for (const text of [
+    "brand.example",
+    "page_id=2",
+    "https://brand.example/product",
+    "Ad copy",
+    "Headline",
+    "https://cdn.example/image.jpg",
+    "https://cdn.example/video.mp4",
+    "Card product",
+    "https://shop.brand.example/card",
+  ])
+    assert.ok(output.text.includes(text), text);
+  assert.match(output.text, /not total active-ad inventory/);
+  const large = {
+    ...rich,
+    ads: Array.from({ length: 300 }, (_, i) => ({
+      ...rich.ads[0],
+      archive_id: String(i),
+      page_id: String(i),
+      body: "x".repeat(10000),
+    })),
+  };
+  const bounded = formatAdLibrary(large);
+  assert.ok(bounded.text.length < 32500);
+  assert.match(bounded.text, /Text view shortened/);
+  assert.equal(bounded.details.ads.length, 300);
+});
+test("native structured output preserves full ads and normal resolution outcomes", async (t) => {
+  const { executeAdLibrary, registerAdLibrary } =
+    await import("../src/ad-library-tools.js");
+  const nativePayload = {
+    ...result,
+    ads: [
+      {
+        ...result.ads[0],
+        images: [{ original_image_url: "https://cdn.example/image.jpg" }],
+        videos: [{ video_sd_url: "https://cdn.example/video.mp4" }],
+        cards: [
+          {
+            headline: "Card",
+            landing_url: "https://brand.example/product",
+            body: "Copy",
+          },
+        ],
+      },
+    ],
+  };
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify(nativePayload)),
+  );
+  const success = await executeAdLibrary({ keyword: "x" });
+  assert.equal((success.structuredContent as { ads: unknown[] }).ads.length, 1);
+  const definitions: Array<{ name: string; outputSchema: unknown }> = [];
+  registerAdLibrary({
+    registerTool: (d: { name: string; outputSchema: unknown }) =>
+      definitions.push(d),
+  } as never);
+  assert.equal(definitions.length, 2);
+  assert.ok(definitions.every((d) => d.outputSchema));
+  const { Check } = await import("typebox/value");
+  assert.ok(
+    Check(
+      definitions[0].outputSchema as import("typebox").TSchema,
+      success.structuredContent,
+    ),
+  );
+  assert.equal(
+    (success.structuredContent as { ads: Array<{ cards: unknown[] }> }).ads[0]
+      .cards.length,
+    1,
+  );
+  for (const [status, code, outcome] of [
+    [404, "ad_library_page_not_found", "not_found"],
+    [409, "ad_library_page_ambiguous", "ambiguous"],
+  ] as const) {
+    t.mock.method(
+      globalThis,
+      "fetch",
+      async () =>
+        new Response(JSON.stringify({ error: { code, request_id: "safe" } }), {
+          status,
+        }),
+    );
+    const output = await executeAdLibrary({ domain: "brand.example" });
+    assert.equal(output.isError, false);
+    assert.equal(
+      (output.structuredContent as { status: string }).status,
+      outcome,
+    );
+  }
+});
