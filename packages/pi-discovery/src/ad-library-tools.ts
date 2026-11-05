@@ -144,13 +144,18 @@ export async function executeAdLibrary(
         : e.serverCode === "ad_library_page_ambiguous"
           ? "ambiguous"
           : "error";
+    const candidateText = e.candidates?.length
+      ? `\nCandidates: ${e.candidates.map((c) => `${c.page_name ?? "unknown"} page_id=${c.page_id} votes=${c.votes}/${c.ads} ads`).join("; ")}` +
+        (e.retryWith ? `\nRetry with page_id=${e.retryWith.page_id}.` : "")
+      : "";
     const text =
-      status === "not_found"
+      (status === "not_found"
         ? "No matching advertiser resolved for this domain in the sampled results. This is not proof of no ads. Use a page_id from keyword results."
         : status === "ambiguous"
           ? "Advertiser resolution is ambiguous. Use a page_id from keyword results; the brand may still have ads."
           : e.message +
-            (e.retryAfterMs ? ` Retry after ${e.retryAfterMs / 1000} s.` : "");
+            (e.retryAfterMs ? ` Retry after ${e.retryAfterMs / 1000} s.` : "")) +
+      candidateText;
     const error = Object.fromEntries(
       Object.entries({
         code: e.code,
@@ -158,6 +163,8 @@ export async function executeAdLibrary(
         serverCode: e.serverCode,
         requestId: e.requestId,
         retryAfterMs: e.retryAfterMs,
+        candidates: e.candidates,
+        retry_with: e.retryWith,
       }).filter(([, value]) => value !== undefined),
     );
     const details = { status, ads: [], error };

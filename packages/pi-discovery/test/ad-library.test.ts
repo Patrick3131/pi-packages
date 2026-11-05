@@ -161,6 +161,67 @@ test("tool failures surface isError and sanitized server metadata", async (t) =>
   );
 });
 
+test("resolution failures surface candidates and a retry hint", async (t) => {
+  const { executeAdLibrary } = await import("../src/ad-library-tools.js");
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "ad_library_page_ambiguous",
+            request_id: "safe",
+            candidates: [
+              {
+                page_id: "106897735744942",
+                page_name: "Elite Hoops App",
+                votes: 1,
+                ads: 4,
+                landing_domains: ["elitehoopsapp.com"],
+              },
+            ],
+            retry_with: { page_id: "106897735744942" },
+            sample_truncated: true,
+          },
+        }),
+        { status: 409 },
+      ),
+  );
+  const output = await executeAdLibrary({ domain: "elitehoopsapp.com" });
+  assert.equal(output.isError, false);
+  const details = output.details as {
+    status: string;
+    error: { candidates: Array<{ page_id: string }>; retry_with: { page_id: string } };
+  };
+  assert.equal(details.status, "ambiguous");
+  assert.equal(details.error.candidates[0].page_id, "106897735744942");
+  assert.equal(details.error.retry_with.page_id, "106897735744942");
+  assert.match(
+    output.content[0].type === "text" ? output.content[0].text : "",
+    /Retry with page_id=106897735744942/,
+  );
+});
+
+test("summary leads with status filters and explains the truncation cause", () => {
+  const formatted = formatAdLibrary({
+    ...result,
+    cap_reason: "ad_limit",
+    advertisers: [
+      {
+        page_id: "2",
+        page_name: "Brand",
+        ads: 1,
+        active: 1,
+        landing_domains: ["brand.example"],
+      },
+    ],
+  } as never);
+  assert.match(formatted.summary, /US · active only/);
+  assert.match(formatted.summary, /stopped at requested max_ads/);
+  assert.match(formatted.text, /Brand \| page_id=2 \| domains=brand\.example \| ads=1/);
+});
+
 test("model-visible ads include domains, page IDs, copy and creative URLs", () => {
   const rich = {
     ...result,

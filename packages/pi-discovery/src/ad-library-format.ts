@@ -67,7 +67,10 @@ export function formatAdLibrary(result: AdLibraryResult) {
   }
   const summary =
     `Meta ads · ${result.ads.length} ads returned · ${groups.size} advertisers · ${result.mode}: ${result.query}` +
-    (result.truncated ? ` · truncated (${result.truncation.join(", ")})` : "") +
+    ` · ${result.country} · ${result.active_only ? "active only (paused ads excluded)" : "active and inactive"}` +
+    (result.truncated
+      ? ` · truncated (${result.truncation.join(", ")}${result.cap_reason ? `, ${result.cap_reason === "ad_limit" ? "stopped at requested max_ads" : "stopped at server page budget"}` : ""})`
+      : "") +
     (result.partial ? " · partial" : "") +
     (result.ads.some((ad) => ad.creative_truncated)
       ? " · creative metadata capped"
@@ -78,7 +81,7 @@ export function formatAdLibrary(result: AdLibraryResult) {
   ];
   if (result.resolved_page)
     lines.push(
-      `Resolved: ${result.resolved_page.page_name ?? ""} (${result.resolved_page.page_id}), ${result.resolved_page.votes}/${result.resolved_page.total} sampled votes`,
+      `Resolved: ${result.resolved_page.page_name ?? ""} (${result.resolved_page.page_id}), ${result.resolved_page.votes}/${result.resolved_page.total} sampled votes${result.resolved_page.evidence ? ` via ${result.resolved_page.evidence}` : ""}`,
     );
   if (!result.ads.length)
     lines.push(
@@ -86,13 +89,22 @@ export function formatAdLibrary(result: AdLibraryResult) {
     );
   let text = lines.join("\n");
   let advertisersShown = 0;
-  for (const group of groups.values()) {
-    const line = `\n${clean(group.name, 200)} | page_id=${group.pageId ?? "unknown"} | domains=${[...group.domains].join(", ") || "not supplied"} | sampled_ads=${group.ads}`;
+  const rollup = result.advertisers?.length
+    ? result.advertisers
+    : [...groups.values()].map((group) => ({
+        page_id: group.pageId ?? "unknown",
+        page_name: group.name,
+        ads: group.ads,
+        active: 0,
+        landing_domains: [...group.domains],
+      }));
+  for (const group of rollup) {
+    const line = `\n${clean(group.page_name, 200)} | page_id=${group.page_id ?? "unknown"} | domains=${(group.landing_domains ?? []).join(", ") || "not supplied"} | ads=${group.ads}${result.active_only ? "" : ` | active=${group.active}`}`;
     if (text.length + line.length > 12000) break;
     text += line;
     advertisersShown++;
   }
-  if (advertisersShown < groups.size)
+  if (advertisersShown < rollup.length)
     text +=
       "\nAdvertiser text list shortened; all returned records remain in structured output.";
   let shown = 0;

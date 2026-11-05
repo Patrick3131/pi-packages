@@ -45,6 +45,21 @@ export interface AdLibraryAd {
   representative_card_index?: number | null;
   [key: string]: unknown;
 }
+export interface AdLibraryCandidate {
+  page_id: string;
+  page_name?: string | null;
+  votes: number;
+  ads: number;
+  landing_domains?: string[];
+}
+export interface AdLibraryAdvertiser {
+  page_id: string;
+  page_name?: string | null;
+  ads: number;
+  active: number;
+  landing_domains?: string[];
+}
+
 export interface AdLibraryResult {
   id: string;
   provider: "meta_ad_library";
@@ -61,7 +76,10 @@ export interface AdLibraryResult {
     total: number;
     pages_inspected: number;
     sample_truncated: boolean;
+    evidence?: "landing_url" | "card_url" | null;
   } | null;
+  advertisers?: AdLibraryAdvertiser[];
+  cap_reason?: "ad_limit" | "page_budget" | null;
   failed_pages: Array<{ page: number; error_code: string }>;
   truncation: Array<"ad_cap" | "page_cap" | "page_failure">;
   partial: boolean;
@@ -93,6 +111,8 @@ export class AdLibraryClientError extends Error {
     public serverCode?: string,
     public requestId?: string,
     public retryAfterMs?: number,
+    public candidates?: AdLibraryCandidate[],
+    public retryWith?: { page_id: string },
   ) {
     super(`Ad library request failed (${code}).`);
     this.name = "AdLibraryClientError";
@@ -209,7 +229,11 @@ function parseResult(data: unknown, cap: number): AdLibraryResult {
     !["queue_ms", "upstream_ms", "total_ms"].every(
       (k) => Number.isFinite(data.timings[k]) && data.timings[k] >= 0,
     ) ||
-    !(data.resolved_page === null || record(data.resolved_page))
+    !(data.resolved_page === null || record(data.resolved_page)) ||
+    (data.cap_reason != null &&
+      !["ad_limit", "page_budget"].includes(String(data.cap_reason))) ||
+    (data.advertisers !== undefined &&
+      !(Array.isArray(data.advertisers) && data.advertisers.every(record)))
   )
     return fail();
   return data as AdLibraryResult;
@@ -273,6 +297,12 @@ export async function searchAdLibrary(
         rid,
         retry && /^\d+$/.test(retry)
           ? Math.min(Number(retry) * 1000, 86400000)
+          : undefined,
+        Array.isArray(e.candidates)
+          ? (e.candidates.filter(record) as AdLibraryCandidate[]).slice(0, 5)
+          : undefined,
+        record(e.retry_with) && typeof e.retry_with.page_id === "string"
+          ? { page_id: e.retry_with.page_id }
           : undefined,
       );
     }
