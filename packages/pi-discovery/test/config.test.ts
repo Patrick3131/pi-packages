@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   assertHttpUrl,
   isSearxngEnabledByEnv,
+  isSocialEnabledByEnv,
   resolveDefaultEngines,
   resolveSearxngBaseUrl,
+  resolveSocialConfig,
+  SOCIAL_DEFAULT_HTTP_TIMEOUT_MS,
 } from "../src/config.js";
 import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "../src/types.js";
 
@@ -47,4 +50,22 @@ test("isSearxngEnabledByEnv is off unless explicitly enabled", () => {
 test("assertHttpUrl rejects non-http URLs", () => {
   assert.throws(() => assertHttpUrl("file:///etc/passwd"), /http/);
   assert.doesNotThrow(() => assertHttpUrl("http://10.8.0.1:18089"));
+});
+
+test("social config is default-off with a 130000 ms HTTP floor", () => {
+  assert.equal(isSocialEnabledByEnv({}), false);
+  assert.equal(isSocialEnabledByEnv({ DISCOVERY_SOCIAL_ENABLED: "0" }), false);
+  assert.equal(isSocialEnabledByEnv({ DISCOVERY_SOCIAL_ENABLED: "1" }), true);
+  assert.equal(isSocialEnabledByEnv({ DISCOVERY_SOCIAL_ENABLED: "TRUE " }), true);
+  assert.equal(SOCIAL_DEFAULT_HTTP_TIMEOUT_MS, 130000);
+  assert.deepEqual(resolveSocialConfig({}), {
+    baseUrl: "http://10.8.0.1:18080",
+    timeoutMs: 130000,
+  });
+  assert.equal(
+    resolveSocialConfig({ DISCOVERY_SOCIAL_TIMEOUT_MS: "190000" }).timeoutMs,
+    190000,
+  );
+  for (const value of ["0", "-1", "1.5", "abc"])
+    assert.throws(() => resolveSocialConfig({ DISCOVERY_SOCIAL_TIMEOUT_MS: value }));
 });

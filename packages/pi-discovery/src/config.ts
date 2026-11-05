@@ -106,3 +106,34 @@ export function resolveAdLibraryConfig(env: NodeJS.ProcessEnv = process.env): {
     throw new Error("Invalid ad library timeout.");
   return { baseUrl, timeoutMs };
 }
+
+/** HTTP timeout floor for the social routes; raised automatically for long samples. */
+export const SOCIAL_DEFAULT_HTTP_TIMEOUT_MS = 130000;
+
+export function isSocialEnabledByEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return ["1", "true"].includes(
+    env.DISCOVERY_SOCIAL_ENABLED?.trim().toLowerCase() ?? "",
+  );
+}
+
+export function resolveSocialConfig(env: NodeJS.ProcessEnv = process.env): {
+  baseUrl: string;
+  timeoutMs: number;
+} {
+  const baseUrl = resolveDiscoveryConfig({
+    ...env,
+    DISCOVERY_WEB_ANSWER_TIMEOUT_MS: "310000",
+  }).baseUrl;
+  const timeoutMs = Number(
+    env.DISCOVERY_SOCIAL_TIMEOUT_MS ?? SOCIAL_DEFAULT_HTTP_TIMEOUT_MS,
+  );
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > 2147483647
+  )
+    throw new Error("Invalid social timeout.");
+  return { baseUrl, timeoutMs };
+}

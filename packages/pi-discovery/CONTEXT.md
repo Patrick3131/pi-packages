@@ -9,10 +9,15 @@ canonical_for: pi-discovery architecture
 # pi-discovery — Context
 
 ```
-src/config.ts   URL / enable flags
-src/search.ts   GET /search?format=json
-src/answer.ts   bounded cancellable POST /v1/web-answer
-src/index.ts    register both tools with native defaultActive
+src/config.ts           URL / enable flags / timeout floors
+src/search.ts           GET /search?format=json
+src/answer.ts           bounded cancellable POST /v1/web-answer
+src/ad-library.ts       POST /v1/ad-library/search client and result types
+src/ad-library-tools.ts native Ad Library tools and output schema
+src/social.ts           POST /v1/social/{profile,profile-posts,post} clients
+src/social-validation.ts selector, URL and wire-response validation
+src/social-tools.ts     native social tools, schemas and registration
+src/index.ts            register every tool with native defaultActive
 ```
 
 Live instance: Dokploy `Tools` / `discovery-services`, JSON on
@@ -56,3 +61,36 @@ API 0.3.1 resolves dynamic template copy using one representative card. Preserve
 output; the text formatter labels this source and shows its product landing
 URL separately. Unresolved copy is null. Legacy template strings are labelled
 unavailable in text previews. DCO cards may be variants, not carousel slides.
+
+## Social profile and post metadata
+
+`social_profile` calls one profile query, `social_profile_posts` adds a bounded
+listing + hydration sample, and `social_post` queries one exact post. All three are
+Instagram only, default off, enabled by `DISCOVERY_SOCIAL_ENABLED=1/true` or the
+project tool selection, and talk only to the Discovery API: Pi holds no Instagram,
+proxy, cookie or query-id configuration. The service's own `SOCIAL_ENABLED` gate
+remains authoritative, so a disabled server still answers with a typed
+`social_disabled` error.
+
+`src/social-validation.ts` owns request selectors and response parsing. Requests
+carry exactly one selector and an explicit `platform: "instagram"`; omitted
+`timeout_ms` values resolve to 30000 (profile/post) or 120000 (profile-posts) before
+the fetch, `max_posts` resolves to 12, and URLs must be canonical HTTPS
+`instagram.com`/`www.instagram.com` forms without userinfo, explicit ports,
+percent-encoded paths, backslashes, traversal or reserved profile segments. Responses
+are validated against the documented contract and rejected as `malformed` rather than
+defaulted; unknown extra fields are preserved.
+
+`src/config.ts` resolves `DISCOVERY_BASE_URL` plus a `DISCOVERY_SOCIAL_TIMEOUT_MS`
+floor (130000 default). The HTTP budget is max(floor, effective server budget +
+10000), so a 180000 ms sample gets 190000 ms. One fetch per call: no retries, no
+rotation, no admission prediction and no health probe. Caller abort wins and stays
+`AbortError`; the owned timer and abort listener are cleared on every exit.
+
+`SocialClientError` mirrors the Ad Library error shape (code, status, serverCode,
+requestId, retryAfterMs, reason) and never carries raw response or transport text.
+HTTP 200 partial data stays `structuredContent.status = "partial"` with `isError`
+unset and keeps `sample_failure.retry_after_s`; a 404 becomes `not_found` with the
+exact `social_profile_not_found` or `social_post_not_found` code. Harness-neutral
+exports: `getSocialProfile`, `getSocialProfilePosts`, `getSocialPost`,
+`formatSocialProfile`, `formatSocialProfilePosts` and `formatSocialPost`.

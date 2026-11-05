@@ -1,4 +1,5 @@
 import { registerAdLibrary } from "./ad-library-tools.js";
+import { registerSocial } from "./social-tools.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { isSearxngEnabledByEnv, isWebAnswerEnabledByEnv } from "./config.js";
@@ -16,6 +17,7 @@ import {
 
 export default function discovery(pi: ExtensionAPI): void {
   registerAdLibrary(pi);
+  registerSocial(pi);
   pi.registerTool({
     ...searxngToolDefinition,
     defaultActive: isSearxngEnabledByEnv(),

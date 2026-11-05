@@ -113,3 +113,54 @@ API 0.3.1 resolves dynamic template copy using one representative card. Preserve
 output; the text formatter labels this source and shows its product landing
 URL separately. Unresolved copy is null. Legacy template strings are labelled
 unavailable in text previews. DCO cards may be variants, not carousel slides.
+
+## Instagram profile and post metadata
+
+Three default-off tools query the server-owned social routes. Pi never contacts
+Instagram and holds no provider, residential-proxy or cookie credentials.
+
+| Tool                   | Route                         | Selection and bounds                                                       |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------- |
+| `social_profile`       | POST /v1/social/profile       | username or profile URL; timeout_ms 5000–60000                             |
+| `social_profile_posts` | POST /v1/social/profile-posts | username or profile URL; max_posts 1–50 (default 12); timeout_ms 5000–180000 |
+| `social_post`          | POST /v1/social/post          | shortcode or post URL; timeout_ms 5000–60000                              |
+
+Enable with `DISCOVERY_SOCIAL_ENABLED=1` or per-project `.pi/tools.json`; the
+server's own `SOCIAL_ENABLED` gate stays authoritative, and a disabled server
+returns a typed `social_disabled` error. Each call sends exactly one selector
+(plus optional `platform: "instagram"`) to exactly one route after local
+validation: canonical HTTPS `instagram.com`/`www.instagram.com` URLs, no userinfo,
+explicit ports, percent-encoded paths, backslashes, traversal or reserved profile
+segments, and URLs up to 512 characters.
+
+`DISCOVERY_SOCIAL_TIMEOUT_MS` is a 130000 ms floor. Omitted tool timeouts resolve to
+the route default (30000 for profile/post, 120000 for profile-posts), and the HTTP
+budget is `max(floor, effective server budget + 10000)`, so a 180000 ms sample uses
+at least 190000 ms. Caller abort always wins and stays `AbortError`.
+
+`social_profile` is one query (identity and counts). `social_profile_posts` also
+lists and hydrates up to `max_posts` candidates, so it costs roughly one hydration
+per candidate. Results are a bounded sample in upstream encounter order: pinned
+posts may lead, so never present them as the latest chronological posts.
+Continuation is tri-state (`has_more_posts`: true, false or null for unknown).
+
+Model-visible text is bounded to 12000 characters with at most five post previews
+and 300 caption characters each, and labels shortening explicitly. It preserves
+private profiles, null/zero/hidden counts, actual post authors, warnings about
+pinned order and expiring media URLs, and unknown continuation. Native
+outputSchema/structuredContent carries the complete response, including ids,
+`observed_at`, profile/post/media references, `failed_posts`, `sample_failure`
+with `retry_after_s`, truncation/warnings order and timings.
+
+HTTP 200 partial data is `status: partial` with `isError` unset; only failed HTTP or
+client calls are errors. A 404 becomes `status: not_found` with the exact
+`social_profile_not_found` or `social_post_not_found` code, which is not proof of a
+private account. `partial` is not a retry signal: this client never retries, waits,
+rotates proxies or reacquires because a sample is partial, and it ignores a
+`Retry-After` header on HTTP 200 while keeping `sample_failure.retry_after_s`. An
+actual HTTP 429 reports the sanitized delay as advisory `retryAfterMs`.
+
+Harness-neutral exports: `getSocialProfile`, `getSocialProfilePosts`,
+`getSocialPost`, `formatSocialProfile`, `formatSocialProfilePosts`,
+`formatSocialPost` and `SocialClientError`. Each accepts injected `env`, `fetch`
+and `AbortSignal` and returns typed API data without TUI dependencies.
