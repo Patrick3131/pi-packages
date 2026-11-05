@@ -26,6 +26,7 @@
       "packages/pi-discovery/src/index.ts",
       "packages/pi-toolkit/src/features/tools/index.ts",
       "packages/pi-toolkit/src/features/skill-mentions/index.ts",
+      "packages/pi-toolkit/src/features/inline-actions/index.ts",
       "packages/pi-toolkit/src/features/overview/index.ts",
       "packages/pi-recap/src/index.ts",
       "packages/pi-work/src/index.ts"

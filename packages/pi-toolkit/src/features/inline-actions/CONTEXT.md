@@ -61,10 +61,11 @@ editor keystroke
 ```
 
 Provider stacking order follows extension load order, so `inline-actions` is
-listed after `skill-mentions` in `package.json`: it wraps the skill provider and
-re-emits its items, which is what produces one combined list. If the skill
-feature is filtered out, the wrapper sits directly on Pi's built-in provider and
-the menu still works.
+listed after `skill-mentions` in `pi.extensions` — the repository root manifest
+for the Git resource, and this package's own manifest for a standalone install.
+It wraps the skill provider and re-emits its items, which is what produces one
+combined list. If the skill feature is filtered out, the wrapper sits directly on
+Pi's built-in provider and the menu still works.
 
 ## Modules
 
