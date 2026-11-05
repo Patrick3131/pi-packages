@@ -386,7 +386,7 @@ test("cursor is accepted only with a resumable selector", () => {
     { domain: "a.com", cursor: "x" },
     { keyword: "x", cursor: "bad cursor" },
     { keyword: "x", cursor: "" },
-    { keyword: "x", cursor: "a".repeat(8193) },
+    { keyword: "x", cursor: "a".repeat(65537) },
   ]) {
     assert.throws(
       () => adLibraryRequest(params as never),

@@ -176,7 +176,7 @@ export function adLibraryRequest(
   if (
     p.cursor !== undefined &&
     (typeof p.cursor !== "string" ||
-      !/^[\x21-\x7e]{1,8192}$/.test(p.cursor) ||
+      !/^[\x21-\x7e]{1,65536}$/.test(p.cursor) ||
       p.domain !== undefined)
   )
     throw new AdLibraryClientError("invalid_request");
