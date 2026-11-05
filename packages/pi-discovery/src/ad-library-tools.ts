@@ -164,8 +164,11 @@ export async function executeAdLibrary(
         ? "No matching advertiser resolved for this domain in the sampled results. This is not proof of no ads. Use a page_id from keyword results."
         : status === "ambiguous"
           ? "Advertiser resolution is ambiguous. Use a page_id from keyword results; the brand may still have ads."
-          : e.message +
-            (e.retryAfterMs ? ` Retry after ${e.retryAfterMs / 1000} s.` : "")) +
+          : e.reason === "cursor_mismatch"
+            ? "Cursor does not match this selector/filters. Restart without cursor."
+            : e.message +
+              (e.reason ? ` Reason: ${e.reason}.` : "") +
+              (e.retryAfterMs ? ` Retry after ${e.retryAfterMs / 1000} s.` : "")) +
       candidateText;
     const error = Object.fromEntries(
       Object.entries({
@@ -176,6 +179,7 @@ export async function executeAdLibrary(
         retryAfterMs: e.retryAfterMs,
         candidates: e.candidates,
         retry_with: e.retryWith,
+        reason: e.reason,
       }).filter(([, value]) => value !== undefined),
     );
     const details = { status, ads: [], error };

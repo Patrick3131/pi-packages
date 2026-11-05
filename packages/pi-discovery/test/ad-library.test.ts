@@ -417,3 +417,38 @@ test("harvest state is rendered so a caller can continue", () => {
   const done = formatAdLibrary({ ...result, complete: true, next_cursor: null } as never);
   assert.doesNotMatch(done.text, /Next: pass cursor/);
 });
+
+test("one-page minimum and cursor-mismatch guidance", async (t) => {
+  assert.throws(
+    () => adLibraryRequest({ keyword: "x", max_ads: 9 }),
+    (e: Error) => e instanceof AdLibraryClientError && e.code === "invalid_request",
+  );
+  assert.equal(adLibraryRequest({ keyword: "x", max_ads: 10 }).max_ads, 10);
+
+  const { executeAdLibrary } = await import("../src/ad-library-tools.js");
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "invalid_request",
+            request_id: "safe",
+            reason: "cursor_mismatch",
+          },
+        }),
+        { status: 400 },
+      ),
+  );
+  const output = await executeAdLibrary({ keyword: "x", cursor: "v1.0000000000000000:abc" });
+  assert.equal(output.isError, true);
+  assert.match(
+    output.content[0].type === "text" ? output.content[0].text : "",
+    /Restart without cursor/,
+  );
+  assert.equal(
+    (output.details as { error: { reason: string } }).error.reason,
+    "cursor_mismatch",
+  );
+});

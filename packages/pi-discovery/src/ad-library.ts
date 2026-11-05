@@ -95,6 +95,17 @@ export interface AdLibraryOptions {
   env?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
 }
+const reasons = new Set([
+  "doc_id_retired",
+  "login_required",
+  "schema",
+  "shape",
+  "transport",
+  "http_status",
+  "proxy_missing",
+  "no_domain_evidence",
+  "cursor_mismatch",
+]);
 const codes = new Set([
   "invalid_request",
   ...[
@@ -117,6 +128,7 @@ export class AdLibraryClientError extends Error {
     public retryAfterMs?: number,
     public candidates?: AdLibraryCandidate[],
     public retryWith?: { page_id: string },
+    public reason?: string,
   ) {
     super(`Ad library request failed (${code}).`);
     this.name = "AdLibraryClientError";
@@ -193,7 +205,7 @@ export function adLibraryRequest(
     !/^[A-Z]{2}$/.test(body.country) ||
     typeof body.active_only !== "boolean" ||
     !Number.isSafeInteger(body.max_ads) ||
-    body.max_ads < 1 ||
+    body.max_ads < 10 ||
     body.max_ads > 300 ||
     !Number.isSafeInteger(body.timeout_ms) ||
     body.timeout_ms < 5000 ||
@@ -322,6 +334,7 @@ export async function searchAdLibrary(
         record(e.retry_with) && typeof e.retry_with.page_id === "string"
           ? { page_id: e.retry_with.page_id }
           : undefined,
+        reasons.has(e.reason) ? e.reason : undefined,
       );
     }
     return parseResult(data, body.max_ads);
