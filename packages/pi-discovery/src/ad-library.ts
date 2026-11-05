@@ -8,6 +8,7 @@ export interface AdLibraryParams {
   active_only?: boolean;
   max_ads?: number;
   timeout_ms?: number;
+  cursor?: string;
 }
 export interface AdImage {
   original_image_url?: string | null;
@@ -80,6 +81,9 @@ export interface AdLibraryResult {
   } | null;
   advertisers?: AdLibraryAdvertiser[];
   cap_reason?: "ad_limit" | "page_budget" | null;
+  next_cursor?: string | null;
+  complete?: boolean;
+  dropped?: number;
   failed_pages: Array<{ page: number; error_code: string }>;
   truncation: Array<"ad_cap" | "page_cap" | "page_failure">;
   partial: boolean;
@@ -138,6 +142,7 @@ export function adLibraryRequest(
           "active_only",
           "max_ads",
           "timeout_ms",
+          "cursor",
         ].includes(k),
     )
   )
@@ -168,6 +173,13 @@ export function adLibraryRequest(
     )
       throw new AdLibraryClientError("invalid_request");
   }
+  if (
+    p.cursor !== undefined &&
+    (typeof p.cursor !== "string" ||
+      !/^[\x21-\x7e]{1,2048}$/.test(p.cursor) ||
+      p.domain !== undefined)
+  )
+    throw new AdLibraryClientError("invalid_request");
   if (p.country !== undefined && typeof p.country !== "string")
     throw new AdLibraryClientError("invalid_request");
   const body = {
@@ -233,7 +245,13 @@ function parseResult(data: unknown, cap: number): AdLibraryResult {
     (data.cap_reason != null &&
       !["ad_limit", "page_budget"].includes(String(data.cap_reason))) ||
     (data.advertisers !== undefined &&
-      !(Array.isArray(data.advertisers) && data.advertisers.every(record)))
+      !(Array.isArray(data.advertisers) && data.advertisers.every(record))) ||
+    (data.next_cursor !== undefined &&
+      data.next_cursor !== null &&
+      typeof data.next_cursor !== "string") ||
+    (data.complete !== undefined && typeof data.complete !== "boolean") ||
+    (data.dropped !== undefined &&
+      !(Number.isSafeInteger(data.dropped) && data.dropped >= 0))
   )
     return fail();
   return data as AdLibraryResult;

@@ -79,6 +79,14 @@ export function formatAdLibrary(result: AdLibraryResult) {
     summary,
     "Counts are returned samples, not total active-ad inventory.",
   ];
+  if (result.dropped)
+    lines.push(
+      `Dropped: ${result.dropped} ads from a split page (page cannot be rewound); resume continues after it.`,
+    );
+  if (!result.complete && result.next_cursor)
+    lines.push(`Next: pass cursor="${result.next_cursor}" to continue; stop when complete is true.`);
+  else if (!result.complete && !result.next_cursor)
+    lines.push("Next: pass cursor=null to restart from the beginning; this result is not complete.");
   if (result.resolved_page)
     lines.push(
       `Resolved: ${result.resolved_page.page_name ?? ""} (${result.resolved_page.page_id}), ${result.resolved_page.votes}/${result.resolved_page.total} sampled votes${result.resolved_page.evidence ? ` via ${result.resolved_page.evidence}` : ""}`,

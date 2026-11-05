@@ -82,6 +82,9 @@ const outputSchema = Type.Object(
     partial: Type.Optional(Type.Boolean()),
     truncated: Type.Optional(Type.Boolean()),
     truncation: Type.Optional(Type.Array(Type.String())),
+    next_cursor: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    complete: Type.Optional(Type.Boolean()),
+    dropped: Type.Optional(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: true },
 );
@@ -98,10 +101,14 @@ export const adLibraryKeywordDefinition = {
   name: "ad_library_keyword_ads",
   label: "Meta keyword ads",
   description:
-    "Discover advertisers by product keyword in Meta Ad Library. Ads evidence paid media, not budget or an open brief. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags.",
+    "Discover advertisers by product keyword in Meta Ad Library. Ads evidence paid media, not budget or an open brief. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample (up to 10 pages, roughly 100 ads); truncated/cap_reason say whether more existed. To harvest, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
   outputSchema,
   parameters: Type.Object(
-    { keyword: Type.String({ minLength: 1, maxLength: 200 }), ...common },
+    {
+      keyword: Type.String({ minLength: 1, maxLength: 200 }),
+      cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+      ...common,
+    },
     { additionalProperties: false },
   ),
 };
@@ -109,7 +116,7 @@ export const adLibraryDomainDefinition = {
   name: "ad_library_domain_ads",
   label: "Meta advertiser ads",
   description:
-    "Find a known brand's ads by domain or explicit page_id. Domain resolution can be ambiguous; pass page_id when known. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags.",
+    "Find a known brand's ads by domain or explicit page_id. Domain resolution can be ambiguous; pass page_id when known. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample (up to 10 pages, roughly 100 ads); truncated/cap_reason say whether more existed. To harvest a page_id, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
   outputSchema,
   parameters: Type.Union([
     Type.Object(
@@ -117,7 +124,11 @@ export const adLibraryDomainDefinition = {
       { additionalProperties: false },
     ),
     Type.Object(
-      { page_id: Type.String({ pattern: "^[0-9]{1,32}$" }), ...common },
+      {
+        page_id: Type.String({ pattern: "^[0-9]{1,32}$" }),
+        cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+        ...common,
+      },
       { additionalProperties: false },
     ),
   ]),

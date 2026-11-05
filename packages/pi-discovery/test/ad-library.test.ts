@@ -378,3 +378,42 @@ test("dynamic copy shows representative provenance and hides unresolved legacy t
   assert.doesNotMatch(legacy.text, /product.name/);
   assert.match(legacy.text, /unavailable: dynamic template/);
 });
+
+test("cursor is accepted only with a resumable selector", () => {
+  const body = adLibraryRequest({ page_id: "123", cursor: "opaque:token-1" });
+  assert.equal(body.cursor, "opaque:token-1");
+  for (const params of [
+    { domain: "a.com", cursor: "x" },
+    { keyword: "x", cursor: "bad cursor" },
+    { keyword: "x", cursor: "" },
+    { keyword: "x", cursor: "a".repeat(2049) },
+  ]) {
+    assert.throws(
+      () => adLibraryRequest(params as never),
+      (e: Error) => e instanceof AdLibraryClientError && e.code === "invalid_request",
+    );
+  }
+});
+
+test("harvest state is rendered so a caller can continue", () => {
+  const more = formatAdLibrary({
+    ...result,
+    truncation: ["page_cap"],
+    truncated: true,
+    complete: false,
+    next_cursor: "opaque:token-1",
+    dropped: 0,
+  } as never);
+  assert.match(more.text, /Next: pass cursor="opaque:token-1"/);
+  const split = formatAdLibrary({
+    ...result,
+    truncation: ["ad_cap", "page_cap"],
+    truncated: true,
+    complete: false,
+    next_cursor: "opaque:token-2",
+    dropped: 4,
+  } as never);
+  assert.match(split.text, /Dropped: 4 ads from a split page/);
+  const done = formatAdLibrary({ ...result, complete: true, next_cursor: null } as never);
+  assert.doesNotMatch(done.text, /Next: pass cursor/);
+});
