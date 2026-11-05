@@ -106,7 +106,7 @@ export const adLibraryKeywordDefinition = {
   parameters: Type.Object(
     {
       keyword: Type.String({ minLength: 1, maxLength: 200 }),
-      cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+      cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 8192 })),
       ...common,
     },
     { additionalProperties: false },
@@ -126,7 +126,7 @@ export const adLibraryDomainDefinition = {
     Type.Object(
       {
         page_id: Type.String({ pattern: "^[0-9]{1,32}$" }),
-        cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+        cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 8192 })),
         ...common,
       },
       { additionalProperties: false },
