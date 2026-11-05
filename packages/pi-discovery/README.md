@@ -92,7 +92,7 @@ timings and client wall time remain available in details without cost estimates.
 
 `ad_library_keyword_ads` discovers advertisers by keyword; `ad_library_domain_ads`
 requires exactly one of `domain` or `page_id`. Both accept country, active_only,
-max_ads (1–300) and timeout_ms (5000–180000, default 120000). They default off;
+max_ads (10–300) and timeout_ms (5000–180000, default 120000). They default off;
 enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
 The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
 effective timeout includes 10000ms beyond the server budget. No client retries.
