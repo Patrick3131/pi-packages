@@ -101,7 +101,7 @@ export const adLibraryKeywordDefinition = {
   name: "ad_library_keyword_ads",
   label: "Meta keyword ads",
   description:
-    "Discover advertisers by product keyword in Meta Ad Library. Ads evidence paid media, not budget or an open brief. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample (up to 10 pages, roughly 100 ads; max_ads minimum 10); truncated/cap_reason say whether more existed. To harvest, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
+    "Discover advertisers by product keyword in Meta Ad Library. Ads evidence paid media, not budget or an open brief. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample: max_ads 10-300 (default 30), up to 10 pages, roughly 100 ads. truncated/cap_reason say whether more existed. To harvest, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
   outputSchema,
   parameters: Type.Object(
     {
@@ -116,7 +116,7 @@ export const adLibraryDomainDefinition = {
   name: "ad_library_domain_ads",
   label: "Meta advertiser ads",
   description:
-    "Find a known brand's ads by domain or explicit page_id. Domain resolution can be ambiguous; pass page_id when known. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample (up to 10 pages, roughly 100 ads; max_ads minimum 10); truncated/cap_reason say whether more existed. To harvest a page_id, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
+    "Find a known brand's ads by domain or explicit page_id. Domain resolution can be ambiguous; pass page_id when known. Returns landing domains/URLs, page IDs, ad copy and supplied media/card metadata. Reuse page_id for known advertisers; surface partial/truncation flags. One call is a bounded sample: max_ads 10-300 (default 30), up to 10 pages, roughly 100 ads. truncated/cap_reason say whether more existed. To harvest a page_id, pass next_cursor as cursor until complete is true; when dropped>0 raise max_ads instead.",
   outputSchema,
   parameters: Type.Union([
     Type.Object(
