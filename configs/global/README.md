@@ -131,10 +131,10 @@ new syncing are needed. The package provides:
 
 - `packages/pi-work` — three shared operator skills and `/work`
 
-- `packages/pi-toolkit` — `/preset`, `/tools`, `$` skill mentions, and My Pi HTML `/overview`; independently filterable feature entry points
+- `packages/pi-toolkit` — `/preset`, `/tools`, `$` skill mentions, `$model:`/`$tools:`/`$thinking:`/`$preset:` inline actions, and My Pi HTML `/overview`; independently filterable feature entry points
 - `packages/pi-discovery` — `web_search_searxng` and `web_answer` (off by default)
 - `packages/pi-crawl4ai` — `crawl` / `crawl_read` and capability-gated `crawl_interact`
-- Toolkit feature paths are `packages/pi-toolkit/src/features/{presets,tools,skill-mentions,overview}/index.ts`.
+- Toolkit feature paths are `packages/pi-toolkit/src/features/{presets,tools,skill-mentions,inline-actions,overview}/index.ts`.
 - `packages/pi-delegation` — standing delegation policy, appended to the
   system prompt only when the `subagent` tool is active in the session
 - Native Pi — MCP, codemode, deferred tool search, and between-turn compaction

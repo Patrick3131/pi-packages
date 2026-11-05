@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { getPresetConfigPaths, loadPresetsFromPaths } from "./config.js";
+import { setPresetRuntime } from "./registry.js";
 import { resolvePresetToolNames } from "./resolve-tools.js";
 import type { Preset, PresetsConfig } from "./types.js";
 
@@ -59,6 +60,21 @@ export default function presetExtension(pi: ExtensionAPI) {
 	let activePresetName: string | undefined;
 	let activePreset: Preset | undefined;
 	let originalState: OriginalState | undefined;
+
+	// Publish a narrow runtime so another feature (inline actions) can apply a
+	// preset without importing this module's state. Cleared again on shutdown.
+	setPresetRuntime({
+		names: () => Object.keys(presets),
+		apply: async (name, ctx) => {
+			const preset = presets[name];
+			if (!preset) {
+				return false;
+			}
+			const applied = await applyPreset(name, preset, ctx);
+			updateStatus(ctx);
+			return applied;
+		},
+	});
 
 	pi.registerFlag("preset", {
 		description: "Preset configuration to use",
@@ -330,5 +346,9 @@ export default function presetExtension(pi: ExtensionAPI) {
 		if (activePresetName) {
 			recordPresetState();
 		}
+	});
+
+	pi.on("session_shutdown", async () => {
+		setPresetRuntime(undefined);
 	});
 }

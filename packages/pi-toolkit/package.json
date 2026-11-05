@@ -1,7 +1,7 @@
 {
   "name": "pi-toolkit",
   "version": "0.1.0",
-  "description": "Everyday Pi utilities: tools, presets, skill mentions, and My Pi setup overview",
+  "description": "Everyday Pi utilities: tools, presets, skill mentions, inline $ actions, and My Pi setup overview",
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test --test-force-exit test/*.test.ts test/**/*.test.ts src/features/overview/*.test.ts",
@@ -17,6 +17,7 @@
     "./src/features/presets/index.ts",
     "./src/features/tools/index.ts",
     "./src/features/skill-mentions/index.ts",
+    "./src/features/inline-actions/index.ts",
     "./src/features/overview/index.ts"
   ]},
   "peerDependencies": {

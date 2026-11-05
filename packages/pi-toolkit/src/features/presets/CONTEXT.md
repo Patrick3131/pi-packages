@@ -32,4 +32,13 @@ The active preset is recorded as a `preset-state` custom entry on every change.
 evidence about this session, and restoring from it would apply a preset the
 current branch never chose.
 
+## Runtime handshake
+
+`applyPreset` lives in this module's closure, so another feature cannot import
+it. The extension publishes `{ names, apply }` through `src/registry.ts` when the
+factory runs and clears it on `session_shutdown`. The only consumer is `$preset:`
+in inline actions, which reports "the presets feature is not loaded" when the
+lookup returns undefined. That keeps the feature entry points independently
+filterable without duplicating config loading or `preset-state` bookkeeping.
+
 This is session workflow control, not capability installation.

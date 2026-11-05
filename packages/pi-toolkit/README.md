@@ -7,6 +7,7 @@ Everyday Pi conveniences, installed through the repository Git package:
 | Tools | `/tools`, `/tools print`, `/tools save` |
 | Presets | `/preset`, `--preset`, Ctrl+Shift+U |
 | Skill mentions | `$skill-name` anywhere in a message, autocomplete, `/skill-mentions` |
+| Inline actions | `$model:`, `$thinking:`, `$tools:`, `$preset:` anywhere in a message; empty argument opens a picker |
 | My Pi | `/overview` opens a read-only HTML setup overview |
 
 ## My Pi
@@ -54,12 +55,13 @@ and catalog counts, not a remote availability test.
 
 ## Feature independence
 
-The package has four extension entry points:
+The package has five extension entry points:
 
 ```text
 src/features/presets/index.ts
 src/features/tools/index.ts
 src/features/skill-mentions/index.ts
+src/features/inline-actions/index.ts
 src/features/overview/index.ts
 ```
 
@@ -74,10 +76,12 @@ Existing behavior/configuration remains unchanged:
 - `<agent-dir>/presets.json` + `<cwd>/.pi/presets.json`: project names replace whole presets.
 - `preset-state`: shared recorded preset signal between tools/presets.
 - Skill syntax, input handling and autocomplete are unchanged.
+- `$` directives are applied before the run and never sent to the model.
 
 Detailed feature notes are under [tools](src/features/tools/README.md),
-[presets](src/features/presets/README.md), and
-[skill mentions](src/features/skill-mentions/README.md).
+[presets](src/features/presets/README.md),
+[skill mentions](src/features/skill-mentions/README.md), and
+[inline actions](src/features/inline-actions/README.md).
 
 ## Migration
 

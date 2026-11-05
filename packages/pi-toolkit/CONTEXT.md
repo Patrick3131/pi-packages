@@ -1,7 +1,7 @@
 # Pi Toolkit architecture
 
-One workspace, four extension factories:
-`src/features/{presets,tools,skill-mentions,overview}/index.ts`.
+One workspace, five extension factories:
+`src/features/{presets,tools,skill-mentions,inline-actions,overview}/index.ts`.
 The root Git package references each in existing relative hook order; the toolkit
 manifest exposes the same set for standalone development. Nothing auto-registers
 a sibling entry point, so feature filters remain meaningful.
@@ -9,7 +9,10 @@ a sibling entry point, so feature filters remain meaningful.
 Tools/presets share the existing preset-state signal and retain their config
 formats. Overview reuses pure parsers/state helpers internally, never their
 mutating command handlers. Mentions retains its live skill index/input/provider
-stack behavior. Work, recap, delegation, crawl and search remain other packages.
+stack behavior. Inline actions owns the `input` rewrite for state directives and
+stacks on the mentions provider to make one `$` menu; it reaches presets through
+`features/presets/registry.ts` instead of importing the implementation. Work,
+recap, delegation, crawl and search remain other packages.
 
 Overview: command -> safe live metadata + scoped file projections -> versioned
 snapshot -> self-contained escaped HTML -> atomic private file -> optional

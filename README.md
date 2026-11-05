@@ -45,7 +45,7 @@ for development of an extension before it is pushed.
 
 ### Toolkit migration
 
-`pi-toolkit` replaces the former tools/presets/skill-mentions workspaces inside the same Git package. Commands, preset files, tools.json, and skill syntax are unchanged; its four feature entry points remain independently filterable.
+`pi-toolkit` replaces the former tools/presets/skill-mentions workspaces inside the same Git package. Commands, preset files, tools.json, and skill syntax are unchanged; its five feature entry points remain independently filterable.
 
 After publishing the verified commit, preview then apply only the toolkit cutover (local global Pi and the configured remote runtime):
 
