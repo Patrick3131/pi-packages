@@ -13,6 +13,7 @@ type SessionHandler = (event: unknown, ctx: unknown) => Promise<void> | void;
 interface HarnessOptions {
 	hasUI?: boolean;
 	hasCredentials?: boolean;
+	idle?: boolean;
 	select?: (title: string, options: string[]) => Promise<string | undefined>;
 }
 
@@ -74,6 +75,7 @@ function harness(options: HarnessOptions = {}) {
 			getAvailable: () => MODELS,
 		},
 		scopedModels: [],
+		isIdle: () => options.idle ?? true,
 	};
 
 	inlineActionsExtension(pi);
@@ -347,9 +349,15 @@ test("completion owns directive tokens and delegates the rest", async () => {
 	const { provider } = harness();
 	const stacked = provider(stubProvider());
 
-	const directive = stacked.applyCompletion(["$mo now"], 0, "$mo".length, { value: "$model:", label: "$model:" }, "$mo");
-	assert.deepEqual(directive.lines, ["$model: now"]);
-	assert.equal(directive.cursorCol, "$model:".length);
+	const directive = stacked.applyCompletion(
+		["$mo now"],
+		0,
+		"$mo".length,
+		{ value: "$model:anthropic/claude-opus-4-5", label: "" },
+		"$mo",
+	);
+	assert.deepEqual(directive.lines, ["$model:anthropic/claude-opus-4-5 now"]);
+	assert.equal(directive.cursorCol, "$model:anthropic/claude-opus-4-5".length);
 
 	const foreign = stacked.applyCompletion(["@src"], 0, "@src".length, { value: "@src/index.ts", label: "" }, "@src");
 	assert.deepEqual(foreign.lines, ["@src/index.ts"]);
@@ -358,4 +366,63 @@ test("completion owns directive tokens and delegates the rest", async () => {
 test("file completion triggering is delegated", () => {
 	const { provider } = harness();
 	assert.equal(provider(stubProvider()).shouldTriggerFileCompletion?.(["a"], 0, 1), true);
+});
+
+/** The chained picker starts after the editor has applied the completion. */
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test("choosing a bare action opens its picker and leaves only the draft", async () => {
+	const { provider, selections, applied, notifications } = harness({
+		select: async (_title, items) => items[1],
+	});
+	const stacked = provider(stubProvider());
+
+	const result = stacked.applyCompletion(["fix $ the test"], 0, "fix $".length, { value: "$model:", label: "$model:" }, "$");
+	assert.deepEqual(result.lines, ["fix  the test"]);
+	await flush();
+
+	assert.deepEqual(selections, ["Model for this session"]);
+	assert.equal(applied.model, "anthropic/claude-sonnet-4-5");
+	assert.deepEqual(notifications, [{ message: "model → anthropic/claude-sonnet-4-5", level: "info" }]);
+});
+
+test("a busy or headless session inserts the directive so it can be typed", async () => {
+	for (const options of [{ idle: false }, { hasUI: false }]) {
+		const { provider, selections } = harness({ ...options, select: async (_title, items) => items[0] });
+		const stacked = provider(stubProvider());
+
+		const result = stacked.applyCompletion(["go $"], 0, "go $".length, { value: "$model:", label: "$model:" }, "$");
+		assert.deepEqual(result.lines, ["go $model:"]);
+		await flush();
+		assert.deepEqual(selections, []);
+	}
+});
+
+test("a cancelled chained picker reports it and changes nothing", async () => {
+	const { provider, applied, notifications } = harness({ select: async () => undefined });
+	const stacked = provider(stubProvider());
+
+	stacked.applyCompletion(["$"], 0, 1, { value: "$model:", label: "$model:" }, "$");
+	await flush();
+
+	assert.equal(applied.model, undefined);
+	assert.deepEqual(notifications, [{ message: "$model: cancelled", level: "warning" }]);
+});
+
+test("choosing an argument from the list fills the token instead of picking again", async () => {
+	const { provider, selections } = harness({ select: async () => undefined });
+	const stacked = provider(stubProvider());
+
+	const suggestions = await stacked.getSuggestions(["go $model:"], 0, "go $model:".length, SIGNAL);
+	const item = suggestions!.items[0]!;
+	const result = stacked.applyCompletion(["go $model:"], 0, "go $model:".length, item, suggestions!.prefix);
+	await flush();
+
+	assert.deepEqual(result.lines, ["go $model:anthropic/claude-opus-4-5"]);
+	assert.deepEqual(selections, []);
+});
+
+test("the colon is a trigger, so a typed directive opens its argument list", () => {
+	const { provider } = harness();
+	assert.deepEqual(provider(stubProvider()).triggerCharacters, ["$", ":"]);
 });

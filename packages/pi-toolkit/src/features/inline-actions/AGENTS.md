@@ -51,6 +51,11 @@ removing it from the message before the run starts.
 - **Keep completion values fully qualified** (`$model:provider/id`), because the
   editor replaces the whole token with the item value and only the item knows
   the action.
+- **A bare action name is a picker, not a completion.** `bareActionName()` marks the
+  entries that have no argument yet (`$model:`); completing one would leave a token
+  the editor never re-opens, so the picker answers it and the token is removed.
+- **Gate the chained picker on `hasUI` and `isIdle()`.** A picker over a running turn
+  is worse than the token staying in the draft, which is the fallback.
 - **Do not import another feature's implementation.** The package advertises
   independently filterable entry points; `presets/registry.ts` is the sanctioned
   exception because it is a runtime handshake, not an implementation import.

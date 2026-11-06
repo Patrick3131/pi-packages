@@ -114,6 +114,18 @@ export function isActionValue(value: string): boolean {
 	return new RegExp(`^\\$(${ACTION_NAMES.join("|")}):`).test(value);
 }
 
+/**
+ * The action name of a menu entry that has no argument yet (`$model:`).
+ *
+ * Picking one of these cannot complete the token on its own: the editor closes
+ * its list on selection, so the caller has to ask for the argument separately.
+ */
+export function bareActionName(value: string): ActionName | undefined {
+	const match = /^\$([a-z][a-z0-9-]*):$/.exec(value);
+	const name = match?.[1];
+	return name !== undefined && isActionName(name) ? name : undefined;
+}
+
 /** The `$` token directly before the cursor, when this feature should answer for it. */
 export function actionTokenBeforeCursor(textBeforeCursor: string): CursorToken | undefined {
 	const match = textBeforeCursor.match(TOKEN_BEFORE_CURSOR);

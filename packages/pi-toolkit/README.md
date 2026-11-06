@@ -7,7 +7,7 @@ Everyday Pi conveniences, installed through the repository Git package:
 | Tools | `/tools`, `/tools print`, `/tools save` |
 | Presets | `/preset`, `--preset`, Ctrl+Shift+U |
 | Skill mentions | `$skill-name` anywhere in a message, autocomplete, `/skill-mentions` |
-| Inline actions | `$model:`, `$thinking:`, `$tools:`, `$preset:` anywhere in a message; empty argument opens a picker |
+| Inline actions | `$model:`, `$thinking:`, `$tools:`, `$preset:` anywhere in a message; picking one or leaving the argument empty opens its picker |
 | My Pi | `/overview` opens a read-only HTML setup overview |
 
 ## My Pi

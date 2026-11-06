@@ -42,8 +42,14 @@ provider offers — skills from `$skill-name`, then Pi's built-in completions.
 After `$model:` the list shows available models, `$tools:+` shows tools to
 enable, `$tools:-` shows only active tools, and `$preset:` shows preset names.
 
-Every keystroke re-asks the list, so the argument picker appears once the
-argument has at least one character: `$tools:w` narrows to `web_search`.
+Choosing a bare action (`$model:`) applies it immediately: the editor closes its
+list when an item is chosen, so the value comes from that action's picker, opened
+over the draft. The `$` token is removed and your sentence stays as it was —
+typing `$model:` by hand and pressing Enter does the same.
+
+A typed argument keeps the inline list: every keystroke re-asks it, so
+`$tools:w` narrows to `web_search`. The colon is a trigger character, so the
+argument list opens as soon as `$tools:` is typed.
 
 ## Related
 

@@ -55,7 +55,8 @@ editor keystroke
         │     │    "$<fragment>"      → action names, then the stacked items
         │     │    "$<action>:<arg>"  → that action's arguments
         │     │    otherwise          → delegate untouched
-        │     └─► accept → replace the token in place (no trailing space)
+        │     ├─► accept an action name → remove the token, open its picker
+        │     └─► accept anything else → replace the token in place
         │
         └─► skill mentions wrapper → Pi's built-in provider
 ```
@@ -80,6 +81,14 @@ Pi's built-in provider and the menu still works.
   presets publishes `{ names, apply }` on load and clears it on shutdown, so this
   feature never imports the implementation and simply reports "not loaded" when
   the preset feature is filtered out.
+
+- **A chosen action name opens a picker instead of completing text.** The editor
+  closes its list on selection and only re-asks on the next keystroke, so
+  `$model:` would otherwise leave a token nobody extends. The picker answers the
+  argument step, applies it immediately, and the token leaves the draft.
+- **Typing still works.** `$model:` typed by hand keeps the inline list (the
+  colon is a trigger character, and every keystroke re-asks), so a written
+  directive and a picked one reach the same state.
 
 ## Decisions
 

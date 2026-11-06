@@ -21,14 +21,15 @@ import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 
 import { getPresetRuntime } from "../presets/registry.js";
 import {
+	type ActionName,
 	type ActionSources,
-	type Directive,
 	THINKING_LEVELS,
 	type ThinkingLevel,
 	actionArgSuggestionItems,
 	actionSuggestionItems,
 	actionTokenBeforeCursor,
 	applyTokenCompletion,
+	bareActionName,
 	formatToolChanges,
 	isActionName,
 	isActionValue,
@@ -37,8 +38,12 @@ import {
 	rewriteDirectives,
 } from "./actions.js";
 
-/** `$` is not a Pi built-in; skill mentions register it too, and lists merge. */
-const TRIGGER_CHARACTERS = ["$"];
+/**
+ * `$` is not a Pi built-in; skill mentions register it too, and lists merge.
+ * `:` is what turns a bare action into an argument list, so it opens the menu a
+ * keystroke earlier for a directive typed by hand.
+ */
+const TRIGGER_CHARACTERS = ["$", ":"];
 
 interface Environment {
 	pi: ExtensionAPI;
@@ -199,17 +204,42 @@ async function applyPreset(env: Environment, arg: string): Promise<Outcome> {
 	return applied ? { applied: `preset → ${requested}` } : { problem: `preset "${requested}" could not be applied` };
 }
 
-async function applyDirective(env: Environment, directive: Directive): Promise<Outcome> {
-	switch (directive.name) {
+async function applyDirective(env: Environment, name: ActionName, arg: string): Promise<Outcome> {
+	switch (name) {
 		case "model":
-			return applyModel(env, directive.arg);
+			return applyModel(env, arg);
 		case "thinking":
-			return applyThinking(env, directive.arg);
+			return applyThinking(env, arg);
 		case "tools":
-			return applyTools(env, directive.arg);
+			return applyTools(env, arg);
 		case "preset":
-			return applyPreset(env, directive.arg);
+			return applyPreset(env, arg);
 	}
+}
+
+/**
+ * The editor closes its list when an item is chosen and only asks again on the
+ * next keystroke, so a bare action (`$model:`) gets its argument from a dialog:
+ * pick the action, the picker opens over the draft, the choice applies at once.
+ */
+function openArgumentPicker(pi: ExtensionAPI, ctx: ExtensionContext, name: ActionName): void {
+	// After the editor has finished applying the completion and settled its state.
+	queueMicrotask(() => {
+		void (async () => {
+			try {
+				const outcome = await applyDirective({ pi, ctx, interactive: true }, name, "");
+				if (outcome.problem !== undefined) {
+					ctx.ui.notify(outcome.problem, "warning");
+				}
+				if (outcome.applied !== undefined) {
+					ctx.ui.notify(outcome.applied, "info");
+				}
+			} catch (error) {
+				const reason = error instanceof Error ? error.message : String(error);
+				ctx.ui.notify(`$${name}: ${reason}`, "warning");
+			}
+		})();
+	});
 }
 
 /** Live data for the argument lists; the model registry comes from the session. */
@@ -261,6 +291,15 @@ function createProvider(
 		},
 
 		applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+			const action = bareActionName(item.value);
+			const ctx = action === undefined ? undefined : getContext();
+			const idle = ctx !== undefined && ctx.hasUI && (typeof ctx.isIdle === "function" ? ctx.isIdle() : true);
+			if (action !== undefined && ctx !== undefined && idle) {
+				// The picker answers the argument step, so only the `$` token leaves the draft.
+				const cleared = applyTokenCompletion({ lines, cursorLine, cursorCol, value: "", prefix });
+				openArgumentPicker(pi, ctx, action);
+				return cleared;
+			}
 			// Items are fully qualified, so the item decides even under a bare `$` prefix.
 			if (isActionValue(prefix) || isActionValue(item.value)) {
 				return applyTokenCompletion({ lines, cursorLine, cursorCol, value: item.value, prefix });
@@ -293,7 +332,7 @@ export default function inlineActionsExtension(pi: ExtensionAPI) {
 		const problems: string[] = [];
 
 		for (const directive of active) {
-			const outcome = await applyDirective({ pi, ctx, interactive }, directive);
+			const outcome = await applyDirective({ pi, ctx, interactive }, directive.name, directive.arg);
 			if (outcome.applied !== undefined) {
 				applied.push(outcome.applied);
 			}

@@ -6,6 +6,7 @@ import {
 	actionSuggestionItems,
 	actionTokenBeforeCursor,
 	applyTokenCompletion,
+	bareActionName,
 	type ActionSources,
 	formatToolChanges,
 	isActionName,
@@ -114,6 +115,14 @@ test("action names and values are recognised exactly", () => {
 	assert.equal(isActionValue("$tools:"), true);
 	assert.equal(isActionValue("$model"), false);
 	assert.equal(isActionValue("$files:"), false);
+});
+
+test("only a bare action entry asks for an argument of its own", () => {
+	assert.equal(bareActionName("$model:"), "model");
+	assert.equal(bareActionName("$tools:"), "tools");
+	assert.equal(bareActionName("$model:opus"), undefined);
+	assert.equal(bareActionName("$files:"), undefined);
+	assert.equal(bareActionName("$MODEL:"), undefined);
 });
 
 test("a bare $ offers every action, colon included", () => {
