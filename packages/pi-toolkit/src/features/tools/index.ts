@@ -12,8 +12,10 @@
  */
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
-import { CONFIG_DIR_NAME, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
-import { Box, Container, type SettingItem, SettingsList, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
+import { Box, Text } from "@earendil-works/pi-tui";
+
+import { type PickerItem, searchablePicker } from "../../shared/searchable-picker.js";
 
 import { cliOwnsTools, getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import {
@@ -41,11 +43,6 @@ export interface ToolsPrintData {
 }
 
 const PRINT_ENTRY_TYPE = "tools-print";
-const HINT = "  i more details · s save project defaults · Enter/Space to change · Esc to cancel";
-
-export function fitPickerLine(line: string, width: number): string {
-	return truncateToWidth(line, Math.max(0, width));
-}
 
 export default function toolsExtension(pi: ExtensionAPI) {
 	let enabledTools: Set<string> = new Set();
@@ -216,95 +213,63 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				: formatToolSummary(tool);
 		}
 
-		await ctx.ui.custom((tui, theme, _kb, done) => {
-			const items: SettingItem[] = pickerTools.map((tool) => ({
-				id: tool.name,
-				label: tool.name,
-				description: statusOf(tool),
-				currentValue: enabledTools.has(tool.name) ? "enabled" : "disabled",
-				values: ["enabled", "disabled"],
-			}));
+		const items: PickerItem[] = pickerTools.map((tool) => ({
+			value: tool.name,
+			label: tool.name,
+			description: statusOf(tool),
+			current: enabledTools.has(tool.name),
+		}));
 
-			const container = new Container();
-			container.addChild(
-				new (class {
-					render(_width: number) {
-						return [theme.fg("accent", theme.bold("Tool Configuration")), ""];
-					}
-					invalidate() {}
-				})(),
-			);
-
-			const listTheme = getSettingsListTheme();
-			const settingsList = new SettingsList(
-				items,
-				Math.min(items.length + 2, 15),
-				listTheme,
-				(id, newValue) => {
-					if (newValue === "enabled") {
-						enabledTools.add(id);
-					} else {
-						enabledTools.delete(id);
-					}
-					pi.setActiveTools(Array.from(enabledTools));
-					// Read back what Pi accepted so the next render is honest.
-					enabledTools = new Set(pi.getActiveTools());
-					const item = items.find((candidate) => candidate.id === id);
-					const tool = pickerTools.find((candidate) => candidate.name === id);
-					if (item && tool) {
-						item.description = statusOf(tool);
-						item.currentValue = enabledTools.has(id) ? "enabled" : "disabled";
-					}
-				},
-				() => {
-					done(undefined);
-				},
-			);
-
-			container.addChild(settingsList);
-
-			if (withheld > 0) {
-				container.addChild(
-					new Text(
-						listTheme.hint(`  ${withheld} tools not listed · exposure set in /mcp · see /tools print`),
-						0,
-						0,
-					),
-				);
+		function applyToggle(name: string): void {
+			if (enabledTools.has(name)) {
+				enabledTools.delete(name);
+			} else {
+				enabledTools.add(name);
 			}
+			pi.setActiveTools(Array.from(enabledTools));
+			// Read back what Pi accepted so the next render is honest.
+			enabledTools = new Set(pi.getActiveTools());
+			const item = items.find((candidate) => candidate.value === name);
+			const tool = pickerTools.find((candidate) => candidate.name === name);
+			if (item) {
+				item.current = enabledTools.has(name);
+			}
+			if (item && tool) {
+				item.description = statusOf(tool);
+			}
+		}
 
-			return {
-				render(width: number) {
-					return container.render(width).map((line) => {
-						const renderedLine = line.includes("Enter/Space to change") ? listTheme.hint(HINT) : line;
-						return fitPickerLine(renderedLine, width);
-					});
-				},
-				invalidate() {
-					container.invalidate();
-				},
-				handleInput(data: string) {
-					if (data === "i" || data === "I") {
-						detailsMode = !detailsMode;
-						for (const item of items) {
-							const tool = pickerTools.find((candidate) => candidate.name === item.id);
-							if (tool) {
-								item.description = statusOf(tool);
-							}
-						}
-						tui.requestRender();
-						return;
-					}
-					if (data === "s" || data === "S") {
-						saveProjectDefaults(ctx);
-						tui.requestRender();
-						return;
-					}
+		function refreshDescriptions(): void {
+			for (const item of items) {
+				const tool = pickerTools.find((candidate) => candidate.name === item.value);
+				if (tool) {
+					item.description = statusOf(tool);
+				}
+			}
+		}
 
-					settingsList.handleInput?.(data);
-					tui.requestRender();
-				},
-			};
+		await searchablePicker(ctx, {
+			title: "Tool Configuration",
+			subtitle: withheld > 0 ? `${withheld} tools not listed · exposure set in /mcp · see /tools print` : undefined,
+			items,
+			hint: "i details · s save defaults",
+			onActivate: (item) => applyToggle(item.value),
+			// Single-letter commands stay usable until the filter has content.
+			onKey: (data, query) => {
+				if (query.length > 0) {
+					return false;
+				}
+				if (data === "i" || data === "I") {
+					detailsMode = !detailsMode;
+					refreshDescriptions();
+					return true;
+				}
+				if (data === "s" || data === "S") {
+					saveProjectDefaults(ctx);
+					return true;
+				}
+				return false;
+			},
 		});
 	}
 

@@ -34,6 +34,9 @@ Rules:
   removed rather than sent to the model.
 - Picker forms need an idle, dialog-capable session. In a steered message,
   print mode, or JSON mode they report the required argument instead.
+- Every picker takes a filter: type to narrow by fuzzy match (model id, tool name,
+  preset name), ↑↓ to move, Enter to pick, Esc to cancel. The active entry carries
+  a ✓. Non-TUI clients fall back to Pi's plain selector.
 
 ## Autocomplete
 

@@ -19,6 +19,9 @@ canonical_for: pi-tools package conventions
 - Only `s` / `/tools save` writes, and that write is a merge: rewrite the
   declared-switch tools this session registers (`direct`, `model-only`), preserve
   every other key byte-for-byte.
+- The picker is `shared/searchable-picker.ts` in toggle mode. Typing filters, so
+  `i` and `s` are read only while the filter is empty — a tool name must always be
+  typeable. Enter and Space activate without closing; Esc closes.
 - Never append freshly registered names as `false`, and never prune names the
   current catalog lacks. Absence means unknown, never "removed". A `codemode`,
   `deferred`, or `hidden` tool gets no entry at all: its reachability is exposure,

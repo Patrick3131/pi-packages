@@ -15,6 +15,9 @@ interface HarnessOptions {
 	hasCredentials?: boolean;
 	idle?: boolean;
 	select?: (title: string, options: string[]) => Promise<string | undefined>;
+	/** "tui" makes the pickers use `ui.custom`; the hook answers as the user would. */
+	mode?: string;
+	custom?: (factory: unknown) => Promise<unknown>;
 }
 
 const MODELS = [
@@ -34,6 +37,7 @@ function harness(options: HarnessOptions = {}) {
 	const notifications: { message: string; level: string }[] = [];
 	const applied: { model?: string; thinking?: string } = {};
 	const selections: string[] = [];
+	const customCalls: unknown[] = [];
 	let activeTools = ["read", "bash"];
 
 	const pi = {
@@ -59,12 +63,17 @@ function harness(options: HarnessOptions = {}) {
 	} as unknown as ExtensionAPI;
 
 	const ctx = {
+		mode: options.mode ?? "rpc",
 		hasUI: options.hasUI ?? true,
 		ui: {
 			notify: (message: string, level = "info") => notifications.push({ message, level }),
 			select: async (title: string, items: string[]) => {
 				selections.push(title);
 				return options.select ? options.select(title, items) : undefined;
+			},
+			custom: async (factory: unknown) => {
+				customCalls.push(factory);
+				return options.custom ? options.custom(factory) : undefined;
 			},
 			addAutocompleteProvider: (factory: typeof autocompleteFactory) => {
 				autocompleteFactory = factory;
@@ -95,6 +104,7 @@ function harness(options: HarnessOptions = {}) {
 		notifications,
 		applied,
 		selections,
+		customCalls,
 		activeTools: () => activeTools,
 	};
 }
@@ -425,4 +435,17 @@ test("choosing an argument from the list fills the token instead of picking agai
 test("the colon is a trigger, so a typed directive opens its argument list", () => {
 	const { provider } = harness();
 	assert.deepEqual(provider(stubProvider()).triggerCharacters, ["$", ":"]);
+});
+test("a TUI session gets the searchable picker instead of the plain selector", async () => {
+	const { input, customCalls, selections, applied } = harness({
+		mode: "tui",
+		// Stands in for the user picking in the mounted component.
+		custom: async () => "anthropic/claude-sonnet-4-5",
+	});
+
+	await input("$model:");
+
+	assert.equal(customCalls.length, 1);
+	assert.deepEqual(selections, [], "the plain selector must not be used when a component can mount");
+	assert.equal(applied.model, "anthropic/claude-sonnet-4-5");
 });

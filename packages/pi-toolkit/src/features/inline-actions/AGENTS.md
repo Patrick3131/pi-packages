@@ -20,7 +20,7 @@ removing it from the message before the run starts.
   parsing/removal, tool-change parsing, suggestion lists. No pi API, no I/O.
 - `src/index.ts` — the only place that touches pi: applying directives through
   `pi.setModel` / `setThinkingLevel` / `setActiveTools`, pickers via
-  `ctx.ui.select`, and the stacked autocomplete wrapper.
+  `shared/searchable-picker.ts`, and the stacked autocomplete wrapper.
 - `../presets/registry.ts` — the bridge used for `$preset:`; do not import the
   presets implementation.
 

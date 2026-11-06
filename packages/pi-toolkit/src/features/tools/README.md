@@ -66,7 +66,9 @@ reported as enabled, and exposure itself is managed in `.pi/mcp.json` or `/mcp`.
 
 ## Commands
 
-- `/tools` — picker. `i` expands details. `s` merges project defaults.
+- `/tools` — picker. Type to filter the list, Enter/Space toggles the highlighted
+  tool, `i` expands details, `s` merges project defaults, Esc closes. `i` and `s`
+  act only while the filter is empty, so a tool name can always be typed out.
 - `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
 - Bare `/tools` opens the interactive picker in the TUI and automatically
   prints the catalog in non-TUI clients such as Pi Web.

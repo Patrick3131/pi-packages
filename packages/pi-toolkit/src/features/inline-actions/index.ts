@@ -19,6 +19,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 
+import { searchablePicker } from "../../shared/searchable-picker.js";
 import { getPresetRuntime } from "../presets/registry.js";
 import {
 	type ActionName,
@@ -87,11 +88,21 @@ async function applyModel(env: Environment, arg: string): Promise<Outcome> {
 		if (!env.interactive) {
 			return { problem: "$model: needs a model id" };
 		}
-		const labels = availableModels(env.ctx).map((model) => `${model.provider}/${model.id}`);
-		if (labels.length === 0) {
+		const models = availableModels(env.ctx);
+		if (models.length === 0) {
 			return { problem: "no models are available" };
 		}
-		requested = (await env.ctx.ui.select("Model for this session", labels)) ?? "";
+		const current = env.ctx.model;
+		requested =
+			(await searchablePicker(env.ctx, {
+				title: "Model for this session",
+				items: models.map((model) => ({
+					value: `${model.provider}/${model.id}`,
+					label: `${model.provider}/${model.id}`,
+					description: model.name && model.name !== model.id ? model.name : undefined,
+					current: current?.provider === model.provider && current.id === model.id,
+				})),
+			})) ?? "";
 		if (requested.length === 0) {
 			return { problem: "$model: cancelled" };
 		}
@@ -113,7 +124,16 @@ async function applyThinking(env: Environment, arg: string): Promise<Outcome> {
 		if (!env.interactive) {
 			return { problem: `$thinking: needs a level (${THINKING_LEVELS.join(", ")})` };
 		}
-		requested = (await env.ctx.ui.select("Thinking level", [...THINKING_LEVELS])) ?? "";
+		requested =
+			(await searchablePicker(env.ctx, {
+				title: "Thinking level",
+				maxVisible: THINKING_LEVELS.length,
+				items: THINKING_LEVELS.map((level) => ({
+					value: level,
+					label: level,
+					current: env.ctx.thinkingLevel === level,
+				})),
+			})) ?? "";
 		if (requested.length === 0) {
 			return { problem: "$thinking: cancelled" };
 		}
@@ -138,18 +158,16 @@ async function applyTools(env: Environment, arg: string): Promise<Outcome> {
 			return { problem: "no tools are available" };
 		}
 		const active = new Set(env.pi.getActiveTools());
-		const entries = [...known]
-			.sort((left, right) => left.localeCompare(right))
-			.map((name) => ({ label: `${active.has(name) ? "✓" : "·"} ${name}`, name }));
-		const choice = await env.ctx.ui.select(
-			"Toggle tool",
-			entries.map((entry) => entry.label),
-		);
-		const picked = entries.find((entry) => entry.label === choice);
-		if (picked === undefined) {
+		const tools = [...known].sort((left, right) => left.localeCompare(right));
+		const chosen = await searchablePicker(env.ctx, {
+			title: "Toggle tool",
+			subtitle: "Enter or Space toggles the highlighted tool",
+			items: tools.map((name) => ({ value: name, label: name, current: active.has(name) })),
+		});
+		if (chosen === undefined) {
 			return { problem: "$tools: cancelled" };
 		}
-		changes = [{ sign: active.has(picked.name) ? "-" : "+", name: picked.name }];
+		changes = [{ sign: active.has(chosen) ? "-" : "+", name: chosen }];
 	}
 
 	const unknown = changes.filter((change) => !known.includes(change.name));
@@ -191,7 +209,11 @@ async function applyPreset(env: Environment, arg: string): Promise<Outcome> {
 		if (!env.interactive) {
 			return { problem: "$preset: needs a preset name" };
 		}
-		requested = (await env.ctx.ui.select("Apply preset", available)) ?? "";
+		requested =
+			(await searchablePicker(env.ctx, {
+				title: "Apply preset",
+				items: available.map((name) => ({ value: name, label: name })),
+			})) ?? "";
 		if (requested.length === 0) {
 			return { problem: "$preset: cancelled" };
 		}

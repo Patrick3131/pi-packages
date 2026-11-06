@@ -10,6 +10,9 @@ Everyday Pi conveniences, installed through the repository Git package:
 | Inline actions | `$model:`, `$thinking:`, `$tools:`, `$preset:` anywhere in a message; picking one or leaving the argument empty opens its picker |
 | My Pi | `/overview` opens a read-only HTML setup overview |
 
+Every picker (`/tools`, `/preset`, `$model:`, `$tools:`, `$preset:`) filters as
+you type: fuzzy match, ↑↓ to move, Enter to pick, Esc to cancel.
+
 ## My Pi
 
 Run **`/overview`**. No flags, no web server, no extra model request.

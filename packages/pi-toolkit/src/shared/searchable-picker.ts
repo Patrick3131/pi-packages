@@ -1,0 +1,187 @@
+/**
+ * One searchable picker for every toolkit choice.
+ *
+ * `ctx.ui.select` is arrows-only, which is painful for a long tool or model
+ * list. This builds the same single-select surface out of Pi's own TUI
+ * primitives with a filter field on top: typing narrows by fuzzy match over
+ * label, value and description, arrows move, Enter picks, Esc cancels.
+ *
+ * Every caller also needs a non-TUI answer. RPC clients show Pi's plain
+ * selector; print and JSON modes have no dialog, so they resolve to "cancelled"
+ * exactly like `ctx.ui.select` does there.
+ */
+
+import { DynamicBorder, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type Component, fuzzyFilter, Input, Text, truncateToWidth } from "@earendil-works/pi-tui";
+
+export interface PickerItem {
+	value: string;
+	label: string;
+	/** Extra line under the selected row; also searched. */
+	description?: string;
+	/** Short muted marker after the label, e.g. a source or a state. */
+	badge?: string;
+	/** Marks the row as currently active. */
+	current?: boolean;
+}
+
+export interface SearchablePickerOptions {
+	title: string;
+	subtitle?: string;
+	items: readonly PickerItem[];
+	/** Rows in the scroll window; the selection stays centred. Default 10. */
+	maxVisible?: number;
+	placeholder?: string;
+	/** Toggle mode: Enter and Space activate without closing, Esc finishes. */
+	onActivate?: (item: PickerItem) => void;
+	/** Feature keys, tried before the filter consumes a printable character. */
+	onKey?: (data: string, query: string) => boolean;
+	/** Extra hint text after the key hints. */
+	hint?: string;
+}
+
+const DEFAULT_MAX_VISIBLE = 10;
+
+/** Text a row is matched against: what the user can see, plus its value. */
+export function pickerItemText(item: PickerItem): string {
+	return `${item.label} ${item.value} ${item.description ?? ""} ${item.badge ?? ""}`;
+}
+
+/** Rows for the query, best match first; an empty query keeps the caller's order. */
+export function filterPickerItems(items: readonly PickerItem[], query: string): PickerItem[] {
+	return query.length === 0 ? [...items] : fuzzyFilter([...items], query, pickerItemText);
+}
+
+/** Bounded scroll window that keeps `index` inside it. */
+export function pickerWindow(length: number, index: number, maxVisible: number): { start: number; end: number } {
+	const size = Math.max(1, Math.min(maxVisible, length));
+	const start = Math.max(0, Math.min(index - Math.floor(size / 2), length - size));
+	return { start, end: Math.min(start + size, length) };
+}
+
+export async function searchablePicker(
+	ctx: ExtensionContext,
+	options: SearchablePickerOptions,
+): Promise<string | undefined> {
+	if (ctx.mode !== "tui") {
+		// Pi's plain selector round-trips through the client; keep labels unique.
+		const labels = options.items.map((item) => item.label);
+		if (labels.length === 0) {
+			return undefined;
+		}
+		const chosen = await ctx.ui.select(options.title, labels);
+		return chosen === undefined ? undefined : options.items.find((item) => item.label === chosen)?.value;
+	}
+
+	const result = await ctx.ui.custom<string | null>((tui, theme, keybindings, done) => {
+		const maxVisible = Math.max(3, options.maxVisible ?? DEFAULT_MAX_VISIBLE);
+		const input = new Input({
+			placeholder: options.placeholder ?? "type to filter",
+			placeholderStyle: (text) => theme.fg("dim", text),
+		});
+		input.focused = true;
+
+		let filtered = filterPickerItems(options.items, "");
+		let index = Math.max(0, filtered.findIndex((item) => item.current === true));
+
+		const border = new DynamicBorder((text) => theme.fg("border", text));
+		const title = new Text(theme.fg("accent", theme.bold(options.title)), 0, 0);
+		const subtitle = options.subtitle ? new Text(theme.fg("muted", options.subtitle), 0, 0) : undefined;
+		// Plain labels, not keybinding hints: those read a module-level theme singleton
+		// that an extension module may not share with the running TUI.
+		const hints = ["↑↓ move", options.onActivate ? "enter/space toggle" : "enter select"];
+		hints.push(options.onActivate ? "esc done" : "esc cancel");
+		if (options.hint) {
+			hints.push(options.hint);
+		}
+		hints.push("type to filter");
+		const footer = new Text(theme.fg("dim", hints.join("  ")), 0, 0);
+
+		function refilter(query: string): void {
+			const previous = filtered[index]?.value;
+			filtered = filterPickerItems(options.items, query);
+			const kept = filtered.findIndex((item) => item.value === previous);
+			index = kept >= 0 ? kept : Math.min(index, Math.max(0, filtered.length - 1));
+		}
+
+		function rowLines(width: number): string[] {
+			if (filtered.length === 0) {
+				return [theme.fg("muted", "  nothing matches")];
+			}
+			const { start, end } = pickerWindow(filtered.length, index, maxVisible);
+			const lines: string[] = [];
+			for (let row = start; row < end; row += 1) {
+				const item = filtered[row];
+				if (item === undefined) {
+					continue;
+				}
+				const selected = row === index;
+				const prefix = selected ? theme.fg("accent", "→ ") : "  ";
+				const label = selected ? theme.fg("accent", item.label) : item.label;
+				const badge = item.badge ? theme.fg("muted", ` [${item.badge}]`) : "";
+				const check = item.current ? theme.fg("success", " ✓") : "";
+				lines.push(truncateToWidth(`${prefix}${label}${badge}${check}`, width));
+				if (selected && item.description) {
+					lines.push(truncateToWidth(theme.fg("muted", `    ${item.description}`), width));
+				}
+			}
+			if (start > 0 || end < filtered.length) {
+				lines.push(theme.fg("dim", `  (${index + 1}/${filtered.length})`));
+			}
+			return lines;
+		}
+
+		const component: Component = {
+			render(width: number): string[] {
+				const lines = [...title.render(width), ...border.render(width)];
+				if (subtitle) {
+					lines.push(...subtitle.render(width));
+				}
+				lines.push(...input.render(width));
+				lines.push(...rowLines(width));
+				lines.push(...footer.render(width), ...border.render(width));
+				return lines;
+			},
+			invalidate() {},
+			handleInput(data: string) {
+				if (keybindings.matches(data, "tui.select.up")) {
+					if (filtered.length > 0) {
+						index = (index - 1 + filtered.length) % filtered.length;
+					}
+				} else if (keybindings.matches(data, "tui.select.down")) {
+					if (filtered.length > 0) {
+						index = (index + 1) % filtered.length;
+					}
+				} else if (keybindings.matches(data, "tui.select.confirm")) {
+					const item = filtered[index];
+					if (item !== undefined) {
+						if (options.onActivate) {
+							options.onActivate(item);
+						} else {
+							done(item.value);
+							return;
+						}
+					}
+				} else if (keybindings.matches(data, "tui.select.cancel")) {
+					done(null);
+					return;
+				} else if (options.onActivate && data === " " && input.getValue().length === 0) {
+					// Space toggles while the filter is empty; otherwise it is a space in the query.
+					const item = filtered[index];
+					if (item !== undefined) {
+						options.onActivate(item);
+					}
+				} else if (options.onKey?.(data, input.getValue()) === true) {
+					// The feature handled it (details, save, ...).
+				} else {
+					input.handleInput(data);
+					refilter(input.getValue());
+				}
+				tui.requestRender();
+			},
+		};
+		return component;
+	});
+
+	return result ?? undefined;
+}

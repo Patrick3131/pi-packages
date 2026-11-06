@@ -6,6 +6,11 @@ The root Git package references each in existing relative hook order; the toolki
 manifest exposes the same set for standalone development. Nothing auto-registers
 a sibling entry point, so feature filters remain meaningful.
 
+`src/shared/searchable-picker.ts` is the only cross-feature UI module: a
+single-select list with type-to-filter built from Pi's TUI primitives, used by
+`/tools`, `/preset` and the `$` action pickers. It falls back to `ctx.ui.select`
+when the host cannot mount a component, so no feature replaces a picker itself.
+
 Tools/presets share the existing preset-state signal and retain their config
 formats. Overview reuses pure parsers/state helpers internally, never their
 mutating command handlers. Mentions retains its live skill index/input/provider

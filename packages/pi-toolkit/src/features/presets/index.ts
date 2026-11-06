@@ -14,8 +14,10 @@
 
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { CONFIG_DIR_NAME, DynamicBorder, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { Container, Key, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { Key } from "@earendil-works/pi-tui";
+
+import { type PickerItem, searchablePicker } from "../../shared/searchable-picker.js";
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -178,51 +180,20 @@ export default function presetExtension(pi: ExtensionAPI) {
 			return;
 		}
 
-		const items: SelectItem[] = presetNames.map((name) => {
-			const preset = presets[name];
-			return {
-				value: name,
-				label: name === activePresetName ? `${name} (active)` : name,
-				description: buildPresetDescription(preset),
-			};
-		});
+		const items: PickerItem[] = presetNames.map((name) => ({
+			value: name,
+			label: name,
+			description: buildPresetDescription(presets[name]),
+			current: name === activePresetName,
+		}));
 		items.push({
 			value: "(none)",
 			label: "(none)",
 			description: "Clear active preset, restore defaults",
 		});
 
-		const result = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
-			const container = new Container();
-			container.addChild(new DynamicBorder((str) => theme.fg("accent", str)));
-			container.addChild(new Text(theme.fg("accent", theme.bold("Select Preset"))));
+		const result = await searchablePicker(ctx, { title: "Select Preset", items });
 
-			const selectList = new SelectList(items, Math.min(items.length, 10), {
-				selectedPrefix: (text) => theme.fg("accent", text),
-				selectedText: (text) => theme.fg("accent", text),
-				description: (text) => theme.fg("muted", text),
-				scrollInfo: (text) => theme.fg("dim", text),
-				noMatch: (text) => theme.fg("warning", text),
-			});
-			selectList.onSelect = (item) => done(item.value);
-			selectList.onCancel = () => done(null);
-			container.addChild(selectList);
-			container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel")));
-			container.addChild(new DynamicBorder((str) => theme.fg("accent", str)));
-
-			return {
-				render(width: number) {
-					return container.render(width);
-				},
-				invalidate() {
-					container.invalidate();
-				},
-				handleInput(data: string) {
-					selectList.handleInput(data);
-					tui.requestRender();
-				},
-			};
-		});
 
 		if (!result) return;
 		if (result === "(none)") {
