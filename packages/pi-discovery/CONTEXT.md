@@ -94,3 +94,7 @@ unset and keeps `sample_failure.retry_after_s`; a 404 becomes `not_found` with t
 exact `social_profile_not_found` or `social_post_not_found` code. Harness-neutral
 exports: `getSocialProfile`, `getSocialProfilePosts`, `getSocialPost`,
 `formatSocialProfile`, `formatSocialProfilePosts` and `formatSocialPost`.
+
+The root research entry exports the Discovery social clients, formatters and tool
+schemas, and the Ad Library schemas. Native Pi registration and UI rendering
+stay outside that entry so other hosts can use the same wire contract.

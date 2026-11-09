@@ -37,3 +37,10 @@ export { searchAdLibrary, adsForAdvertiser, formatAdLibrary, AdLibraryClientErro
 export type { AdLibraryParams, AdLibraryOptions, AdLibraryResult } from "../packages/pi-discovery/src/ad-library.js";
 
 export type { AdLibraryAd, AdImage, AdVideo, AdCard } from "../packages/pi-discovery/src/ad-library.js";
+
+export { getSocialProfile, getSocialProfilePosts, getSocialPost } from "../packages/pi-discovery/src/social.js";
+export { formatSocialProfile, formatSocialProfilePosts, formatSocialPost } from "../packages/pi-discovery/src/social-format.js";
+export { SocialClientError } from "../packages/pi-discovery/src/social-errors.js";
+export type { SocialClientOptions, SocialProfileParams, SocialProfilePostsParams, SocialPostParams } from "../packages/pi-discovery/src/social-types.js";
+export { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "../packages/pi-discovery/src/social-definitions.js";
+export { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "../packages/pi-discovery/src/ad-library-definitions.js";
