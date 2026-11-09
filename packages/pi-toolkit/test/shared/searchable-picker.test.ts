@@ -283,6 +283,9 @@ test("tab cycles views and activation re-applies the current filter", async () =
 	assert.match(rendered, /read/);
 	assert.match(rendered, /bash ✓/);
 
+	harness.component().handleInput("\u001b[9;2u");
+	assert.match(harness.component().render(80).join("\n"), /tab filter: all/);
+
 	harness.component().handleInput(KEYS.cancel);
 	assert.equal(await pending, undefined);
 });

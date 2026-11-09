@@ -13,7 +13,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { Box, matchesKey, Text } from "@earendil-works/pi-tui";
 
 import { searchablePicker } from "../../shared/searchable-picker.js";
 import { cliOwnsTools, getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
@@ -276,11 +276,11 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			onActivate: (item) => applyToggle(item.value),
 			// Printable letters stay searchable; actions use non-letter keys.
 			onKey: (data) => {
-				if (data === "\u0013") {
+				if (matchesKey(data, "ctrl+s")) {
 					saveProjectDefaults(ctx);
 					return true;
 				}
-				if (data === "?") {
+				if (matchesKey(data, "?")) {
 					detailsMode = !detailsMode;
 					refreshDescriptions();
 					return true;

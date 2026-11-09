@@ -12,7 +12,7 @@
  */
 
 import { DynamicBorder, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { type Component, fuzzyFilter, Input, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { type Component, fuzzyFilter, Input, matchesKey, Text, truncateToWidth } from "@earendil-works/pi-tui";
 
 export interface PickerItem {
 	value: string;
@@ -264,11 +264,11 @@ export async function searchablePicker(
 				} else if (keybindings.matches(data, "tui.select.cancel")) {
 					done(null);
 					return;
-				} else if (filters.length > 1 && (data === "\t" || data === "\u001b[Z")) {
-					cycleFilter(data === "\u001b[Z" ? -1 : 1);
+				} else if (filters.length > 1 && (matchesKey(data, "tab") || matchesKey(data, "shift+tab"))) {
+					cycleFilter(matchesKey(data, "shift+tab") ? -1 : 1);
 					tui.requestRender();
 					return;
-				} else if (options.onActivate && data === " " && input.getValue().length === 0) {
+				} else if (options.onActivate && matchesKey(data, "space") && input.getValue().length === 0) {
 					// Space toggles while the filter is empty; otherwise it is a space in the query.
 					const item = filtered[index];
 					if (item !== undefined && canActivate(item)) {

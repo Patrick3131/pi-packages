@@ -84,7 +84,7 @@ test("the picker searches, filters, and saves without stealing letters", async (
 	}
 	assert.match(component.render(80).join("\n"), /→ agent_browser_action/);
 
-	component.handleInput("?");
+	component.handleInput("\u001b[63u");
 	const details = component.render(80).join("\n");
 	assert.match(details, /exposure: deferred/);
 	assert.match(details, /status: inactive \(indirect via deferred\)/);
@@ -100,7 +100,7 @@ test("the picker searches, filters, and saves without stealing letters", async (
 	assert.match(component.render(80).join("\n"), /inline_actions/);
 	component.handleInput("\u007f");
 
-	component.handleInput("\t");
+	component.handleInput("\u001b[9u");
 	let filtered = component.render(80).join("\n");
 	assert.match(filtered, /tab filter: active/);
 	assert.match(filtered, /→ read/);
@@ -123,7 +123,7 @@ test("the picker searches, filters, and saves without stealing letters", async (
 	assert.match(component.render(80).join("\n"), /tab filter: all/);
 	assert.match(component.render(80).join("\n"), /Reachable via tool_search \/ codemode/);
 
-	component.handleInput("\u0013");
+	component.handleInput("\u001b[115;5u");
 	const savedPath = join(cwd, ".pi", "tools.json");
 	assert.ok(existsSync(savedPath));
 	const saved = JSON.parse(readFileSync(savedPath, "utf8")) as Record<string, boolean>;
