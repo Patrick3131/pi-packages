@@ -24,6 +24,8 @@ canonical_for: pi-tools package conventions
   Enter/Space activate selectable rows without closing; section headings and
   read-only rows are ignored. `Tab`/`Shift+Tab` cycle all/active/inactive;
   active/inactive contain only declared-switch rows. Esc closes.
+- Match Tab, `?`, and `Ctrl+S` with `matchesKey`, not literal bytes; Kitty CSI-u
+  and modifyOtherKeys encode them differently from legacy terminals.
 - Never append freshly registered names as `false`, and never prune names the
   current catalog lacks. Absence means unknown, never "removed". A `codemode`,
   `deferred`, or `hidden` tool gets no entry at all: its reachability is exposure,
