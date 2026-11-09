@@ -272,7 +272,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 						item.kind !== "header" && item.selectable !== false && item.current === false,
 				},
 			],
-			hint: "? details · ctrl+s save defaults",
+			hint: "? details · ctrl+s save",
 			onActivate: (item) => applyToggle(item.value),
 			// Printable letters stay searchable; actions use non-letter keys.
 			onKey: (data) => {
