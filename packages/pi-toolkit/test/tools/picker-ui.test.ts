@@ -77,6 +77,10 @@ test("the picker shows indirect tools read-only and omits hidden ones", async (t
 	assert.doesNotMatch(rendered, /secret/);
 
 	component.handleInput(KEYS.down);
+	component.handleInput("i");
+	const details = component.render(80).join("\n");
+	assert.match(details, /exposure: deferred/);
+	assert.match(details, /status: inactive \(indirect via deferred\)/);
 	component.handleInput(KEYS.confirm);
 	assert.deepEqual(active, ["read"], "a read-only row never changes the active set");
 

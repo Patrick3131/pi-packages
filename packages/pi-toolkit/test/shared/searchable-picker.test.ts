@@ -70,10 +70,12 @@ test("a section header is visible but never a search result", () => {
 		{ value: "read", label: "read", current: true },
 		{ value: "section", label: "Indirect tools", kind: "header" },
 		{ value: "bash", label: "bash" },
+		{ value: "agent_browser_action", label: "agent_browser_action", badge: "deferred", selectable: false },
 	];
 
-	assert.deepEqual(filterPickerItems(items, "").map((item) => item.value), ["read", "section", "bash"]);
+	assert.deepEqual(filterPickerItems(items, "").map((item) => item.value), ["read", "section", "bash", "agent_browser_action"]);
 	assert.deepEqual(filterPickerItems(items, "bash").map((item) => item.value), ["bash"]);
+	assert.deepEqual(filterPickerItems(items, "agent").map((item) => item.value), ["agent_browser_action"]);
 });
 
 test("the scroll window keeps the selection inside it", () => {
