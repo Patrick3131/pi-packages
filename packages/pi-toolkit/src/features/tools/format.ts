@@ -33,6 +33,16 @@ const DECLARED_SWITCH_EXPOSURES = new Set(["direct", "model-only"]);
 export function isDeclaredSwitch(tool: ToolLike): boolean {
 	return tool.exposure === undefined || DECLARED_SWITCH_EXPOSURES.has(tool.exposure);
 }
+
+/** Whether the tool stays callable without being declared to the model. */
+export function isIndirectlyReachable(tool: ToolLike): boolean {
+	return tool.exposure !== undefined && INDIRECT_EXPOSURES.has(tool.exposure);
+}
+
+/** Whether the tool is registered but cannot be activated at all. */
+export function isHiddenTool(tool: ToolLike): boolean {
+	return tool.exposure === "hidden";
+}
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

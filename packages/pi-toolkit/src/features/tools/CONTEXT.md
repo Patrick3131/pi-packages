@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-10-18
+last_verified: 2026-11-09
 applies_to: packages/pi-toolkit/**
 inherits_from: ../../../../CONTEXT.md
 canonical_for: pi-tools architecture
@@ -55,13 +55,13 @@ stays missing until an explicit save.
 
 ## Reporting
 
-`/tools` lists only tools whose active-set membership is an enforced decision
-(`direct`, `model-only`) and reports the rest as a count, because exposure — not
-this file, not the session toggle — decides whether `codemode` and `deferred` tools
-stay reachable and whether `hidden` ones stay inert. `/tools print` labels every
-registered tool from Pi's metadata for diagnosis, and toggles are read back from
-`getActiveTools()`. Names saved in the file but not registered in this session are
-listed separately as unavailable.
+`/tools` makes the active-set decision explicit for declared tools (`direct`,
+`model-only`). `deferred` and `codemode` tools are listed read-only with their
+exposure badge because exposure, not the toggle, decides reachability; `hidden`
+tools are omitted and counted. `/tools print` labels every registered tool from
+Pi's metadata for diagnosis, and toggles are read back from `getActiveTools()`.
+Names saved in the file but not registered in this session are listed separately
+as unavailable.
 
 Explicit CLI --tools/--exclude-tools/--no-tools selection owns startup ahead of
 project defaults. Discovery uses native defaultActive; no lifecycle filter.

@@ -15,16 +15,16 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolInfo 
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 
-import { type PickerItem, searchablePicker } from "../../shared/searchable-picker.js";
-
+import { searchablePicker } from "../../shared/searchable-picker.js";
 import { cliOwnsTools, getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import {
-	formatToolDetails,
-	formatToolSummary,
 	formatToolsDump,
 	formatUnavailableSaved,
 	isDeclaredSwitch,
+	isHiddenTool,
+	isIndirectlyReachable,
 } from "./format.js";
+import { buildToolPickerRows, formatPickerToolDescription } from "./picker.js";
 import {
 	getProjectToolsPath,
 	mergeProjectTools,
@@ -195,32 +195,31 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		let detailsMode = false;
 
 		/**
-		 * Only tools whose active-set membership is an enforced decision appear here.
-		 * `codemode` and `deferred` tools stay reachable while inactive, and `hidden`
-		 * tools cannot be activated at all, so a row for them would offer a toggle Pi
-		 * ignores. Their exposure is set in configuration and reported by `/mcp`.
+		 * Declared-switch tools are the only rows with a working toggle. `deferred`
+		 * and `codemode` tools stay reachable while inactive, so they appear below as
+		 * read-only rows for a complete overview; `hidden` tools cannot be activated
+		 * and are reported only as a count. Exposure is set in configuration.
 		 */
-		const pickerTools = allTools.filter(isDeclaredSwitch);
-		const withheld = allTools.length - pickerTools.length;
+		const listedTools = allTools.filter((tool) => isDeclaredSwitch(tool) || isIndirectlyReachable(tool));
+		const hiddenCount = allTools.filter(isHiddenTool).length;
+		const hasIndirect = allTools.some(isIndirectlyReachable);
 
 		/**
 		 * Status is read back from Pi after every change: the picker must not claim a
 		 * toggle took effect when Pi ignored it.
 		 */
 		function statusOf(tool: ToolInfo): string {
-			return detailsMode
-				? formatToolDetails(tool, { enabled: enabledTools.has(tool.name) })
-				: formatToolSummary(tool);
+			return formatPickerToolDescription(tool, { enabledTools, detailsMode });
 		}
 
-		const items: PickerItem[] = pickerTools.map((tool) => ({
-			value: tool.name,
-			label: tool.name,
-			description: statusOf(tool),
-			current: enabledTools.has(tool.name),
-		}));
+		const items = buildToolPickerRows(allTools, { enabledTools, detailsMode });
 
 		function applyToggle(name: string): void {
+			const tool = listedTools.find((candidate) => candidate.name === name);
+			if (!tool || !isDeclaredSwitch(tool)) {
+				return;
+			}
+
 			if (enabledTools.has(name)) {
 				enabledTools.delete(name);
 			} else {
@@ -230,27 +229,35 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			// Read back what Pi accepted so the next render is honest.
 			enabledTools = new Set(pi.getActiveTools());
 			const item = items.find((candidate) => candidate.value === name);
-			const tool = pickerTools.find((candidate) => candidate.name === name);
 			if (item) {
 				item.current = enabledTools.has(name);
-			}
-			if (item && tool) {
 				item.description = statusOf(tool);
 			}
 		}
 
 		function refreshDescriptions(): void {
 			for (const item of items) {
-				const tool = pickerTools.find((candidate) => candidate.name === item.value);
+				const tool = listedTools.find((candidate) => candidate.name === item.value);
 				if (tool) {
 					item.description = statusOf(tool);
 				}
 			}
 		}
 
+		const subtitleNotes: string[] = [];
+		if (hasIndirect) {
+			subtitleNotes.push("indirect rows are read-only");
+		}
+		if (hiddenCount > 0) {
+			subtitleNotes.push(`${hiddenCount} hidden not shown`);
+		}
+		const subtitle = subtitleNotes.length > 0
+			? `${subtitleNotes.join(" · ")} · exposure set in config`
+			: undefined;
+
 		await searchablePicker(ctx, {
 			title: "Tool Configuration",
-			subtitle: withheld > 0 ? `${withheld} tools not listed · exposure set in /mcp · see /tools print` : undefined,
+			subtitle,
 			items,
 			hint: "i details · s save defaults",
 			onActivate: (item) => applyToggle(item.value),

@@ -64,6 +64,18 @@ test("an empty query keeps the caller's order and a query matches fuzzily", () =
 	assert.deepEqual(filterPickerItems(ITEMS, "zzz"), []);
 });
 
+
+test("a section header is visible but never a search result", () => {
+	const items: PickerItem[] = [
+		{ value: "read", label: "read", current: true },
+		{ value: "section", label: "Indirect tools", kind: "header" },
+		{ value: "bash", label: "bash" },
+	];
+
+	assert.deepEqual(filterPickerItems(items, "").map((item) => item.value), ["read", "section", "bash"]);
+	assert.deepEqual(filterPickerItems(items, "bash").map((item) => item.value), ["bash"]);
+});
+
 test("the scroll window keeps the selection inside it", () => {
 	assert.deepEqual(pickerWindow(4, 0, 10), { start: 0, end: 4 });
 	assert.deepEqual(pickerWindow(30, 15, 10), { start: 10, end: 20 });
@@ -131,6 +143,36 @@ test("toggle mode activates without closing, and space only toggles on an empty 
 	assert.equal(await pending, undefined);
 });
 
+test("navigation skips headers and read-only rows never activate", async () => {
+	const activated: string[] = [];
+	const items: PickerItem[] = [
+		{ value: "read", label: "read", current: true },
+		{ value: "section", label: "Indirect tools", kind: "header" },
+		{ value: "bash", label: "bash" },
+		{ value: "agent_browser_action", label: "agent_browser_action", badge: "deferred", selectable: false },
+	];
+	const harness = tuiHarness();
+	const pending = searchablePicker(harness.ctx, {
+		title: "Tool Configuration",
+		items,
+		onActivate: (item) => activated.push(item.value),
+	});
+
+	assert.match(harness.component().render(60).join("\n"), /Indirect tools/);
+	assert.match(harness.component().render(60).join("\n"), /→ read/);
+	harness.component().handleInput(KEYS.confirm);
+	harness.component().handleInput(KEYS.down);
+	assert.match(harness.component().render(60).join("\n"), /→ bash/);
+	harness.component().handleInput(KEYS.confirm);
+
+	harness.component().handleInput(KEYS.down);
+	harness.component().handleInput(KEYS.confirm);
+	assert.deepEqual(activated, ["read", "bash"]);
+
+	harness.component().handleInput(KEYS.cancel);
+	assert.equal(await pending, undefined);
+});
+
 test("a non-TUI host falls back to the plain selector and maps the label back", async () => {
 	const asked: string[][] = [];
 	const ctx = {
@@ -154,4 +196,30 @@ test("a non-TUI host falls back to the plain selector and maps the label back", 
 
 	assert.equal(chosen, "read");
 	assert.deepEqual(asked, [["bash", "read"]]);
+});
+
+test("a non-TUI host only offers activatable labels", async () => {
+	const asked: string[][] = [];
+	const ctx = {
+		mode: "rpc",
+		hasUI: true,
+		ui: {
+			select: async (_title: string, labels: string[]) => {
+				asked.push(labels);
+				return "read";
+			},
+		},
+	} as unknown as ExtensionContext;
+
+	const chosen = await searchablePicker(ctx, {
+		title: "Toggle tool",
+		items: [
+			{ value: "section", label: "Indirect tools", kind: "header" },
+			{ value: "read", label: "read" },
+			{ value: "agent_browser_action", label: "agent_browser_action", selectable: false },
+		],
+	});
+
+	assert.equal(chosen, "read");
+	assert.deepEqual(asked, [["read"]]);
 });

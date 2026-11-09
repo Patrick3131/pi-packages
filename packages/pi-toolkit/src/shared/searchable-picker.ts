@@ -23,6 +23,10 @@ export interface PickerItem {
 	badge?: string;
 	/** Marks the row as currently active. */
 	current?: boolean;
+	/** Section heading: rendered, never navigated to or activated. */
+	kind?: "header";
+	/** Visible for overview but cannot be activated. Defaults to true. */
+	selectable?: boolean;
 }
 
 export interface SearchablePickerOptions {
@@ -49,7 +53,51 @@ export function pickerItemText(item: PickerItem): string {
 
 /** Rows for the query, best match first; an empty query keeps the caller's order. */
 export function filterPickerItems(items: readonly PickerItem[], query: string): PickerItem[] {
-	return query.length === 0 ? [...items] : fuzzyFilter([...items], query, pickerItemText);
+	if (query.length === 0) {
+		return [...items];
+	}
+	return fuzzyFilter(
+		items.filter((item) => item.kind !== "header"),
+		query,
+		pickerItemText,
+	);
+}
+
+function canActivate(item: PickerItem): boolean {
+	return item.kind !== "header" && item.selectable !== false;
+}
+
+function isNavigable(item: PickerItem): boolean {
+	return item.kind !== "header";
+}
+
+function nextNavigableIndex(items: readonly PickerItem[], index: number, delta: 1 | -1): number {
+	for (let step = 0; step < items.length; step += 1) {
+		index = (index + delta + items.length) % items.length;
+		const item = items[index];
+		if (item !== undefined && isNavigable(item)) {
+			return index;
+		}
+	}
+	return index;
+}
+
+function nearestNavigableIndex(items: readonly PickerItem[], index: number): number {
+	if (items.length === 0) {
+		return 0;
+	}
+	const start = Math.max(0, Math.min(index, items.length - 1));
+	for (let step = 0; step < items.length; step += 1) {
+		const forward = (start + step) % items.length;
+		if (items[forward]?.kind !== "header") {
+			return forward;
+		}
+		const backward = (start - step + items.length) % items.length;
+		if (items[backward]?.kind !== "header") {
+			return backward;
+		}
+	}
+	return start;
 }
 
 /** Bounded scroll window that keeps `index` inside it. */
@@ -65,12 +113,13 @@ export async function searchablePicker(
 ): Promise<string | undefined> {
 	if (ctx.mode !== "tui") {
 		// Pi's plain selector round-trips through the client; keep labels unique.
-		const labels = options.items.map((item) => item.label);
+		const selectable = options.items.filter(canActivate);
+		const labels = selectable.map((item) => item.label);
 		if (labels.length === 0) {
 			return undefined;
 		}
 		const chosen = await ctx.ui.select(options.title, labels);
-		return chosen === undefined ? undefined : options.items.find((item) => item.label === chosen)?.value;
+		return chosen === undefined ? undefined : selectable.find((item) => item.label === chosen)?.value;
 	}
 
 	const result = await ctx.ui.custom<string | null>((tui, theme, keybindings, done) => {
@@ -82,7 +131,10 @@ export async function searchablePicker(
 		input.focused = true;
 
 		let filtered = filterPickerItems(options.items, "");
-		let index = Math.max(0, filtered.findIndex((item) => item.current === true));
+		let index = filtered.findIndex((item) => item.current === true && isNavigable(item));
+		if (index < 0) {
+			index = nearestNavigableIndex(filtered, 0);
+		}
 
 		const border = new DynamicBorder((text) => theme.fg("border", text));
 		const title = new Text(theme.fg("accent", theme.bold(options.title)), 0, 0);
@@ -100,8 +152,8 @@ export async function searchablePicker(
 		function refilter(query: string): void {
 			const previous = filtered[index]?.value;
 			filtered = filterPickerItems(options.items, query);
-			const kept = filtered.findIndex((item) => item.value === previous);
-			index = kept >= 0 ? kept : Math.min(index, Math.max(0, filtered.length - 1));
+			const kept = filtered.findIndex((item) => item.value === previous && isNavigable(item));
+			index = kept >= 0 ? kept : nearestNavigableIndex(filtered, Math.min(index, Math.max(0, filtered.length - 1)));
 		}
 
 		function rowLines(width: number): string[] {
@@ -113,6 +165,10 @@ export async function searchablePicker(
 			for (let row = start; row < end; row += 1) {
 				const item = filtered[row];
 				if (item === undefined) {
+					continue;
+				}
+				if (item.kind === "header") {
+					lines.push(truncateToWidth(theme.fg("muted", `  ${item.label}`), width));
 					continue;
 				}
 				const selected = row === index;
@@ -146,15 +202,15 @@ export async function searchablePicker(
 			handleInput(data: string) {
 				if (keybindings.matches(data, "tui.select.up")) {
 					if (filtered.length > 0) {
-						index = (index - 1 + filtered.length) % filtered.length;
+						index = nextNavigableIndex(filtered, index, -1);
 					}
 				} else if (keybindings.matches(data, "tui.select.down")) {
 					if (filtered.length > 0) {
-						index = (index + 1) % filtered.length;
+						index = nextNavigableIndex(filtered, index, 1);
 					}
 				} else if (keybindings.matches(data, "tui.select.confirm")) {
 					const item = filtered[index];
-					if (item !== undefined) {
+					if (item !== undefined && canActivate(item)) {
 						if (options.onActivate) {
 							options.onActivate(item);
 						} else {
@@ -168,7 +224,7 @@ export async function searchablePicker(
 				} else if (options.onActivate && data === " " && input.getValue().length === 0) {
 					// Space toggles while the filter is empty; otherwise it is a space in the query.
 					const item = filtered[index];
-					if (item !== undefined) {
+					if (item !== undefined && canActivate(item)) {
 						options.onActivate(item);
 					}
 				} else if (options.onKey?.(data, input.getValue()) === true) {

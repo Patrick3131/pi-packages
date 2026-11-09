@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-10-18
+last_verified: 2026-11-09
 applies_to: packages/pi-toolkit/src/features/tools/**
 inherits_from: ../../../AGENTS.md
 canonical_for: pi-tools package conventions
@@ -21,7 +21,8 @@ canonical_for: pi-tools package conventions
   every other key byte-for-byte.
 - The picker is `shared/searchable-picker.ts` in toggle mode. Typing filters, so
   `i` and `s` are read only while the filter is empty — a tool name must always be
-  typeable. Enter and Space activate without closing; Esc closes.
+  typeable. Enter and Space activate selectable rows without closing; section
+  headings and read-only rows are ignored. Esc closes.
 - Never append freshly registered names as `false`, and never prune names the
   current catalog lacks. Absence means unknown, never "removed". A `codemode`,
   `deferred`, or `hidden` tool gets no entry at all: its reachability is exposure,
@@ -36,9 +37,12 @@ canonical_for: pi-tools package conventions
   (`preset-state` on the current branch via `getBranch`) or the transcript
   already declares a loadout.
 - Status shown in the picker and print comes from Pi: `exposure` separates
-  declared, indirectly reachable, and hidden tools. Only declared tools appear in
-  the picker, because only there is on/off a decision Pi enforces; toggles are read
+  declared, indirectly reachable, and hidden tools. Only declared tools are
+  toggleable; indirect tools appear in a read-only section with their exposure as
+  a badge, and hidden tools are omitted and counted. Toggles are read
   back from `getActiveTools()` rather than assumed.
+- A section heading or `selectable: false` row is overview only: never save it,
+  never treat activation as a decision, and keep it out of the non-TUI selector.
 - Do not call `getActiveTools` / `setActiveTools` during module load.
 - Print dumps go through `appendEntry("tools-print")`.
 - Job lists stay in `presets.json`.

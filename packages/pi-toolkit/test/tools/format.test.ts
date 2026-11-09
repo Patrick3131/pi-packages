@@ -10,6 +10,8 @@ import {
 	formatToolsDump,
 	formatUnavailableSaved,
 	isDeclaredSwitch,
+	isHiddenTool,
+	isIndirectlyReachable,
 	toolStatus,
 	type ToolLike,
 } from "../../src/features/tools/format.js";
@@ -88,6 +90,15 @@ test("only a declared-switch exposure is a real on/off decision", () => {
 	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "codemode" }), false);
 	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "deferred" }), false);
 	assert.equal(isDeclaredSwitch({ ...crawl, exposure: "hidden" }), false);
+});
+
+test("indirect and hidden reachability follow the exposure", () => {
+	assert.equal(isIndirectlyReachable({ ...crawl, exposure: "deferred" }), true);
+	assert.equal(isIndirectlyReachable({ ...crawl, exposure: "codemode" }), true);
+	assert.equal(isIndirectlyReachable({ ...crawl, exposure: "direct" }), false);
+	assert.equal(isIndirectlyReachable(crawl), false);
+	assert.equal(isHiddenTool({ ...crawl, exposure: "hidden" }), true);
+	assert.equal(isHiddenTool({ ...crawl, exposure: "deferred" }), false);
 });
 
 test("formatToolsDump lists every tool without sending extra metadata", () => {
