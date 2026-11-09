@@ -36,8 +36,8 @@ Pi package that registers `/tools` and project tool defaults.
 | Action | Effect |
 | --- | --- |
 | Enter/Space in `/tools` | This session only, for declared-switch tools |
-| `s` in `/tools` | Merge this session's declared-switch decisions into `.pi/tools.json` |
-| `/tools save` | Same as `s` |
+| `Ctrl+S` in `/tools` | Merge this session's declared-switch decisions into `.pi/tools.json` |
+| `/tools save` | Same as `Ctrl+S` |
 | New session / `/preset` → `(none)` | Read `.pi/tools.json` |
 
 Saving merges: it rewrites only declared-switch tools (see Status reporting), and
@@ -56,10 +56,14 @@ The picker separates three kinds of tool:
   `disabled` reflect the active set, and Enter/Space changes it for this session.
 - **Indirect** (`deferred`, `codemode`) — listed in a read-only section with the
   exposure as its badge. They are reachable through `tool_search` or `codemode`
-  while inactive, so Enter/Space does nothing; `i` still expands details. The
+  while inactive, so Enter/Space does nothing; `?` still expands details. The
   section is for a complete overview, not for saving a decision.
 - **Hidden** (`hidden`) — omitted because it cannot be activated; the subtitle
   reports how many were left out.
+
+`Tab` / `Shift+Tab` cycle `all → active → inactive`. The active and inactive views
+contain only declared-switch rows; the indirect read-only section is shown only in
+`all`.
 
 `/tools print` always dumps the complete catalog with those statuses. Toggles are
 read back from Pi after a change, so a tool that cannot be activated is never
@@ -67,10 +71,10 @@ reported as enabled, and exposure itself is managed in `.pi/mcp.json` or `/mcp`.
 
 ## Commands
 
-- `/tools` — picker. Type to filter the list, Enter/Space toggles a declared tool,
-  `i` expands details (including read-only indirect rows), `s` merges project
-  defaults, Esc closes. `i` and `s` act only while the filter is empty, so a tool
-  name can always be typed out.
+- `/tools` — picker. Type to filter; `Tab` cycles all/active/inactive. Enter/Space
+  toggles a declared tool, `?` expands details (including read-only indirect rows),
+  `Ctrl+S` merges project defaults, Esc closes. Printable letters are always search
+  input; actions use non-letter keys.
 - `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
 - Bare `/tools` opens the interactive picker in the TUI and automatically
   prints the catalog in non-TUI clients such as Pi Web.

@@ -16,13 +16,14 @@ canonical_for: pi-tools package conventions
 
 - `.pi/tools.json` is input only. No lifecycle event (`session_start`,
   `before_agent_start`, picker open, print) may write or create it.
-- Only `s` / `/tools save` writes, and that write is a merge: rewrite the
+- Only `Ctrl+S` / `/tools save` writes, and that write is a merge: rewrite the
   declared-switch tools this session registers (`direct`, `model-only`), preserve
   every other key byte-for-byte.
-- The picker is `shared/searchable-picker.ts` in toggle mode. Typing filters, so
-  `i` and `s` are read only while the filter is empty — a tool name must always be
-  typeable. Enter and Space activate selectable rows without closing; section
-  headings and read-only rows are ignored. Esc closes.
+- The picker is `shared/searchable-picker.ts` in toggle mode. Typing always
+  filters; no printable letter is an action. `?` expands details, `Ctrl+S` saves,
+  Enter/Space activate selectable rows without closing; section headings and
+  read-only rows are ignored. `Tab`/`Shift+Tab` cycle all/active/inactive;
+  active/inactive contain only declared-switch rows. Esc closes.
 - Never append freshly registered names as `false`, and never prune names the
   current catalog lacks. Absence means unknown, never "removed". A `codemode`,
   `deferred`, or `hidden` tool gets no entry at all: its reachability is exposure,
@@ -41,6 +42,8 @@ canonical_for: pi-tools package conventions
   toggleable; indirect tools appear in a read-only section with their exposure as
   a badge, and hidden tools are omitted and counted. Toggles are read
   back from `getActiveTools()` rather than assumed.
+- Filter state is session-local and never saved. It is derived from the read-back
+  active set, so a toggle that changes membership immediately re-applies the view.
 - A section heading or `selectable: false` row is overview only: never save it,
   never treat activation as a decision, and keep it out of the non-TUI selector.
 - Do not call `getActiveTools` / `setActiveTools` during module load.

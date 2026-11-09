@@ -2,7 +2,7 @@
  * Official Pi /tools command, packaged so it can be installed like pi-presets.
  *
  * Project defaults live in <cwd>/.pi/tools.json and are input only: nothing in a
- * session lifecycle writes that file. Only `s` / `/tools save` writes, and that
+ * session lifecycle writes that file. Only `Ctrl+S` / `/tools save` writes, and that
  * write merges instead of reconciling, so a catalog that happens to be missing
  * names (restricted allowlist, MCP server still connecting, extension that
  * failed to load, delegated child session) can never delete or flip them.
@@ -122,6 +122,10 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	}
 
 	function saveProjectDefaults(ctx: ExtensionCommandContext): void {
+		if (!sessionOwnsProjectPreferences(ctx)) {
+			ctx.ui.notify("A delegated subagent session does not own this project's tool preferences.", "warning");
+			return;
+		}
 		refreshCatalog();
 		enabledTools = new Set(pi.getActiveTools());
 		const path = projectPath(ctx.cwd);
@@ -259,20 +263,26 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			title: "Tool Configuration",
 			subtitle,
 			items,
-			hint: "i details · s save defaults",
+			filters: [
+				{ label: "all" },
+				{ label: "active", matches: (item) => item.current === true },
+				{
+					label: "inactive",
+					matches: (item) =>
+						item.kind !== "header" && item.selectable !== false && item.current === false,
+				},
+			],
+			hint: "? details · ctrl+s save defaults",
 			onActivate: (item) => applyToggle(item.value),
-			// Single-letter commands stay usable until the filter has content.
-			onKey: (data, query) => {
-				if (query.length > 0) {
-					return false;
-				}
-				if (data === "i" || data === "I") {
-					detailsMode = !detailsMode;
-					refreshDescriptions();
+			// Printable letters stay searchable; actions use non-letter keys.
+			onKey: (data) => {
+				if (data === "\u0013") {
+					saveProjectDefaults(ctx);
 					return true;
 				}
-				if (data === "s" || data === "S") {
-					saveProjectDefaults(ctx);
+				if (data === "?") {
+					detailsMode = !detailsMode;
+					refreshDescriptions();
 					return true;
 				}
 				return false;
@@ -303,10 +313,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				return;
 			}
 			if (command.action === "save") {
-				if (!sessionOwnsProjectPreferences(ctx)) {
-					ctx.ui.notify("A delegated subagent session does not own this project's tool preferences.", "warning");
-					return;
-				}
 				saveProjectDefaults(ctx);
 				return;
 			}

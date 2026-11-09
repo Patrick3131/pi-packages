@@ -73,7 +73,10 @@ test("a section header is visible but never a search result", () => {
 		{ value: "agent_browser_action", label: "agent_browser_action", badge: "deferred", selectable: false },
 	];
 
-	assert.deepEqual(filterPickerItems(items, "").map((item) => item.value), ["read", "section", "bash", "agent_browser_action"]);
+	assert.deepEqual(
+		filterPickerItems(items, "").map((item) => item.value),
+		["read", "section", "bash", "agent_browser_action"],
+	);
 	assert.deepEqual(filterPickerItems(items, "bash").map((item) => item.value), ["bash"]);
 	assert.deepEqual(filterPickerItems(items, "agent").map((item) => item.value), ["agent_browser_action"]);
 });
@@ -224,4 +227,62 @@ test("a non-TUI host only offers activatable labels", async () => {
 
 	assert.equal(chosen, "read");
 	assert.deepEqual(asked, [["read"]]);
+});
+
+
+test("tab cycles views and activation re-applies the current filter", async () => {
+	const activated: string[] = [];
+	const items: PickerItem[] = [
+		{ value: "read", label: "read", current: true },
+		{ value: "bash", label: "bash", current: false },
+		{ value: "agent", label: "agent", badge: "deferred", selectable: false },
+		{ value: "section", label: "Indirect tools", kind: "header" },
+	];
+	const filters = [
+		{ label: "all" },
+		{ label: "active", matches: (item: PickerItem) => item.current === true },
+		{
+			label: "inactive",
+			matches: (item: PickerItem) => item.current === false && item.selectable !== false,
+		},
+	];
+	const harness = tuiHarness();
+	const pending = searchablePicker(harness.ctx, {
+		title: "Tool Configuration",
+		items,
+		filters,
+		onActivate: (item) => {
+			activated.push(item.value);
+			item.current = !item.current;
+		},
+	});
+
+	assert.match(harness.component().render(80).join("\n"), /tab filter: all/);
+	assert.match(harness.component().render(80).join("\n"), /→ read/);
+
+	harness.component().handleInput("\t");
+	let rendered = harness.component().render(80).join("\n");
+	assert.match(rendered, /tab filter: active/);
+	assert.match(rendered, /→ read/);
+	assert.doesNotMatch(rendered, /bash/);
+	assert.doesNotMatch(rendered, /agent/);
+
+	harness.component().handleInput("\t");
+	rendered = harness.component().render(80).join("\n");
+	assert.match(rendered, /tab filter: inactive/);
+	assert.match(rendered, /→ bash/);
+	assert.doesNotMatch(rendered, /read/);
+
+	harness.component().handleInput(KEYS.confirm);
+	assert.deepEqual(activated, ["bash"]);
+	assert.match(harness.component().render(80).join("\n"), /nothing matches/);
+
+	harness.component().handleInput("\u001b[Z");
+	rendered = harness.component().render(80).join("\n");
+	assert.match(rendered, /tab filter: active/);
+	assert.match(rendered, /read/);
+	assert.match(rendered, /bash ✓/);
+
+	harness.component().handleInput(KEYS.cancel);
+	assert.equal(await pending, undefined);
 });

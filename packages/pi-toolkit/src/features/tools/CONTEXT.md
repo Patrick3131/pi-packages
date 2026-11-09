@@ -10,7 +10,7 @@ canonical_for: pi-tools architecture
 
 `<cwd>/.pi/tools.json` is a map of project tool decisions, and it is **input
 only**. A session reads it; nothing in a session lifecycle writes it. The only
-writer is an explicit `s` / `/tools save`.
+writer is an explicit `Ctrl+S` / `/tools save`.
 
 ## Why writes were removed
 
@@ -43,7 +43,7 @@ no appending of new names as `false`, no pruning of names this catalog lacks.
 
 ## Writing
 
-`/tools save` merges: it starts from the file on disk, rewrites only the
+`Ctrl+S` / `/tools save` merges: it starts from the file on disk, rewrites only the
 declared-switch tools this session registers (to that session's active state), and
 preserves every other key. Saving from a smaller catalog therefore cannot drop
 preferences it had no evidence to judge. The write is atomic (same-directory
@@ -62,6 +62,10 @@ tools are omitted and counted. `/tools print` labels every registered tool from
 Pi's metadata for diagnosis, and toggles are read back from `getActiveTools()`.
 Names saved in the file but not registered in this session are listed separately
 as unavailable.
+
+`Tab`/`Shift+Tab` cycle `all → active → inactive`; active and inactive contain only
+declared-switch rows, and the filter is session-local. `?` expands details and
+`Ctrl+S` saves; printable letters remain search input.
 
 Explicit CLI --tools/--exclude-tools/--no-tools selection owns startup ahead of
 project defaults. Discovery uses native defaultActive; no lifecycle filter.

@@ -29,10 +29,18 @@ export interface PickerItem {
 	selectable?: boolean;
 }
 
+/** One selectable view over the rows; `all` may omit `matches`. */
+export interface PickerFilter {
+	label: string;
+	matches?: (item: PickerItem) => boolean;
+}
+
 export interface SearchablePickerOptions {
 	title: string;
 	subtitle?: string;
 	items: readonly PickerItem[];
+	/** Optional views cycled with Tab/Shift+Tab; the first is the default. */
+	filters?: readonly PickerFilter[];
 	/** Rows in the scroll window; the selection stays centred. Default 10. */
 	maxVisible?: number;
 	placeholder?: string;
@@ -113,7 +121,9 @@ export async function searchablePicker(
 ): Promise<string | undefined> {
 	if (ctx.mode !== "tui") {
 		// Pi's plain selector round-trips through the client; keep labels unique.
-		const selectable = options.items.filter(canActivate);
+		const defaultFilter = options.filters?.[0];
+		const visible = defaultFilter?.matches ? options.items.filter(defaultFilter.matches) : options.items;
+		const selectable = visible.filter(canActivate);
 		const labels = selectable.map((item) => item.label);
 		if (labels.length === 0) {
 			return undefined;
@@ -130,7 +140,23 @@ export async function searchablePicker(
 		});
 		input.focused = true;
 
-		let filtered = filterPickerItems(options.items, "");
+		const filters = options.filters ?? [];
+		let filterIndex = 0;
+
+		function filterCandidates(): readonly PickerItem[] {
+			const filter = filters[filterIndex];
+			return filter?.matches ? options.items.filter(filter.matches) : options.items;
+		}
+
+		function applyView(query: string): PickerItem[] {
+			return filterPickerItems(filterCandidates(), query);
+		}
+
+		function filterStatus(): string | undefined {
+			return filters.length > 1 ? `tab filter: ${filters[filterIndex]?.label ?? ""}` : undefined;
+		}
+
+		let filtered = applyView("");
 		let index = filtered.findIndex((item) => item.current === true && isNavigable(item));
 		if (index < 0) {
 			index = nearestNavigableIndex(filtered, 0);
@@ -147,13 +173,29 @@ export async function searchablePicker(
 			hints.push(options.hint);
 		}
 		hints.push("type to filter");
-		const footer = new Text(theme.fg("dim", hints.join("  ")), 0, 0);
+		function footerText(): string {
+			const status = filterStatus();
+			return status ? `${hints.join("  ")}  ${status}` : hints.join("  ");
+		}
+		const footer = new Text(theme.fg("dim", footerText()), 0, 0);
 
 		function refilter(query: string): void {
 			const previous = filtered[index]?.value;
-			filtered = filterPickerItems(options.items, query);
+			filtered = applyView(query);
 			const kept = filtered.findIndex((item) => item.value === previous && isNavigable(item));
 			index = kept >= 0 ? kept : nearestNavigableIndex(filtered, Math.min(index, Math.max(0, filtered.length - 1)));
+		}
+
+		function cycleFilter(delta: 1 | -1): void {
+			if (filters.length <= 1) {
+				return;
+			}
+			const previous = filtered[index]?.value;
+			filterIndex = (filterIndex + delta + filters.length) % filters.length;
+			filtered = applyView(input.getValue());
+			const kept = filtered.findIndex((item) => item.value === previous && isNavigable(item));
+			index = kept >= 0 ? kept : nearestNavigableIndex(filtered, 0);
+			footer.setText(theme.fg("dim", footerText()));
 		}
 
 		function rowLines(width: number): string[] {
@@ -213,6 +255,7 @@ export async function searchablePicker(
 					if (item !== undefined && canActivate(item)) {
 						if (options.onActivate) {
 							options.onActivate(item);
+							refilter(input.getValue());
 						} else {
 							done(item.value);
 							return;
@@ -221,11 +264,16 @@ export async function searchablePicker(
 				} else if (keybindings.matches(data, "tui.select.cancel")) {
 					done(null);
 					return;
+				} else if (filters.length > 1 && (data === "\t" || data === "\u001b[Z")) {
+					cycleFilter(data === "\u001b[Z" ? -1 : 1);
+					tui.requestRender();
+					return;
 				} else if (options.onActivate && data === " " && input.getValue().length === 0) {
 					// Space toggles while the filter is empty; otherwise it is a space in the query.
 					const item = filtered[index];
 					if (item !== undefined && canActivate(item)) {
 						options.onActivate(item);
+						refilter(input.getValue());
 					}
 				} else if (options.onKey?.(data, input.getValue()) === true) {
 					// The feature handled it (details, save, ...).
