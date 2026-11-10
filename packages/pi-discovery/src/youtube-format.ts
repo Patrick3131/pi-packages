@@ -165,7 +165,7 @@ export function formatYoutubeChannel(result: YoutubeChannelResponse): {
   const summary =
     `YouTube channel ${channel.title ?? channel.channel_id} · ` +
     `${channel.subscriber_count_text ?? "subscriber count unknown"} · ` +
-    `${channel.video_count_text ?? "video count unknown"} · ${result.videos.length} videos returned` +
+    `${channel.video_count === null ? "video count unknown" : `${channel.video_count} videos`} · ${result.videos.length} returned` +
     `${result.cached ? " · cached" : ""}`;
   const lines = [
     summary,

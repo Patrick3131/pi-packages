@@ -219,6 +219,7 @@ test("channel success keeps metadata, all videos and cursor guidance", async (t)
   );
   assert.match(text(result), /9K9AL0Sji6U/);
   assert.match(text(result), /p48f-kj1U28/);
+  assert.match(text(result), /116 videos/);
   assert.match(text(result), /opaque-next-token/);
   assert.match(text(result), /never fetches them/);
   assert.equal(fetchMock.mock.callCount(), 1);
