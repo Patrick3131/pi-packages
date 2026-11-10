@@ -205,6 +205,7 @@ export const youtubeSearchDefinition = {
     "Use youtube_search for video discovery, then youtube_transcript for one selected video.",
     "The result is one bounded provider page; do not imply that it is the complete result set.",
     "has_captions is a badge, not proof that a transcript fetch will succeed.",
+    "estimated_results is a provider estimate, not a relevance score; returned results are one page.",
   ],
   outputSchema: resultEnvelope(searchResponseSchema),
   parameters: Type.Object(
