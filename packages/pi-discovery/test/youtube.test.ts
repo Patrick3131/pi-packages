@@ -575,6 +575,27 @@ test("channel requests validate selectors and mirror url bounds", () => {
     );
 });
 
+test("search parser reads the legacy caption alias when the new field is absent", () => {
+  const aliasOnly = {
+    ...searchResponse,
+    results: [
+      {
+        ...searchResponse.results[0],
+        captions_advertised: undefined,
+        has_captions: true,
+      },
+    ],
+  };
+  assert.equal(
+    parseYoutubeSearchResponse(aliasOnly).results[0].captions_advertised,
+    true,
+  );
+  assert.equal(
+    parseYoutubeSearchResponse(aliasOnly).results[0].has_captions,
+    true,
+  );
+});
+
 test("parsers accept the documented shapes and reject format mismatches", () => {
   assert.deepEqual(
     parseYoutubeSearchResponse(searchResponse, 2),

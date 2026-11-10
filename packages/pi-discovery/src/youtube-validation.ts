@@ -426,8 +426,8 @@ export function parseYoutubeSearchResponse(
     ).size !== data.results.length
   )
     return malformed();
-  data.results.forEach(parseSearchItem);
-  return data as unknown as YoutubeSearchResponse;
+  const results = data.results.map(parseSearchItem);
+  return { ...data, results } as unknown as YoutubeSearchResponse;
 }
 
 function parseSegment(value: unknown): YoutubeTranscriptSegment {
