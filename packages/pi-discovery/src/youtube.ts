@@ -4,14 +4,18 @@ import {
   YOUTUBE_HTTP_TIMEOUT_MARGIN_MS,
   YOUTUBE_SERVER_CODES,
   type YoutubeClientOptions,
+  type YoutubeChannelParams,
+  type YoutubeChannelResponse,
   type YoutubeSearchParams,
   type YoutubeSearchResponse,
   type YoutubeTranscriptParams,
   type YoutubeTranscriptResponse,
 } from "./youtube-types.js";
 import {
+  parseYoutubeChannelResponse,
   parseYoutubeSearchResponse,
   parseYoutubeTranscriptResponse,
+  youtubeChannelRequest,
   youtubeSearchRequest,
   youtubeTranscriptRequest,
   type YoutubeRequest,
@@ -31,6 +35,7 @@ const CLIENT_CODE: Record<string, string> = {
   youtube_blocked: "blocked",
   youtube_upstream: "upstream",
   youtube_timeout: "timeout",
+  youtube_channel_not_found: "not_found",
 };
 
 function serverFailure(response: Response, data: unknown): YoutubeClientError {
@@ -66,7 +71,8 @@ async function requestYoutube(
   request: YoutubeRequest,
   options: YoutubeClientOptions,
 ): Promise<unknown> {
-  const abort = () => new DOMException("YouTube request cancelled.", "AbortError");
+  const abort = () =>
+    new DOMException("YouTube request cancelled.", "AbortError");
   if (options.signal?.aborted) throw abort();
   let config: { baseUrl: string; timeoutMs: number };
   try {
@@ -142,6 +148,15 @@ export async function getYoutubeTranscript(
     await requestYoutube(request, options),
     { resolvedVideoId: request.resolvedVideoId, format: request.format },
   );
+}
+
+/** One channel page; cursor continuation is a separate explicit call. */
+export async function getYoutubeChannel(
+  params: YoutubeChannelParams,
+  options: YoutubeClientOptions = {},
+): Promise<YoutubeChannelResponse> {
+  const request = youtubeChannelRequest(params);
+  return parseYoutubeChannelResponse(await requestYoutube(request, options));
 }
 
 export { YoutubeClientError } from "./youtube-errors.js";

@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  getYoutubeChannel,
   getYoutubeTranscript,
   searchYoutube,
   YoutubeClientError,
 } from "../src/youtube.js";
 import {
   parseYoutubeSearchResponse,
+  parseYoutubeChannelResponse,
   parseYoutubeTranscriptResponse,
+  youtubeChannelRequest,
   youtubeSearchRequest,
   youtubeTranscriptRequest,
 } from "../src/youtube-validation.js";
@@ -15,7 +18,13 @@ import {
   formatYoutubeSearch,
   formatYoutubeTranscript,
 } from "../src/youtube-format.js";
-import { segmentResponse, searchResponse, textResponse, recordingFetch } from "./youtube-fixtures.js";
+import {
+  channelResponse,
+  segmentResponse,
+  searchResponse,
+  textResponse,
+  recordingFetch,
+} from "./youtube-fixtures.js";
 
 const invalidRequest = (error: unknown) =>
   error instanceof YoutubeClientError && error.code === "invalid_request";
@@ -133,11 +142,7 @@ test("transcript selectors accept one exact id or a canonical YouTube URL", () =
     "https://www.youtube.com/channel/UC123",
     `https://youtu.be/${"a".repeat(3000)}`,
   ])
-    assert.throws(
-      () => youtubeTranscriptRequest({ url }),
-      invalidRequest,
-      url,
-    );
+    assert.throws(() => youtubeTranscriptRequest({ url }), invalidRequest, url);
 
   assert.deepEqual(youtubeTranscriptRequest({ video_id: "dQw4w9WgXcQ" }), {
     endpoint: "/v1/youtube/transcript",
@@ -350,6 +355,7 @@ test("server errors keep sanitized codes, request ids and advisory Retry-After",
     [401, "youtube_disabled", "disabled", undefined],
     [404, "youtube_no_captions", "not_found", undefined],
     [404, "youtube_unavailable", "not_found", undefined],
+    [404, "youtube_channel_not_found", "not_found", undefined],
     [429, "youtube_queue_full", "queue_full", 1000],
     [502, "youtube_blocked", "blocked", undefined],
     [502, "youtube_upstream", "upstream", undefined],
@@ -373,10 +379,7 @@ test("server errors keep sanitized codes, request ids and advisory Retry-After",
       },
     );
     await assert.rejects(
-      searchYoutube(
-        { query: "x" },
-        { env: {}, fetch: recorded.fetch },
-      ),
+      searchYoutube({ query: "x" }, { env: {}, fetch: recorded.fetch }),
       (error: unknown) =>
         error instanceof YoutubeClientError &&
         error.code === clientCode &&
@@ -414,9 +417,18 @@ test("unknown server codes, malformed bodies and transport failures stay safe", 
   for (const body of [
     {},
     { ...searchResponse, query: "" },
-    { ...searchResponse, results: [searchResponse.results[0], searchResponse.results[0]] },
-    { ...searchResponse, results: [{ ...searchResponse.results[0], url: "https://evil.example" }] },
-    { ...searchResponse, results: [{ ...searchResponse.results[0], video_id: "short" }] },
+    {
+      ...searchResponse,
+      results: [searchResponse.results[0], searchResponse.results[0]],
+    },
+    {
+      ...searchResponse,
+      results: [{ ...searchResponse.results[0], url: "https://evil.example" }],
+    },
+    {
+      ...searchResponse,
+      results: [{ ...searchResponse.results[0], video_id: "short" }],
+    },
     { ...searchResponse, estimated_results: -1 },
     { ...searchResponse, results: "nope" },
   ])
@@ -447,15 +459,20 @@ test("unknown server codes, malformed bodies and transport failures stay safe", 
     {},
     { ...segmentResponse, video_id: "mMHw1zEev-0" },
     { ...segmentResponse, text: "both" },
-    { ...segmentResponse, segments: [] },
     { ...segmentResponse, language: "EN" },
     { ...segmentResponse, available_languages: ["en", "en"] },
-    { ...segmentResponse, segments: [{ start_ms: -1, duration_ms: 0, text: "x" }] },
+    {
+      ...segmentResponse,
+      segments: [{ start_ms: -1, duration_ms: 0, text: "x" }],
+    },
     { ...textResponse, segments: segmentResponse.segments },
   ])
     await assert.rejects(
       getYoutubeTranscript(
-        { video_id: "dQw4w9WgXcQ", format: body === textResponse ? "text" : "segments" },
+        {
+          video_id: "dQw4w9WgXcQ",
+          format: body === textResponse ? "text" : "segments",
+        },
         { env: {}, fetch: recordingFetch(body).fetch },
       ),
       malformed,
@@ -479,8 +496,90 @@ test("unknown server codes, malformed bodies and transport failures stay safe", 
   );
 });
 
+test("empty transcript windows and channel pages parse without inventing content", () => {
+  const empty = {
+    ...segmentResponse,
+    segments: [],
+    text: null,
+    total_chars: 40,
+    returned_chars: 0,
+    window_start_ms: 5000,
+    next_start_ms: null,
+    truncated: false,
+  };
+  assert.deepEqual(
+    parseYoutubeTranscriptResponse(empty, {
+      resolvedVideoId: "dQw4w9WgXcQ",
+      format: "segments",
+    }),
+    empty,
+  );
+  assert.match(
+    formatYoutubeTranscript(empty).text,
+    /empty; this is a valid complete position/,
+  );
+  assert.deepEqual(
+    parseYoutubeChannelResponse(channelResponse),
+    channelResponse,
+  );
+});
+
+test("channel requests validate selectors and mirror url bounds", () => {
+  assert.deepEqual(
+    youtubeChannelRequest({ channel_id: "UCaobKrMmIx40ZE_MGxbqDPA" }),
+    {
+      endpoint: "/v1/youtube/channel",
+      body: {
+        channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+        language: "en",
+        region: "US",
+        timeout_ms: 30000,
+      },
+      serverTimeoutMs: 30000,
+    },
+  );
+  assert.deepEqual(
+    youtubeChannelRequest({
+      channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+      cursor: "opaque-token",
+      timeout_ms: 5000,
+    }).body,
+    {
+      channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+      cursor: "opaque-token",
+      language: "en",
+      region: "US",
+      timeout_ms: 5000,
+    },
+  );
+  for (const params of [
+    {},
+    { channel_id: "short" },
+    { handle: "TheConsumerBehaviorLab" },
+    { handle: "@ab" },
+    {
+      channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+      handle: "@TheConsumerBehaviorLab",
+    },
+    { cursor: "token" },
+    { cursor: "bad token", channel_id: "UCaobKrMmIx40ZE_MGxbqDPA" },
+    { url: "https://evil.example/@TheConsumerBehaviorLab" },
+    { url: "https://www.youtube.com/@TheConsumerBehaviorLab/about" },
+    { url: "https://www.youtube.com/c/../x" },
+    { channel_id: "UCaobKrMmIx40ZE_MGxbqDPA", max_videos: 10 },
+  ])
+    assert.throws(
+      () => youtubeChannelRequest(params as never),
+      invalidRequest,
+      JSON.stringify(params),
+    );
+});
+
 test("parsers accept the documented shapes and reject format mismatches", () => {
-  assert.deepEqual(parseYoutubeSearchResponse(searchResponse, 2), searchResponse);
+  assert.deepEqual(
+    parseYoutubeSearchResponse(searchResponse, 2),
+    searchResponse,
+  );
   assert.deepEqual(
     parseYoutubeTranscriptResponse(segmentResponse, {
       resolvedVideoId: "dQw4w9WgXcQ",
@@ -520,10 +619,21 @@ test("model-visible search and transcript output is bounded and explicit", () =>
   assert.ok(transcript.text.length <= 12000);
 
   const text = formatYoutubeTranscript(textResponse);
-  assert.match(text.text, /Text \(.* chars\)/);
+  assert.match(text.text, /Text \(.* in this response\)/);
   assert.match(text.text, /Served from this worker's transcript cache/);
-  assert.match(text.text, /truncated the returned rendering at max_chars/);
+  assert.match(text.text, /40 chars from 0:00; total 40; complete/);
   assert.ok(text.text.length <= 12000);
+
+  const overshoot = {
+    ...textResponse,
+    text: "x".repeat(8000) + "y".repeat(900),
+    returned_chars: 8900,
+    total_chars: 30000,
+    next_start_ms: 900000,
+  };
+  const overshootText = formatYoutubeTranscript(overshoot).text;
+  assert.ok(overshootText.includes("x".repeat(8000) + "y".repeat(900)));
+  assert.doesNotMatch(overshootText, /8000 chars from|showing first 8000/i);
 
   const huge = {
     ...segmentResponse,

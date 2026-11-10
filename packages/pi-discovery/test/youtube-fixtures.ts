@@ -18,6 +18,7 @@ export const searchResponse: YoutubeSearchResponse = {
       view_count: 12345,
       live: false,
       has_captions: true,
+      captions_advertised: true,
       thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
     },
     {
@@ -31,6 +32,7 @@ export const searchResponse: YoutubeSearchResponse = {
       view_count: null,
       live: true,
       has_captions: false,
+      captions_advertised: false,
       thumbnail_url: "https://i.ytimg.com/vi/mMHw1zEev-0/hqdefault.jpg",
     },
   ],
@@ -52,14 +54,22 @@ export const segmentResponse: YoutubeTranscriptResponse = {
   text: null,
   truncated: false,
   cached: false,
+  window_start_ms: null,
+  next_start_ms: null,
+  total_chars: 40,
+  returned_chars: 40,
 };
 
 export const textResponse: YoutubeTranscriptResponse = {
   ...segmentResponse,
   segments: [],
   text: "Hello and welcome. Today we ship Python.",
-  truncated: true,
+  truncated: false,
   cached: true,
+  window_start_ms: 0,
+  next_start_ms: null,
+  total_chars: 40,
+  returned_chars: 40,
 };
 
 export interface RecordedCall {
@@ -89,3 +99,59 @@ export function recordingFetch(
   };
   return { calls, fetch: fetchImpl as unknown as typeof fetch };
 }
+
+export const channelResponse = {
+  channel: {
+    channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+    handle: "@TheConsumerBehaviorLab",
+    title: "The Consumer Behavior Lab",
+    subscriber_count: 2630,
+    subscriber_count_text: "2.63K subscribers",
+    video_count: 116,
+    canonical_url: "https://www.youtube.com/@TheConsumerBehaviorLab",
+    avatar_url: "https://yt3.googleusercontent.com/avatar=s88",
+  },
+  about: {
+    description: "Consumer behavior research and practical marketing lessons.",
+    view_count: 121072,
+    view_count_text: "121,072 views",
+    joined_text: "Joined Feb 27, 2024",
+    links: [{ title: "Website", url: "https://example.com/" }],
+  },
+  videos: [
+    {
+      video_id: "9K9AL0Sji6U",
+      url: "https://www.youtube.com/watch?v=9K9AL0Sji6U",
+      title: "Why consumers behave differently",
+      duration_s: 2662,
+      published_text: "6 days ago",
+      view_count: 162,
+      live: false,
+      thumbnail_url: "https://i.ytimg.com/vi/9K9AL0Sji6U/hqdefault.jpg",
+    },
+    {
+      video_id: "p48f-kj1U28",
+      url: "https://www.youtube.com/watch?v=p48f-kj1U28",
+      title: "A long interview",
+      duration_s: 4258,
+      published_text: "13 days ago",
+      view_count: 4200,
+      live: true,
+      thumbnail_url: "https://i.ytimg.com/vi/p48f-kj1U28/hqdefault.jpg",
+    },
+  ],
+  next_cursor: "opaque-next-token",
+  has_more: true,
+  cursor_overflow: false,
+  cached: false,
+};
+
+export const channelTextResponse = {
+  ...channelResponse,
+  about: null,
+  videos: [],
+  next_cursor: null,
+  has_more: false,
+  cursor_overflow: true,
+  cached: true,
+};

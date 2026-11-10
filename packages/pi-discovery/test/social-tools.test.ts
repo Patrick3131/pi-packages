@@ -103,11 +103,12 @@ test("registers the social tools alongside default-on YouTube tools", () => {
       "social_post",
       "youtube_search",
       "youtube_transcript",
+      "youtube_channel",
       "web_search_searxng",
       "web_answer",
     ],
   );
-  for (const name of ["youtube_search", "youtube_transcript"])
+  for (const name of ["youtube_search", "youtube_transcript", "youtube_channel"])
     assert.equal(social(registered, name).defaultActive, true, name);
   for (const name of [
     "ad_library_keyword_ads",
@@ -138,7 +139,7 @@ test("registers the social tools alongside default-on YouTube tools", () => {
     "web_answer",
   ])
     assert.equal(social(enabled, name).defaultActive, false, name);
-  for (const name of ["youtube_search", "youtube_transcript"])
+  for (const name of ["youtube_search", "youtube_transcript", "youtube_channel"])
     assert.equal(social(enabled, name).defaultActive, true, name);
 
   assert.equal(

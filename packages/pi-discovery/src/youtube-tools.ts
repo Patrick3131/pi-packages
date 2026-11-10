@@ -3,20 +3,26 @@ import { Text } from "@earendil-works/pi-tui";
 import { isYoutubeEnabledByEnv } from "./config.js";
 import { YoutubeClientError } from "./youtube-errors.js";
 import {
+  formatYoutubeChannel,
   formatYoutubeSearch,
   formatYoutubeTranscript,
+  TRANSCRIPT_SEGMENT_REQUEST_CHARS,
+  TRANSCRIPT_TEXT_REQUEST_CHARS,
 } from "./youtube-format.js";
 import {
   YOUTUBE_NOT_FOUND_CODES,
+  type YoutubeChannelParams,
   type YoutubeSearchParams,
   type YoutubeTranscriptParams,
   type YoutubeResultEnvelope,
 } from "./youtube-types.js";
 import {
+  getYoutubeChannel,
   getYoutubeTranscript,
   searchYoutube,
 } from "./youtube.js";
 import {
+  youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
 } from "./youtube-definitions.js";
@@ -24,14 +30,19 @@ import {
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
 >;
-type ToolResult = import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>;
+type ToolResult =
+  import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>;
 
 export {
+  youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
 } from "./youtube-definitions.js";
 
-function failureResult(error: YoutubeClientError): ToolResult {
+function failureResult(
+  error: YoutubeClientError,
+  kind: "transcript" | "channel" = "transcript",
+): ToolResult {
   const status = YOUTUBE_NOT_FOUND_CODES.has(error.serverCode ?? "")
     ? "not_found"
     : "error";
@@ -45,27 +56,31 @@ function failureResult(error: YoutubeClientError): ToolResult {
     .filter(Boolean)
     .join(" ");
   const text =
-    status === "not_found"
-      ? `No public transcript is available for this video (${error.serverCode}). This is not a retry signal and is not proof that the video is private.`
-      : error.code === "disabled"
-        ? "YouTube acquisition is disabled by the server gate."
-        : error.code === "queue_full"
-          ? "YouTube acquisition capacity is full; this client does not retry."
-          : error.code === "blocked"
-            ? `YouTube acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). This client does not retry.`
-            : error.code === "timeout"
-              ? "YouTube acquisition exceeded the server deadline."
-              : error.code === "malformed"
-                ? "The YouTube endpoint returned a malformed success response."
-                : error.code === "transport"
-                  ? "The YouTube endpoint could not be reached."
-                  : `YouTube request failed (${error.code}).`;
+    status === "not_found" && kind === "channel"
+      ? "No public channel was found for this selector. This is not a retry signal; check the channel id, handle or URL."
+      : status === "not_found"
+        ? `No public transcript is available for this video (${error.serverCode}). This is not a retry signal and is not proof that the video is private.`
+        : error.code === "disabled"
+          ? "YouTube acquisition is disabled by the server gate."
+          : error.code === "queue_full"
+            ? "YouTube acquisition capacity is full; this client does not retry."
+            : error.code === "blocked"
+              ? `YouTube acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). This client does not retry.`
+              : error.code === "timeout"
+                ? "YouTube acquisition exceeded the server deadline."
+                : error.code === "malformed"
+                  ? "The YouTube endpoint returned a malformed success response."
+                  : error.code === "transport"
+                    ? "The YouTube endpoint could not be reached."
+                    : `YouTube request failed (${error.code}).`;
   const details: YoutubeResultEnvelope<never> = {
     status,
     error: {
       code: error.code,
       ...(error.status === undefined ? {} : { status: error.status }),
-      ...(error.serverCode === undefined ? {} : { serverCode: error.serverCode }),
+      ...(error.serverCode === undefined
+        ? {}
+        : { serverCode: error.serverCode }),
       ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
       ...(error.retryAfterMs === undefined
         ? {}
@@ -75,13 +90,18 @@ function failureResult(error: YoutubeClientError): ToolResult {
   };
   return {
     isError: status === "error",
-    content: [{ type: "text" as const, text: [text, suffix].filter(Boolean).join(" ") }],
+    content: [
+      { type: "text" as const, text: [text, suffix].filter(Boolean).join(" ") },
+    ],
     details,
     structuredContent: details as unknown as Structured,
   };
 }
 
-function successResult(formatted: { text: string; details: object }): ToolResult {
+function successResult(formatted: {
+  text: string;
+  details: object;
+}): ToolResult {
   return {
     isError: false,
     content: [{ type: "text" as const, text: formatted.text }],
@@ -96,7 +116,9 @@ export async function executeYoutubeSearch(
   signal?: AbortSignal,
 ): Promise<ToolResult> {
   try {
-    return successResult(formatYoutubeSearch(await searchYoutube(params, { signal })));
+    return successResult(
+      formatYoutubeSearch(await searchYoutube(params, { signal })),
+    );
   } catch (error) {
     if (!(error instanceof YoutubeClientError)) throw error;
     return failureResult(error);
@@ -109,12 +131,38 @@ export async function executeYoutubeTranscript(
   signal?: AbortSignal,
 ): Promise<ToolResult> {
   try {
+    const format = params.format ?? "segments";
+    const budget =
+      format === "text"
+        ? TRANSCRIPT_TEXT_REQUEST_CHARS
+        : TRANSCRIPT_SEGMENT_REQUEST_CHARS;
+    const max_chars = Math.max(
+      1000,
+      Math.min(params.max_chars ?? budget, budget),
+    );
     return successResult(
-      formatYoutubeTranscript(await getYoutubeTranscript(params, { signal })),
+      formatYoutubeTranscript(
+        await getYoutubeTranscript({ ...params, max_chars }, { signal }),
+      ),
     );
   } catch (error) {
     if (!(error instanceof YoutubeClientError)) throw error;
     return failureResult(error);
+  }
+}
+
+/** One channel page; transcripts are intentionally never fetched here. */
+export async function executeYoutubeChannel(
+  params: YoutubeChannelParams,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
+  try {
+    return successResult(
+      formatYoutubeChannel(await getYoutubeChannel(params, { signal })),
+    );
+  } catch (error) {
+    if (!(error instanceof YoutubeClientError)) throw error;
+    return failureResult(error, "channel");
   }
 }
 
@@ -137,7 +185,23 @@ export function registerYoutube(pi: ExtensionAPI): void {
     ...youtubeTranscriptDefinition,
     defaultActive,
     execute: async (_id, params, signal) =>
-      executeYoutubeTranscript(params as unknown as YoutubeTranscriptParams, signal),
+      executeYoutubeTranscript(
+        params as unknown as YoutubeTranscriptParams,
+        signal,
+      ),
+    renderResult(result, { expanded }) {
+      const text = result.content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n");
+      return new Text(expanded ? text : text.split("\n")[0], 0, 0);
+    },
+  });
+  pi.registerTool({
+    ...youtubeChannelDefinition,
+    defaultActive,
+    execute: async (_id, params, signal) =>
+      executeYoutubeChannel(params as unknown as YoutubeChannelParams, signal),
     renderResult(result, { expanded }) {
       const text = result.content
         .filter((c) => c.type === "text")

@@ -36,7 +36,7 @@ pi-packages/
 │   │   ├── src/features/     # Four separate extension entry points
 │   │   └── package.json
 │   │
-│   ├── pi-discovery/         # SearXNG search and Luna web_answer
+│   ├── pi-discovery/         # SearXNG, web_answer, social, YouTube
 │   │   ├── src/
 │   │   └── package.json
 │   │
@@ -119,6 +119,7 @@ throw new Error(`Operation failed: ${reason}`);
 ## Package Independence
 
 Packages are **independent**:
+
 - No cross-package dependencies
 - Each has its own `package.json`, `tsconfig.json`
 - Each can be built and tested independently

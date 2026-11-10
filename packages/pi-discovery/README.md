@@ -2,7 +2,7 @@
 
 Direct SearXNG search (`web_search_searxng`), server-owned Luna research
 (`web_answer`), Meta Ad Library, Instagram/TikTok public metadata, and YouTube
-search/transcripts. Search, answer, Ad Library and social tools default off; the
+search/channels/transcripts. Search, answer, Ad Library and social tools default off; the
 YouTube tools default on. All tools use Pi's native defaultActive policy.
 Enable the default-off tools with project `.pi/tools.json`, explicit host
 selection or env defaults:
@@ -177,39 +177,59 @@ Harness-neutral exports: `getSocialProfile`, `getSocialProfilePosts`,
 `formatSocialPost` and `SocialClientError`. Each accepts injected `env`, `fetch`
 and `AbortSignal` and returns typed API data without TUI dependencies.
 
-## YouTube search and transcripts
+## YouTube search, channels and transcripts
 
-Two tools query the server-owned YouTube routes. Pi never contacts YouTube and
-holds no YouTube, residential-proxy, cookie or signer credentials. Both tools are
+Three tools query the server-owned YouTube routes. Pi never contacts YouTube and
+holds no YouTube, residential-proxy, cookie or signer credentials. All three are
 default-on; set `DISCOVERY_YOUTUBE_ENABLED=0` (or false/off/no) or a project
 `.pi/tools.json` false to opt out.
 
-| Tool                 | Route                      | Selection and bounds                                                                 |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------------ |
-| `youtube_search`     | POST /v1/youtube/search    | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000           |
-| `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format segments/text; max_chars 1000–300000; timeout_ms 5000–30000 |
+| Tool                 | Route                       | Selection and bounds                                                                                                                          |
+| -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `youtube_search`     | POST /v1/youtube/search     | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000                                                                   |
+| `youtube_channel`    | POST /v1/youtube/channel    | exactly one channel_id, handle or strict channel URL initially; or channel_id + cursor; language/region; timeout_ms 5000–30000; no max_videos |
+| `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format segments/text; max_chars 1000–300000; start_ms 0–86400000; timeout_ms 5000–30000        |
 
 Search is deliberately one provider page of up to 20 videos: there is no `page`
-or continuation. `has_captions` is the provider badge, not a transcript
-guarantee. Transcripts resolve `video_id` or `watch?v=`, `/shorts/`, `/embed/`
-and `youtu.be/` URLs locally; an omitted language means auto (manual tracks beat
-ASR), and segment mode returns whole timed segments while text mode returns one
-joined block. `truncated` reports a `max_chars` cut.
+or continuation. `captions_advertised` is the provider caption badge, not a
+transcript guarantee; `has_captions` remains an optional one-release alias.
+Channel pages return metadata, optional about data and at most 30 recent videos.
+Use the returned `next_cursor` with the same `channel_id` for the next page.
+There is intentionally no `max_videos`: a provider page is 30, and truncating it
+would make the cursor skip records. A channel page never fetches transcripts;
+call `youtube_transcript` once for each chosen `video_id`. `about: null` still
+means the videos are valid. `cursor_overflow: true` means more videos exist but
+paging is unavailable.
+
+Transcripts resolve `video_id` or `watch?v=`, `/shorts/`, `/embed/` and
+`youtu.be/` URLs locally; an omitted language means auto (manual tracks beat
+ASR). Segment and text windows contain whole segments only. `start_ms` resumes
+at a segment boundary; `next_start_ms`, `total_chars` and `returned_chars`
+describe exactly what was returned. The tool clamps its server request to the
+formatter budget (8000 text or 11500 segment characters), so `next_start_ms` is
+the first content the model did not see and a follow-up call makes progress. An
+empty window after the last segment is valid and complete, not malformed.
 
 `DISCOVERY_YOUTUBE_TIMEOUT_MS` is a 40000 ms floor. Omitted tool timeouts resolve
 to 30000 ms, and the HTTP budget is `max(floor, effective server budget + 10000)`.
 No client retries, waits, rotates sessions or probes health. HTTP 404
-`youtube_no_captions` and `youtube_unavailable` are `status: not_found` with the
-exact server code and are not retry signals; 401 `youtube_disabled`, 429
+`youtube_no_captions`, `youtube_unavailable` and `youtube_channel_not_found` are
+`status: not_found` with the exact server code and are not retry signals; the
+channel tool uses channel-specific copy. 401 `youtube_disabled`, 429
 `youtube_queue_full`, 502 `youtube_blocked`/`youtube_upstream` and 504
 `youtube_timeout` are error envelopes with the safe reason and Retry-After when
 present. Caller abort stays `AbortError`.
 
-Model-visible text is bounded to 12000 characters: search shows every returned
-video (up to 20), while a transcript previews at most 30 segments or 8000 text
-characters and labels shortening. Native outputSchema/structuredContent keeps
-the complete response, including all returned segments, available languages and
-the `cached`/`truncated` flags. Harness-neutral exports:
-`searchYoutube`, `getYoutubeTranscript`, `formatYoutubeSearch`,
-`formatYoutubeTranscript`, `YoutubeClientError`, the tool definitions and their
-parameter/response types.
+Model-visible text is bounded to 12000 characters. Channel text always includes
+all returned video ids/titles and the cursor instruction, with a ≤600-character
+about excerpt; the full description and records stay in structured output.
+Transcript text says exactly how many characters start at which time, plus the
+total and the next `start_ms`; it never re-clips a server window below 12000
+characters or claims that a later page is the beginning of the transcript.
+Native outputSchema/structuredContent keeps the complete response. Harness-neutral
+exports: `searchYoutube`, `getYoutubeChannel`, `getYoutubeTranscript`,
+`formatYoutubeSearch`, `formatYoutubeChannel`, `formatYoutubeTranscript`,
+`YoutubeClientError`, the tool definitions and their parameter/response types.
+
+The package is `0.8.0`; the three verbs remain separate so intent, cost and
+failure surfaces stay explicit.
