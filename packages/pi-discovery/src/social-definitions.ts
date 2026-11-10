@@ -10,7 +10,7 @@ import {
 
 const nullableText = Type.Union([Type.String(), Type.Null()]);
 const nullableCount = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);
-const nullableDimension = Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]);
+const nullableDimension = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);
 const nullableBoolean = Type.Union([Type.Boolean(), Type.Null()]);
 const nullableTextList = Type.Array(Type.String());
 const mediaRefSchema = Type.Union([

@@ -43,7 +43,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isCount = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const isDimension = (value: unknown): value is number | null =>
-  value === null || (Number.isSafeInteger(value) && (value as number) >= 1);
+  value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
 const isNullableText = (value: unknown): value is string | null =>
   value === null || typeof value === "string";
 // Shape check, not an allowlist: a new server reason must not require a republish.

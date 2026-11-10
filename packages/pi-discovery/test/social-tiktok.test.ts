@@ -196,6 +196,22 @@ test("TikTok responses parse and format with nullable shortcode and new fields",
   assert.match(postText, /Shares: 1/);
   assert.match(postText, /Hashtags: beauty/);
 
+  const zeroDimensions = await getSocialPost(
+    { platform: "tiktok", video_id: "7698226801872571655", username: "dearmebeauty" },
+    {
+      env: {},
+      fetch: recordingFetch({
+        ...postResponse,
+        post: {
+          ...tiktokPost,
+          thumbnail: { url: "https://cdn.example/zero.jpg", width: 0, height: 0 },
+        },
+      }).fetch,
+    },
+  );
+  assert.equal(zeroDimensions.post.thumbnail?.width, 0);
+  assert.doesNotMatch(formatSocialPost(zeroDimensions).text, /0x0/);
+
   const sample = await getSocialProfilePosts(
     { platform: "tiktok", username: "dearmebeauty", max_posts: 1 },
     {

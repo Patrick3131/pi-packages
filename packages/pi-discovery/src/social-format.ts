@@ -23,7 +23,7 @@ const dimension = (ref: {
   width: number | null;
   height: number | null;
 }): string =>
-  ref.width !== null && ref.height !== null
+  ref.width !== null && ref.height !== null && ref.width > 0 && ref.height > 0
     ? ` (${ref.width}x${ref.height})`
     : "";
 
