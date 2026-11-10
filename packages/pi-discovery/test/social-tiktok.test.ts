@@ -16,6 +16,10 @@ import {
   socialProfilePostsRequest,
   socialProfileRequest,
 } from "../src/social-validation.js";
+import {
+  executeSocialPost,
+  executeSocialProfile,
+} from "../src/social-tools.js";
 import { recordingFetch } from "./social-fixtures.js";
 
 const invalidRequest = (error: unknown) =>
@@ -214,4 +218,57 @@ test("TikTok responses parse and format with nullable shortcode and new fields",
     formatSocialProfilePosts(sample).text,
     /TikTok profile-posts sample/,
   );
+});
+
+test("native social tools execute TikTok profile and exact post selectors", async (t) => {
+  const bodies: Array<Record<string, unknown>> = [];
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+      const payload = String(url).endsWith("/v1/social/profile")
+        ? profileResponse
+        : postResponse;
+      return new Response(JSON.stringify(payload));
+    },
+  );
+
+  const profile = await executeSocialProfile({
+    platform: "tiktok",
+    username: "dearmebeauty",
+  });
+  assert.equal(profile.isError, false);
+  assert.equal(
+    (profile.details as { response: typeof profileResponse }).response.platform,
+    "tiktok",
+  );
+  assert.match(
+    profile.content.filter((part) => part.type === "text").map((part) => part.text).join(""),
+    /TikTok profile @dearmebeauty/,
+  );
+
+  const post = await executeSocialPost({
+    platform: "tiktok",
+    video_id: "7698226801872571655",
+    username: "dearmebeauty",
+  });
+  assert.equal(post.isError, false);
+  const response = (post.details as { response: typeof postResponse }).response;
+  assert.equal(response.post.shortcode, null);
+  assert.equal(response.post.id, "7698226801872571655");
+  assert.match(
+    post.content.filter((part) => part.type === "text").map((part) => part.text).join(""),
+    /TikTok post 7698226801872571655/,
+  );
+
+  assert.deepEqual(bodies, [
+    { platform: "tiktok", username: "dearmebeauty", timeout_ms: 30000 },
+    {
+      platform: "tiktok",
+      video_id: "7698226801872571655",
+      username: "dearmebeauty",
+      timeout_ms: 30000,
+    },
+  ]);
 });
