@@ -1,8 +1,11 @@
 # pi-discovery
 
-Direct SearXNG search (`web_search_searxng`) and server-owned Luna research
-(`web_answer`). Both tools default off, using Pi's native defaultActive policy.
-Enable with project `.pi/tools.json`, explicit host selection or env defaults:
+Direct SearXNG search (`web_search_searxng`), server-owned Luna research
+(`web_answer`), Meta Ad Library, Instagram/TikTok public metadata, and YouTube
+search/transcripts. Search, answer, Ad Library and social tools default off; the
+YouTube tools default on. All tools use Pi's native defaultActive policy.
+Enable the default-off tools with project `.pi/tools.json`, explicit host
+selection or env defaults:
 
 ```json
 { "web_search_searxng": true, "web_answer": true }
@@ -118,7 +121,10 @@ unavailable in text previews. DCO cards may be variants, not carousel slides.
 
 Three default-off tools query the server-owned social routes. Pi never contacts
 Instagram or TikTok and holds no provider, residential-proxy, cookie or signer
-credentials.
+credentials. TikTok is a first-class platform in the schemas, formatters and
+validation; its signed listing may still return a typed
+`social_verification_required` partial sample while the server signer gate is
+incomplete.
 
 | Tool                   | Route                         | Selection and bounds                                                                                      |
 | ---------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -170,3 +176,40 @@ Harness-neutral exports: `getSocialProfile`, `getSocialProfilePosts`,
 `getSocialPost`, `formatSocialProfile`, `formatSocialProfilePosts`,
 `formatSocialPost` and `SocialClientError`. Each accepts injected `env`, `fetch`
 and `AbortSignal` and returns typed API data without TUI dependencies.
+
+## YouTube search and transcripts
+
+Two tools query the server-owned YouTube routes. Pi never contacts YouTube and
+holds no YouTube, residential-proxy, cookie or signer credentials. Both tools are
+default-on; set `DISCOVERY_YOUTUBE_ENABLED=0` (or false/off/no) or a project
+`.pi/tools.json` false to opt out.
+
+| Tool                 | Route                      | Selection and bounds                                                                 |
+| -------------------- | -------------------------- | ------------------------------------------------------------------------------------ |
+| `youtube_search`     | POST /v1/youtube/search    | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000           |
+| `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format segments/text; max_chars 1000–300000; timeout_ms 5000–30000 |
+
+Search is deliberately one provider page of up to 20 videos: there is no `page`
+or continuation. `has_captions` is the provider badge, not a transcript
+guarantee. Transcripts resolve `video_id` or `watch?v=`, `/shorts/`, `/embed/`
+and `youtu.be/` URLs locally; an omitted language means auto (manual tracks beat
+ASR), and segment mode returns whole timed segments while text mode returns one
+joined block. `truncated` reports a `max_chars` cut.
+
+`DISCOVERY_YOUTUBE_TIMEOUT_MS` is a 40000 ms floor. Omitted tool timeouts resolve
+to 30000 ms, and the HTTP budget is `max(floor, effective server budget + 10000)`.
+No client retries, waits, rotates sessions or probes health. HTTP 404
+`youtube_no_captions` and `youtube_unavailable` are `status: not_found` with the
+exact server code and are not retry signals; 401 `youtube_disabled`, 429
+`youtube_queue_full`, 502 `youtube_blocked`/`youtube_upstream` and 504
+`youtube_timeout` are error envelopes with the safe reason and Retry-After when
+present. Caller abort stays `AbortError`.
+
+Model-visible text is bounded to 12000 characters: search shows every returned
+video (up to 20), while a transcript previews at most 30 segments or 8000 text
+characters and labels shortening. Native outputSchema/structuredContent keeps
+the complete response, including all returned segments, available languages and
+the `cached`/`truncated` flags. Harness-neutral exports:
+`searchYoutube`, `getYoutubeTranscript`, `formatYoutubeSearch`,
+`formatYoutubeTranscript`, `YoutubeClientError`, the tool definitions and their
+parameter/response types.

@@ -1,7 +1,7 @@
 {
   "name": "pi-discovery",
-  "version": "0.6.0",
-  "description": "Pi discovery: SearXNG search and Luna web research answers",
+  "version": "0.7.0",
+  "description": "Pi discovery: search, web answers, Ad Library, social metadata and YouTube",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",

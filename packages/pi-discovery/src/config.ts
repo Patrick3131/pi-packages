@@ -137,3 +137,38 @@ export function resolveSocialConfig(env: NodeJS.ProcessEnv = process.env): {
     throw new Error("Invalid social timeout.");
   return { baseUrl, timeoutMs };
 }
+
+/** HTTP timeout floor for the YouTube routes; 30 s server + 10 s margin. */
+export const YOUTUBE_DEFAULT_HTTP_TIMEOUT_MS = 40000;
+
+/** YouTube tools are on by default; an explicit 0/false/off/no opts out. */
+export function isYoutubeEnabledByEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const value = env.DISCOVERY_YOUTUBE_ENABLED?.trim().toLowerCase();
+  return (
+    value === undefined ||
+    value === "" ||
+    !["0", "false", "off", "no"].includes(value)
+  );
+}
+
+export function resolveYoutubeConfig(env: NodeJS.ProcessEnv = process.env): {
+  baseUrl: string;
+  timeoutMs: number;
+} {
+  const baseUrl = resolveDiscoveryConfig({
+    ...env,
+    DISCOVERY_WEB_ANSWER_TIMEOUT_MS: "310000",
+  }).baseUrl;
+  const timeoutMs = Number(
+    env.DISCOVERY_YOUTUBE_TIMEOUT_MS ?? YOUTUBE_DEFAULT_HTTP_TIMEOUT_MS,
+  );
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > 2147483647
+  )
+    throw new Error("Invalid YouTube timeout.");
+  return { baseUrl, timeoutMs };
+}

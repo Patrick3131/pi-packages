@@ -48,13 +48,17 @@ function register(env: NodeJS.ProcessEnv = {}): Registered[] {
     searxng: process.env.DISCOVERY_WEB_SEARCH_ENABLED,
     answer: process.env.DISCOVERY_WEB_ANSWER_ENABLED,
     ads: process.env.DISCOVERY_AD_LIBRARY_ENABLED,
+    youtube: process.env.DISCOVERY_YOUTUBE_ENABLED,
   };
   delete process.env.DISCOVERY_WEB_SEARCH_ENABLED;
   delete process.env.DISCOVERY_WEB_ANSWER_ENABLED;
   delete process.env.DISCOVERY_AD_LIBRARY_ENABLED;
+  delete process.env.DISCOVERY_YOUTUBE_ENABLED;
   if (env.DISCOVERY_SOCIAL_ENABLED === undefined)
     delete process.env.DISCOVERY_SOCIAL_ENABLED;
   else process.env.DISCOVERY_SOCIAL_ENABLED = env.DISCOVERY_SOCIAL_ENABLED;
+  if (env.DISCOVERY_YOUTUBE_ENABLED !== undefined)
+    process.env.DISCOVERY_YOUTUBE_ENABLED = env.DISCOVERY_YOUTUBE_ENABLED;
   const registered: Registered[] = [];
   try {
     discovery({
@@ -66,6 +70,7 @@ function register(env: NodeJS.ProcessEnv = {}): Registered[] {
       ["DISCOVERY_WEB_SEARCH_ENABLED", saved.searxng],
       ["DISCOVERY_WEB_ANSWER_ENABLED", saved.answer],
       ["DISCOVERY_AD_LIBRARY_ENABLED", saved.ads],
+      ["DISCOVERY_YOUTUBE_ENABLED", saved.youtube],
     ] as const) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -86,7 +91,7 @@ function text(result: {
     .join("\n");
 }
 
-test("registers three default-off social tools without changing existing tools", () => {
+test("registers the social tools alongside default-on YouTube tools", () => {
   const registered = register();
   assert.deepEqual(
     registered.map((tool) => tool.name),
@@ -96,12 +101,24 @@ test("registers three default-off social tools without changing existing tools",
       "social_profile",
       "social_profile_posts",
       "social_post",
+      "youtube_search",
+      "youtube_transcript",
       "web_search_searxng",
       "web_answer",
     ],
   );
-  for (const tool of registered)
-    assert.equal(tool.defaultActive, false, tool.name);
+  for (const name of ["youtube_search", "youtube_transcript"])
+    assert.equal(social(registered, name).defaultActive, true, name);
+  for (const name of [
+    "ad_library_keyword_ads",
+    "ad_library_domain_ads",
+    "social_profile",
+    "social_profile_posts",
+    "social_post",
+    "web_search_searxng",
+    "web_answer",
+  ])
+    assert.equal(social(registered, name).defaultActive, false, name);
   for (const name of [
     "social_profile",
     "social_profile_posts",
@@ -121,6 +138,8 @@ test("registers three default-off social tools without changing existing tools",
     "web_answer",
   ])
     assert.equal(social(enabled, name).defaultActive, false, name);
+  for (const name of ["youtube_search", "youtube_transcript"])
+    assert.equal(social(enabled, name).defaultActive, true, name);
 
   assert.equal(
     social(register({ DISCOVERY_SOCIAL_ENABLED: "true" }), "social_post")

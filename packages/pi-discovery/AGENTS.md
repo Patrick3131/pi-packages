@@ -10,18 +10,18 @@ canonical_for: pi-discovery package conventions
 
 ## Purpose
 
-SearXNG search and server-owned Luna research tools.
+Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata and YouTube tools.
 
 ## Rules
 
-- Tools: `web_search_searxng`, `web_answer`, `ad_library_keyword_ads`,
-  `ad_library_domain_ads`, `social_profile`, `social_profile_posts` and
-  `social_post`. Ad Library and social talk only to the discovery API; no provider
-  secrets.
-- Social tools are Instagram only. Send exactly one selector, never a caller-built
-  upstream URL, and keep canonical URL validation mirrored between client and service.
+  `ad_library_domain_ads`, `social_profile`, `social_profile_posts`,
+  `social_post`, `youtube_search` and `youtube_transcript`. Every provider-backed tool talks only to the discovery API; no provider secrets.
+- Social tools support Instagram and TikTok. Send exactly one selector, never a
+  caller-built upstream URL, and keep canonical URL validation mirrored between
+  client and service. Keep TikTok nullable/metrics semantics intact.
 - Do not add `web_fetch`, Brave API search, or xAI search.
-- Default the tool **off**.
+- Default tools **off**, except the YouTube tools, which ship on and accept an
+  explicit `DISCOVERY_YOUTUBE_ENABLED=0/false` opt-out.
 - Default URL is the VPN bind, not localhost.
 - Default engines are `brave,duckduckgo`.
 - Keep MIT attribution to `pi-searxng-search`.
@@ -63,7 +63,7 @@ unavailable in text previews. DCO cards may be variants, not carousel slides.
 Social routes default off via `DISCOVERY_SOCIAL_ENABLED`. `DISCOVERY_SOCIAL_TIMEOUT_MS`
 is a 130000ms floor; an omitted tool timeout resolves to the route default (30000
 profile/post, 120000 profile-posts) and the HTTP budget is max(floor, effective server
-budget + 10000), reaching 190000ms for 180000ms samples. No Instagram, proxy, cookie
+budget + 10000), reaching 190000ms for 180000ms samples. No Instagram/TikTok, proxy, cookie
 or query-id configuration belongs in Pi.
 
 Preserve the full social wire contract in structured output: ids/platform/observed_at,
@@ -78,3 +78,13 @@ Model-visible social text stays under 12000 characters with at most five post pr
 of 300 caption characters and an explicit shortening label. Keep null/zero/hidden
 counts, actual post authors and unknown continuation visible, and never present pinned
 encounter order as the latest chronological posts.
+
+YouTube tools use the discovery API only. `youtube_search` is one provider page
+(up to 20, no continuation); `youtube_transcript` accepts exactly one video id or
+YouTube URL and returns typed segments or joined text. The HTTP budget is
+max(40000ms floor, effective server budget + 10000ms). No client retries, session
+rotation, direct YouTube egress or health probing. A 404 no-captions/unavailable
+is `status: not_found` and is not a retry signal; 401/429/502/504 keep sanitized
+codes, reasons and Retry-After. Model-visible text stays under 12000 characters
+while structured output keeps every returned segment/result. Never log or return
+a caption URL or provider prose.

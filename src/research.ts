@@ -44,3 +44,8 @@ export { SocialClientError } from "../packages/pi-discovery/src/social-errors.js
 export type { SocialClientOptions, SocialProfileParams, SocialProfilePostsParams, SocialPostParams } from "../packages/pi-discovery/src/social-types.js";
 export { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "../packages/pi-discovery/src/social-definitions.js";
 export { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "../packages/pi-discovery/src/ad-library-definitions.js";
+
+export { searchYoutube, getYoutubeTranscript, YoutubeClientError } from "../packages/pi-discovery/src/youtube.js";
+export { formatYoutubeSearch, formatYoutubeTranscript } from "../packages/pi-discovery/src/youtube-format.js";
+export type { YoutubeClientOptions, YoutubeSearchParams, YoutubeTranscriptParams } from "../packages/pi-discovery/src/youtube-types.js";
+export { youtubeSearchDefinition, youtubeTranscriptDefinition } from "../packages/pi-discovery/src/youtube-definitions.js";

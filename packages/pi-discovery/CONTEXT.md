@@ -17,6 +17,10 @@ src/ad-library-tools.ts native Ad Library tools and output schema
 src/social.ts           POST /v1/social/{profile,profile-posts,post} clients
 src/social-validation.ts selector, URL and wire-response validation
 src/social-tools.ts     native social tools, schemas and registration
+src/youtube-validation.ts selector, URL and wire-response validation
+src/youtube.ts          POST /v1/youtube/{search,transcript} clients
+src/youtube-format.ts   bounded model-visible YouTube text
+src/youtube-tools.ts    native YouTube tools and output schema
 src/index.ts            register every tool with native defaultActive
 ```
 
@@ -66,20 +70,25 @@ unavailable in text previews. DCO cards may be variants, not carousel slides.
 
 `social_profile` calls one profile query, `social_profile_posts` adds a bounded
 listing + hydration sample, and `social_post` queries one exact post. All three are
-Instagram only, default off, enabled by `DISCOVERY_SOCIAL_ENABLED=1/true` or the
+Instagram/TikTok, default off, enabled by `DISCOVERY_SOCIAL_ENABLED=1/true` or the
 project tool selection, and talk only to the Discovery API: Pi holds no Instagram,
-proxy, cookie or query-id configuration. The service's own `SOCIAL_ENABLED` gate
-remains authoritative, so a disabled server still answers with a typed
-`social_disabled` error.
+TikTok, proxy, cookie or signer configuration. The service's own `SOCIAL_ENABLED` /
+`SOCIAL_TIKTOK_ENABLED` gates remain authoritative, so a disabled server still
+answers with a typed `social_disabled` error. TikTok profile and post are supported;
+its signed listing can return a typed `social_verification_required` partial sample
+while the server signer gate is incomplete.
 
 `src/social-validation.ts` owns request selectors and response parsing. Requests
-carry exactly one selector and an explicit `platform: "instagram"`; omitted
-`timeout_ms` values resolve to 30000 (profile/post) or 120000 (profile-posts) before
-the fetch, `max_posts` resolves to 12, and URLs must be canonical HTTPS
-`instagram.com`/`www.instagram.com` forms without userinfo, explicit ports,
-percent-encoded paths, backslashes, traversal or reserved profile segments. Responses
-are validated against the documented contract and rejected as `malformed` rather than
-defaulted; unknown extra fields are preserved.
+carry exactly one selector and an optional `platform: "instagram" | "tiktok"`
+(default instagram);
+omitted `timeout_ms` values resolve to 30000 (profile/post) or 120000
+(profile-posts) before the fetch, `max_posts` resolves to 12, and URLs must be
+canonical HTTPS Instagram or TikTok forms without userinfo, explicit ports,
+percent-encoded paths, backslashes, traversal or reserved profile segments.
+TikTok post selectors are `video_id` + author handle or the canonical
+`/@handle/video/<id>` URL. Responses are validated against the documented
+contract and rejected as `malformed` rather than defaulted; unknown extra fields
+are preserved.
 
 `src/config.ts` resolves `DISCOVERY_BASE_URL` plus a `DISCOVERY_SOCIAL_TIMEOUT_MS`
 floor (130000 default). The HTTP budget is max(floor, effective server budget +
@@ -98,3 +107,28 @@ exports: `getSocialProfile`, `getSocialProfilePosts`, `getSocialPost`,
 The root research entry exports the Discovery social clients, formatters and tool
 schemas, and the Ad Library schemas. Native Pi registration and UI rendering
 stay outside that entry so other hosts can use the same wire contract.
+
+## YouTube search and transcripts
+
+`youtube_search` posts one bounded query to `/v1/youtube/search`; it returns one
+provider page (max 20) and intentionally has no continuation. `youtube_transcript`
+posts exactly one `video_id` or validated YouTube URL to
+`/v1/youtube/transcript` and returns typed segments or joined text. Both are
+default-on, enabled by the default unless `DISCOVERY_YOUTUBE_ENABLED=0/false/off/no`
+or a project tool selection turns them off.
+
+`src/youtube-validation.ts` mirrors the server selector rules and validates every
+success response: canonical watch URLs/thumbnail hosts, video id, language tags,
+segment bounds, unique available languages and exactly one rendering (segments or
+text, never both). The client posts once with `redirect: error`, uses a
+`DISCOVERY_YOUTUBE_TIMEOUT_MS` floor of 40000 ms or `max(floor, server budget +
+10000)`, never retries and never probes health. Caller abort stays `AbortError`.
+A 404 no-captions/unavailable is a typed `not_found`; disabled, queue-full,
+blocked, upstream and timeout failures keep sanitized codes/reasons and an
+advisory Retry-After.
+
+Model-visible text is capped at 12000 characters (30-segment/8000-character
+transcript preview); native structured output keeps the complete API response.
+Harness-neutral exports live in `src/youtube.ts` and `src/youtube-format.ts`; the
+root research entry re-exports the clients, formatters, error, types and tool
+definitions.

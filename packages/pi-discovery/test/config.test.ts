@@ -5,10 +5,13 @@ import {
   assertHttpUrl,
   isSearxngEnabledByEnv,
   isSocialEnabledByEnv,
+  isYoutubeEnabledByEnv,
   resolveDefaultEngines,
   resolveSearxngBaseUrl,
   resolveSocialConfig,
+  resolveYoutubeConfig,
   SOCIAL_DEFAULT_HTTP_TIMEOUT_MS,
+  YOUTUBE_DEFAULT_HTTP_TIMEOUT_MS,
 } from "../src/config.js";
 import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "../src/types.js";
 
@@ -68,4 +71,28 @@ test("social config is default-off with a 130000 ms HTTP floor", () => {
   );
   for (const value of ["0", "-1", "1.5", "abc"])
     assert.throws(() => resolveSocialConfig({ DISCOVERY_SOCIAL_TIMEOUT_MS: value }));
+});
+
+test("YouTube config is default-on with a 40000 ms HTTP floor", () => {
+  assert.equal(isYoutubeEnabledByEnv({}), true);
+  assert.equal(isYoutubeEnabledByEnv({ DISCOVERY_YOUTUBE_ENABLED: "" }), true);
+  assert.equal(isYoutubeEnabledByEnv({ DISCOVERY_YOUTUBE_ENABLED: "1" }), true);
+  assert.equal(isYoutubeEnabledByEnv({ DISCOVERY_YOUTUBE_ENABLED: "TRUE " }), true);
+  for (const value of ["0", "false", "off", "no", "FALSE"])
+    assert.equal(
+      isYoutubeEnabledByEnv({ DISCOVERY_YOUTUBE_ENABLED: value }),
+      false,
+      value,
+    );
+  assert.equal(YOUTUBE_DEFAULT_HTTP_TIMEOUT_MS, 40000);
+  assert.deepEqual(resolveYoutubeConfig({}), {
+    baseUrl: "http://10.8.0.1:18080",
+    timeoutMs: 40000,
+  });
+  assert.equal(
+    resolveYoutubeConfig({ DISCOVERY_YOUTUBE_TIMEOUT_MS: "200000" }).timeoutMs,
+    200000,
+  );
+  for (const value of ["0", "-1", "1.5", "abc"])
+    assert.throws(() => resolveYoutubeConfig({ DISCOVERY_YOUTUBE_TIMEOUT_MS: value }));
 });
