@@ -114,34 +114,40 @@ output; the text formatter labels this source and shows its product landing
 URL separately. Unresolved copy is null. Legacy template strings are labelled
 unavailable in text previews. DCO cards may be variants, not carousel slides.
 
-## Instagram profile and post metadata
+## Instagram and TikTok profile and post metadata
 
 Three default-off tools query the server-owned social routes. Pi never contacts
-Instagram and holds no provider, residential-proxy or cookie credentials.
+Instagram or TikTok and holds no provider, residential-proxy, cookie or signer
+credentials.
 
-| Tool                   | Route                         | Selection and bounds                                                       |
-| ---------------------- | ----------------------------- | -------------------------------------------------------------------------- |
-| `social_profile`       | POST /v1/social/profile       | username or profile URL; timeout_ms 5000–60000                             |
-| `social_profile_posts` | POST /v1/social/profile-posts | username or profile URL; max_posts 1–50 (default 12); timeout_ms 5000–180000 |
-| `social_post`          | POST /v1/social/post          | shortcode or post URL; timeout_ms 5000–60000                              |
+| Tool                   | Route                         | Selection and bounds                                                                                      |
+| ---------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `social_profile`       | POST /v1/social/profile       | platform; username or profile URL; timeout_ms 5000–60000                                                  |
+| `social_profile_posts` | POST /v1/social/profile-posts | platform; username or profile URL; max_posts 1–50 (default 12); timeout_ms 5000–180000                    |
+| `social_post`          | POST /v1/social/post          | Instagram shortcode/URL or TikTok `video_id` + author `username` / TikTok post URL; timeout_ms 5000–60000 |
 
 Enable with `DISCOVERY_SOCIAL_ENABLED=1` or per-project `.pi/tools.json`; the
 server's own `SOCIAL_ENABLED` gate stays authoritative, and a disabled server
 returns a typed `social_disabled` error. Each call sends exactly one selector
-(plus optional `platform: "instagram"`) to exactly one route after local
-validation: canonical HTTPS `instagram.com`/`www.instagram.com` URLs, no userinfo,
-explicit ports, percent-encoded paths, backslashes, traversal or reserved profile
-segments, and URLs up to 512 characters.
+(plus optional `platform: "instagram" | "tiktok"`) to exactly one route after
+local validation: canonical HTTPS hosts, no userinfo, explicit ports,
+percent-encoded paths, backslashes, traversal or reserved profile segments, and
+URLs up to 512 characters. TikTok URLs are `https://www.tiktok.com/@<handle>` or
+`/@<handle>/video/<id>` and reject query/fragment strings; TikTok handles are
+1–24 characters and a post needs its author handle.
 
 `DISCOVERY_SOCIAL_TIMEOUT_MS` is a 130000 ms floor. Omitted tool timeouts resolve to
 the route default (30000 for profile/post, 120000 for profile-posts), and the HTTP
 budget is `max(floor, effective server budget + 10000)`, so a 180000 ms sample uses
 at least 190000 ms. Caller abort always wins and stays `AbortError`.
 
-`social_profile` is one query (identity and counts). `social_profile_posts` also
-lists and hydrates up to `max_posts` candidates, so it costs roughly one hydration
-per candidate. Results are a bounded sample in upstream encounter order: pinned
-posts may lead, so never present them as the latest chronological posts.
+`social_profile` is one query (identity and counts; TikTok adds
+`total_like_count`). `social_profile_posts` lists and, for Instagram, hydrates up
+to `max_posts` candidates; TikTok's signed listing is non-hydrating behind its
+server gate. Results are a bounded sample in upstream encounter order: pinned
+posts may lead, so never present them as the latest chronological posts. TikTok
+`shortcode` is null, `like_counts_hidden` is null, and `music`, `hashtags`,
+`share_count`, `collect_count`, `is_ad` and `is_aigc` are additive fields.
 Continuation is tri-state (`has_more_posts`: true, false or null for unknown).
 
 Model-visible text is bounded to 12000 characters with at most five post previews

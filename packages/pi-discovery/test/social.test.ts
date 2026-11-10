@@ -11,7 +11,12 @@ import {
   socialProfilePostsRequest,
   socialProfileRequest,
 } from "../src/social-validation.js";
-import { profileResponse, postResponse, recordingFetch, sampleResponse } from "./social-fixtures.js";
+import {
+  profileResponse,
+  postResponse,
+  recordingFetch,
+  sampleResponse,
+} from "./social-fixtures.js";
 
 const invalidRequest = (error: unknown) =>
   error instanceof SocialClientError && error.code === "invalid_request";
@@ -27,13 +32,16 @@ test("exactly one selector and route-specific bounds are validated before fetch"
     { username: "love laurieb" },
     { username: 42 },
     { username: "lovelaurieb", max_posts: 12 },
-    { username: "lovelaurieb", platform: "tiktok" },
     { username: "lovelaurieb", timeout_ms: 4999 },
     { username: "lovelaurieb", timeout_ms: 60001 },
     { username: "lovelaurieb", timeout_ms: 30000.5 },
     { username: "lovelaurieb", timeout_ms: "30000" },
   ])
-    assert.throws(() => socialProfileRequest(params as never), invalidRequest, JSON.stringify(params));
+    assert.throws(
+      () => socialProfileRequest(params as never),
+      invalidRequest,
+      JSON.stringify(params),
+    );
 
   for (const url of [
     "http://www.instagram.com/lovelaurieb/",
@@ -56,13 +64,20 @@ test("exactly one selector and route-specific bounds are validated before fetch"
 
   for (const params of [
     {},
-    { shortcode: "DfSl0YxhJiA", url: "https://www.instagram.com/p/DfSl0YxhJiA/" },
+    {
+      shortcode: "DfSl0YxhJiA",
+      url: "https://www.instagram.com/p/DfSl0YxhJiA/",
+    },
     { shortcode: "abc" },
     { shortcode: "@DfSl0YxhJiA" },
     { shortcode: 12345 },
     { shortcode: "DfSl0YxhJiA", timeout_ms: 60001 },
   ])
-    assert.throws(() => socialPostRequest(params as never), invalidRequest, JSON.stringify(params));
+    assert.throws(
+      () => socialPostRequest(params as never),
+      invalidRequest,
+      JSON.stringify(params),
+    );
 
   for (const url of [
     "https://www.instagram.com/DfSl0YxhJiA/",
@@ -75,7 +90,11 @@ test("exactly one selector and route-specific bounds are validated before fetch"
 
   for (const max_posts of [0, 51, 12.5, "12"])
     assert.throws(
-      () => socialProfilePostsRequest({ username: "lovelaurieb", max_posts: max_posts as never }),
+      () =>
+        socialProfilePostsRequest({
+          username: "lovelaurieb",
+          max_posts: max_posts as never,
+        }),
       invalidRequest,
       String(max_posts),
     );
@@ -89,12 +108,22 @@ test("canonical URLs, platform and route-specific limits are accepted", () => {
   ])
     assert.equal(socialProfileRequest({ url }).body.url, url.trim());
 
-  assert.deepEqual(socialProfileRequest({ username: " lovelaurieb ", platform: "instagram" }), {
-    endpoint: "/v1/social/profile",
-    body: { platform: "instagram", username: "lovelaurieb", timeout_ms: 30000 },
-    serverTimeoutMs: 30000,
-  });
-  assert.equal(socialProfileRequest({ username: "x", timeout_ms: 60000 }).serverTimeoutMs, 60000);
+  assert.deepEqual(
+    socialProfileRequest({ username: " lovelaurieb ", platform: "instagram" }),
+    {
+      endpoint: "/v1/social/profile",
+      body: {
+        platform: "instagram",
+        username: "lovelaurieb",
+        timeout_ms: 30000,
+      },
+      serverTimeoutMs: 30000,
+    },
+  );
+  assert.equal(
+    socialProfileRequest({ username: "x", timeout_ms: 60000 }).serverTimeoutMs,
+    60000,
+  );
 
   for (const url of [
     "https://www.instagram.com/p/DfSl0YxhJiA/",
@@ -106,13 +135,25 @@ test("canonical URLs, platform and route-specific limits are accepted", () => {
 
   assert.deepEqual(socialPostRequest({ shortcode: "DfSl0YxhJiA" }), {
     endpoint: "/v1/social/post",
-    body: { platform: "instagram", shortcode: "DfSl0YxhJiA", timeout_ms: 30000 },
+    body: {
+      platform: "instagram",
+      shortcode: "DfSl0YxhJiA",
+      timeout_ms: 30000,
+    },
     serverTimeoutMs: 30000,
   });
-  assert.equal(socialPostRequest({ shortcode: "DfSl0YxhJiA", timeout_ms: 5000 }).serverTimeoutMs, 5000);
+  assert.equal(
+    socialPostRequest({ shortcode: "DfSl0YxhJiA", timeout_ms: 5000 })
+      .serverTimeoutMs,
+    5000,
+  );
 
   assert.deepEqual(
-    socialProfilePostsRequest({ username: "lovelaurieb", timeout_ms: 180000, max_posts: 50 }),
+    socialProfilePostsRequest({
+      username: "lovelaurieb",
+      timeout_ms: 180000,
+      max_posts: 50,
+    }),
     {
       endpoint: "/v1/social/profile-posts",
       body: {
@@ -130,24 +171,42 @@ test("one call per intent addresses exactly its route with the resolved timeout"
   const profileCall = recordingFetch(profileResponse);
   await getSocialProfile(
     { username: "lovelaurieb" },
-    { env: { DISCOVERY_BASE_URL: "https://discovery.example" }, fetch: profileCall.fetch },
+    {
+      env: { DISCOVERY_BASE_URL: "https://discovery.example" },
+      fetch: profileCall.fetch,
+    },
   );
   const sampleCall = recordingFetch(sampleResponse);
   await getSocialProfilePosts(
     { username: "lovelaurieb" },
-    { env: { DISCOVERY_BASE_URL: "https://discovery.example" }, fetch: sampleCall.fetch },
+    {
+      env: { DISCOVERY_BASE_URL: "https://discovery.example" },
+      fetch: sampleCall.fetch,
+    },
   );
   const postCall = recordingFetch(postResponse);
   await getSocialPost(
     { shortcode: "DfSl0YxhJiA" },
-    { env: { DISCOVERY_BASE_URL: "https://discovery.example" }, fetch: postCall.fetch },
+    {
+      env: { DISCOVERY_BASE_URL: "https://discovery.example" },
+      fetch: postCall.fetch,
+    },
   );
   assert.equal(profileCall.calls.length, 1);
   assert.equal(sampleCall.calls.length, 1);
   assert.equal(postCall.calls.length, 1);
-  assert.equal(profileCall.calls[0].url, "https://discovery.example/v1/social/profile");
-  assert.equal(sampleCall.calls[0].url, "https://discovery.example/v1/social/profile-posts");
-  assert.equal(postCall.calls[0].url, "https://discovery.example/v1/social/post");
+  assert.equal(
+    profileCall.calls[0].url,
+    "https://discovery.example/v1/social/profile",
+  );
+  assert.equal(
+    sampleCall.calls[0].url,
+    "https://discovery.example/v1/social/profile-posts",
+  );
+  assert.equal(
+    postCall.calls[0].url,
+    "https://discovery.example/v1/social/post",
+  );
   assert.equal(profileCall.calls[0].body.timeout_ms, 30000);
   assert.equal(sampleCall.calls[0].body.timeout_ms, 120000);
   assert.equal(sampleCall.calls[0].body.max_posts, 12);
@@ -202,7 +261,10 @@ test("unresolved or invalid Discovery configuration fails safely", async () => {
     { DISCOVERY_SOCIAL_TIMEOUT_MS: "abc" },
   ])
     await assert.rejects(
-      getSocialProfile({ username: "lovelaurieb" }, { env, fetch: recordingFetch(profileResponse).fetch }),
+      getSocialProfile(
+        { username: "lovelaurieb" },
+        { env, fetch: recordingFetch(profileResponse).fetch },
+      ),
       invalidRequest,
       JSON.stringify(env),
     );
@@ -229,7 +291,9 @@ test("a timed-out exchange cleans up and never retries", async (t) => {
         fetch: ((_url: string, init?: RequestInit) => {
           calls++;
           return new Promise((_resolve, reject) => {
-            init?.signal?.addEventListener("abort", () => reject(new Error("raw transport text")));
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("raw transport text")),
+            );
           });
         }) as unknown as typeof fetch,
       },
@@ -272,7 +336,9 @@ test("caller abort wins before the fetch, during it, and the listener is removed
       fetch: ((_url: string, init?: RequestInit) => {
         calls++;
         return new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          init?.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
         });
       }) as unknown as typeof fetch,
     },
@@ -299,7 +365,11 @@ test("caller abort wins before the fetch, during it, and the listener is removed
   const done = new AbortController();
   await getSocialProfile(
     { username: "lovelaurieb" },
-    { env: {}, signal: done.signal, fetch: recordingFetch(profileResponse).fetch },
+    {
+      env: {},
+      signal: done.signal,
+      fetch: recordingFetch(profileResponse).fetch,
+    },
   );
   assert.deepEqual(removed, ["abort"]);
 });
@@ -315,14 +385,26 @@ test("server errors keep sanitized codes, request ids and advisory Retry-After",
   ];
   for (const [status, code, serverCode, retryAfterMs] of cases) {
     const recorded = recordingFetch(
-      { error: { code, message: "RAW UPSTREAM TEXT", request_id: "safe-id", reason: "shape" } },
+      {
+        error: {
+          code,
+          message: "RAW UPSTREAM TEXT",
+          request_id: "safe-id",
+          reason: "shape",
+        },
+      },
       {
         status,
-        headers: retryAfterMs ? { "Retry-After": String(retryAfterMs / 1000) } : undefined,
+        headers: retryAfterMs
+          ? { "Retry-After": String(retryAfterMs / 1000) }
+          : undefined,
       },
     );
     await assert.rejects(
-      getSocialProfile({ username: "lovelaurieb" }, { env: {}, fetch: recorded.fetch }),
+      getSocialProfile(
+        { username: "lovelaurieb" },
+        { env: {}, fetch: recorded.fetch },
+      ),
       (error: unknown) =>
         error instanceof SocialClientError &&
         error.status === status &&
@@ -343,8 +425,10 @@ test("unknown server codes, malformed success bodies and transport failures stay
       { username: "lovelaurieb" },
       {
         env: {},
-        fetch: recordingFetch({ error: { code: "unexpected_code", request_id: "safe" } }, { status: 500 })
-          .fetch,
+        fetch: recordingFetch(
+          { error: { code: "unexpected_code", request_id: "safe" } },
+          { status: 500 },
+        ).fetch,
       },
     ),
     (error: unknown) =>
@@ -356,25 +440,43 @@ test("unknown server codes, malformed success bodies and transport failures stay
 
   const malformedBodies: unknown[] = [
     {},
-    { ...profileResponse, platform: "tiktok" },
+    { ...profileResponse, platform: "youtube" },
     { ...profileResponse, observed_at: "2026-11-05 11:00:00" },
-    { ...profileResponse, profile: { ...profileResponse.profile, is_private: undefined } },
-    { ...profileResponse, profile: { ...profileResponse.profile, follower_count: -1 } },
+    {
+      ...profileResponse,
+      profile: { ...profileResponse.profile, is_private: undefined },
+    },
+    {
+      ...profileResponse,
+      profile: { ...profileResponse.profile, follower_count: -1 },
+    },
     { ...profileResponse, timings: { queue_ms: 0, upstream_ms: 1 } },
-    { ...profileResponse, profile: { ...profileResponse.profile, bio_links: { url: "x" } } },
+    {
+      ...profileResponse,
+      profile: { ...profileResponse.profile, bio_links: { url: "x" } },
+    },
   ];
   for (const body of malformedBodies)
     await assert.rejects(
-      getSocialProfile({ username: "lovelaurieb" }, { env: {}, fetch: recordingFetch(body).fetch }),
-      (error: unknown) => error instanceof SocialClientError && error.code === "malformed",
+      getSocialProfile(
+        { username: "lovelaurieb" },
+        { env: {}, fetch: recordingFetch(body).fetch },
+      ),
+      (error: unknown) =>
+        error instanceof SocialClientError && error.code === "malformed",
     );
 
   await assert.rejects(
     getSocialProfile(
       { username: "lovelaurieb" },
-      { env: {}, fetch: recordingFetch(undefined, { text: "<html>not json</html>" }).fetch },
+      {
+        env: {},
+        fetch: recordingFetch(undefined, { text: "<html>not json</html>" })
+          .fetch,
+      },
     ),
-    (error: unknown) => error instanceof SocialClientError && error.code === "malformed",
+    (error: unknown) =>
+      error instanceof SocialClientError && error.code === "malformed",
   );
 
   await assert.rejects(
@@ -395,7 +497,9 @@ test("unknown server codes, malformed success bodies and transport failures stay
 });
 
 test("partial samples keep body retry_after_s and ignore a spurious 200 Retry-After", async () => {
-  const recorded = recordingFetch(sampleResponse, { headers: { "Retry-After": "60" } });
+  const recorded = recordingFetch(sampleResponse, {
+    headers: { "Retry-After": "60" },
+  });
   const sample = await getSocialProfilePosts(
     { username: "lovelaurieb" },
     { env: {}, fetch: recorded.fetch },
@@ -434,7 +538,9 @@ test("response validation enforces the documented sample invariants", async () =
     { ...sampleResponse, truncation: [{ stage: "x" }] },
     {
       ...sampleResponse,
-      failed_posts: [{ shortcode: "Deleted01", error_code: "not_found", reason: null }],
+      failed_posts: [
+        { shortcode: "Deleted01", error_code: "not_found", reason: null },
+      ],
     },
     {
       ...sampleResponse,
@@ -445,15 +551,26 @@ test("response validation enforces the documented sample invariants", async () =
         retry_after_s: null,
       },
     },
-    { ...sampleResponse, posts: [{ ...sampleResponse.posts[0], author: { username: "x" } }] },
-    { ...sampleResponse, posts: [{ ...sampleResponse.posts[0], published_at: 1700000000 }] },
+    {
+      ...sampleResponse,
+      posts: [{ ...sampleResponse.posts[0], author: { username: "x" } }],
+    },
+    {
+      ...sampleResponse,
+      posts: [{ ...sampleResponse.posts[0], published_at: 1700000000 }],
+    },
     {
       ...sampleResponse,
       posts: [
         {
           ...sampleResponse.posts[0],
           carousel: [
-            { id: "c1", content_type: "carousel", thumbnail: null, video: null },
+            {
+              id: "c1",
+              content_type: "carousel",
+              thumbnail: null,
+              video: null,
+            },
           ],
         },
       ],
@@ -465,8 +582,12 @@ test("response validation enforces the documented sample invariants", async () =
   ];
   for (const body of broken)
     await assert.rejects(
-      getSocialProfilePosts({ username: "lovelaurieb" }, { env: {}, fetch: recordingFetch(body).fetch }),
-      (error: unknown) => error instanceof SocialClientError && error.code === "malformed",
+      getSocialProfilePosts(
+        { username: "lovelaurieb" },
+        { env: {}, fetch: recordingFetch(body).fetch },
+      ),
+      (error: unknown) =>
+        error instanceof SocialClientError && error.code === "malformed",
       JSON.stringify(body).slice(0, 120),
     );
 });

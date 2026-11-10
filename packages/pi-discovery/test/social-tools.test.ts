@@ -7,7 +7,10 @@ import {
   socialProfileDefinition,
   socialProfilePostsDefinition,
 } from "../src/social-tools.js";
-import { formatSocialProfile, formatSocialProfilePosts } from "../src/social-format.js";
+import {
+  formatSocialProfile,
+  formatSocialProfilePosts,
+} from "../src/social-format.js";
 import {
   completedSample,
   postResponse,
@@ -31,7 +34,10 @@ type Registered = {
     structuredContent?: unknown;
   }>;
   renderResult: (
-    result: { isError?: boolean; content: Array<{ type: string; text?: string }> },
+    result: {
+      isError?: boolean;
+      content: Array<{ type: string; text?: string }>;
+    },
     options: { expanded: boolean },
   ) => { render: (width: number) => string[] };
 };
@@ -71,7 +77,9 @@ function register(env: NodeJS.ProcessEnv = {}): Registered[] {
 const social = (tools: Registered[], name: string): Registered =>
   tools.find((tool) => tool.name === name)!;
 
-function text(result: { content: Array<{ type: string; text?: string }> }): string {
+function text(result: {
+  content: Array<{ type: string; text?: string }>;
+}): string {
   return result.content
     .filter((part) => part.type === "text")
     .map((part) => part.text ?? "")
@@ -92,8 +100,13 @@ test("registers three default-off social tools without changing existing tools",
       "web_answer",
     ],
   );
-  for (const tool of registered) assert.equal(tool.defaultActive, false, tool.name);
-  for (const name of ["social_profile", "social_profile_posts", "social_post"]) {
+  for (const tool of registered)
+    assert.equal(tool.defaultActive, false, tool.name);
+  for (const name of [
+    "social_profile",
+    "social_profile_posts",
+    "social_post",
+  ]) {
     const tool = social(registered, name);
     assert.ok(tool.outputSchema, name);
     assert.ok(tool.parameters, name);
@@ -102,24 +115,34 @@ test("registers three default-off social tools without changing existing tools",
   const enabled = register({ DISCOVERY_SOCIAL_ENABLED: "1" });
   for (const name of ["social_profile", "social_profile_posts", "social_post"])
     assert.equal(social(enabled, name).defaultActive, true, name);
-  for (const name of ["ad_library_keyword_ads", "web_search_searxng", "web_answer"])
+  for (const name of [
+    "ad_library_keyword_ads",
+    "web_search_searxng",
+    "web_answer",
+  ])
     assert.equal(social(enabled, name).defaultActive, false, name);
 
   assert.equal(
-    social(register({ DISCOVERY_SOCIAL_ENABLED: "true" }), "social_post").defaultActive,
+    social(register({ DISCOVERY_SOCIAL_ENABLED: "true" }), "social_post")
+      .defaultActive,
     true,
   );
   assert.equal(
-    social(register({ DISCOVERY_SOCIAL_ENABLED: "0" }), "social_post").defaultActive,
+    social(register({ DISCOVERY_SOCIAL_ENABLED: "0" }), "social_post")
+      .defaultActive,
     false,
   );
 });
 
 test("route-specific parameters expose only their own fields and strict bounds", () => {
   const profile = socialProfileDefinition.parameters as unknown as {
-    anyOf: Array<{ properties: Record<string, unknown>; additionalProperties: boolean }>;
+    anyOf: Array<{
+      properties: Record<string, unknown>;
+      additionalProperties: boolean;
+    }>;
   };
-  const sample = socialProfilePostsDefinition.parameters as unknown as typeof profile;
+  const sample =
+    socialProfilePostsDefinition.parameters as unknown as typeof profile;
   const post = socialPostDefinition.parameters as unknown as typeof profile;
   assert.deepEqual(
     profile.anyOf.map((variant) => Object.keys(variant.properties).sort()),
@@ -140,14 +163,22 @@ test("route-specific parameters expose only their own fields and strict bounds",
     [
       ["platform", "shortcode", "timeout_ms"],
       ["platform", "timeout_ms", "url"],
+      ["platform", "timeout_ms", "username", "video_id"],
+      ["platform", "timeout_ms", "url"],
     ],
   );
   for (const variant of [...profile.anyOf, ...sample.anyOf, ...post.anyOf])
     assert.equal(variant.additionalProperties, false);
-  const timeout = profile.anyOf[0].properties.timeout_ms as { anyOf: unknown; maximum: number; minimum: number };
+  const timeout = profile.anyOf[0].properties.timeout_ms as {
+    anyOf: unknown;
+    maximum: number;
+    minimum: number;
+  };
   assert.equal(timeout.minimum, 5000);
   assert.equal(timeout.maximum, 60000);
-  const sampleTimeout = sample.anyOf[0].properties.timeout_ms as { maximum: number };
+  const sampleTimeout = sample.anyOf[0].properties.timeout_ms as {
+    maximum: number;
+  };
   assert.equal(sampleTimeout.maximum, 180000);
   const maxPosts = sample.anyOf[0].properties.max_posts as {
     maximum: number;
@@ -166,12 +197,18 @@ test("successful structured output keeps every typed field and validates", async
   const tool = social(register(), "social_profile");
   const result = await tool.execute("call", { username: "lovelaurieb" });
   assert.equal(result.isError, false);
-  const details = result.details as { status: string; requestId: string; response: unknown };
+  const details = result.details as {
+    status: string;
+    requestId: string;
+    response: unknown;
+  };
   assert.equal(details.status, "ok");
   assert.equal(details.requestId, "a1b2");
   assert.deepEqual(details.response, profileResponse);
   assert.deepEqual(result.structuredContent, details);
-  assert.ok(Check(tool.outputSchema as never, result.structuredContent as never));
+  assert.ok(
+    Check(tool.outputSchema as never, result.structuredContent as never),
+  );
   assert.match(text(result), /https:\/\/www\.instagram\.com\/lovelaurieb\//);
   assert.match(text(result), /Line one/);
 });
@@ -193,7 +230,9 @@ test("partial sample output is not an error and keeps every returned record", as
   assert.equal(details.status, "ok");
   assert.equal(details.response.posts.length, 50);
   assert.equal(details.response.returned_posts, 50);
-  assert.ok(Check(tool.outputSchema as never, result.structuredContent as never));
+  assert.ok(
+    Check(tool.outputSchema as never, result.structuredContent as never),
+  );
   assert.equal(calls, 1);
 
   t.mock.method(
@@ -204,8 +243,12 @@ test("partial sample output is not an error and keeps every returned record", as
   const partial = await tool.execute("call", { username: "lovelaurieb" });
   assert.equal(partial.isError, false);
   assert.equal((partial.details as { status: string }).status, "partial");
-  assert.ok(Check(tool.outputSchema as never, partial.structuredContent as never));
-  const partialResponse = (partial.details as { response: typeof sampleResponse }).response;
+  assert.ok(
+    Check(tool.outputSchema as never, partial.structuredContent as never),
+  );
+  const partialResponse = (
+    partial.details as { response: typeof sampleResponse }
+  ).response;
   assert.equal(partialResponse.profile.id, sampleResponse.profile.id);
   assert.equal(partialResponse.posts.length, 1);
   assert.equal(partialResponse.failed_posts[0].shortcode, "Deleted01");
@@ -222,7 +265,9 @@ test("404 and other failures map to typed statuses with exact server codes", asy
     "fetch",
     async () =>
       new Response(
-        JSON.stringify({ error: { code: "social_post_not_found", request_id: "safe" } }),
+        JSON.stringify({
+          error: { code: "social_post_not_found", request_id: "safe" },
+        }),
         { status: 404 },
       ),
   );
@@ -234,7 +279,9 @@ test("404 and other failures map to typed statuses with exact server codes", asy
     "social_post_not_found",
   );
   assert.match(text(missing), /social_post_not_found/);
-  assert.ok(Check(tool.outputSchema as never, missing.structuredContent as never));
+  assert.ok(
+    Check(tool.outputSchema as never, missing.structuredContent as never),
+  );
 
   t.mock.method(
     globalThis,
@@ -242,22 +289,30 @@ test("404 and other failures map to typed statuses with exact server codes", asy
     async () =>
       new Response(
         JSON.stringify({
-          error: { code: "social_rate_limited", request_id: "safe", reason: null },
+          error: {
+            code: "social_rate_limited",
+            request_id: "safe",
+            reason: null,
+          },
         }),
         { status: 429, headers: { "Retry-After": "60" } },
       ),
   );
   const limited = await tool.execute("call", { shortcode: "DfSl0YxhJiA" });
   assert.equal(limited.isError, true);
-  const error = (limited.details as {
-    status: string;
-    error: { retryAfterMs: number; serverCode: string };
-  }).error;
+  const error = (
+    limited.details as {
+      status: string;
+      error: { retryAfterMs: number; serverCode: string };
+    }
+  ).error;
   assert.equal((limited.details as { status: string }).status, "error");
   assert.equal(error.serverCode, "social_rate_limited");
   assert.equal(error.retryAfterMs, 60000);
   assert.match(text(limited), /Advisory retry after 60 s/);
-  assert.ok(Check(tool.outputSchema as never, limited.structuredContent as never));
+  assert.ok(
+    Check(tool.outputSchema as never, limited.structuredContent as never),
+  );
 
   t.mock.method(
     globalThis,
@@ -282,9 +337,12 @@ test("profile-posts 404 keeps the profile route's exact code", async (t) => {
     globalThis,
     "fetch",
     async () =>
-      new Response(JSON.stringify({ error: { code: "social_profile_not_found" } }), {
-        status: 404,
-      }),
+      new Response(
+        JSON.stringify({ error: { code: "social_profile_not_found" } }),
+        {
+          status: 404,
+        },
+      ),
   );
   const result = await tool.execute("call", { username: "lovelaurieb" });
   assert.equal(result.isError, true);
@@ -303,8 +361,13 @@ test("single post output preserves media references, author and hidden counts", 
   );
   const tool = social(register(), "social_post");
   const result = await tool.execute("call", { shortcode: "DfSl0YxhJiA" });
-  assert.deepEqual((result.details as { response: unknown }).response, postResponse);
-  assert.ok(Check(tool.outputSchema as never, result.structuredContent as never));
+  assert.deepEqual(
+    (result.details as { response: unknown }).response,
+    postResponse,
+  );
+  assert.ok(
+    Check(tool.outputSchema as never, result.structuredContent as never),
+  );
   const body = text(result);
   assert.match(body, /by @actual_author/);
   assert.match(body, /Likes: hidden/);
@@ -359,7 +422,10 @@ test("sample text shows null, zero and hidden counts plus private and expiry gui
   assert.match(body, /unknown posts/);
   assert.match(body, /0 following/);
   assert.match(body, /private/);
-  assert.match(body, /Warnings: pinned_posts_may_lead, posts_unavailable, like_counts_hidden, media_urls_expire/);
+  assert.match(
+    body,
+    /Warnings: pinned_posts_may_lead, posts_unavailable, like_counts_hidden, media_urls_expire/,
+  );
   assert.match(body, /may expire/);
   assert.match(body, /truncated \(page_failure\)/);
   assert.match(body, /retry_after_s=0/);

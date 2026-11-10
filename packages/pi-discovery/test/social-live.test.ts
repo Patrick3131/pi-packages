@@ -15,7 +15,10 @@ test(
   async () => {
     const profile = await getSocialProfile({ username });
     assert.equal(profile.platform, "instagram");
-    assert.equal(profile.profile.username.toLowerCase(), username.toLowerCase());
+    assert.equal(
+      profile.profile.username.toLowerCase(),
+      username.toLowerCase(),
+    );
     assert.equal(profile.profile.is_private, false);
     assert.equal(typeof profile.profile.is_verified, "boolean");
 
@@ -27,11 +30,15 @@ test(
     for (const post of sample.posts) {
       assert.ok(post.author.username.length > 0);
       assert.ok(post.published_at.endsWith("Z"));
-      assert.equal(post.shortcode, post.shortcode.trim());
+      assert.equal(typeof post.shortcode, "string");
+      assert.equal(post.shortcode, post.shortcode!.trim());
     }
 
-    const post = await getSocialPost({ shortcode: sample.posts[0].shortcode });
+    const post = await getSocialPost({ shortcode: sample.posts[0].shortcode! });
     assert.equal(post.post.shortcode, sample.posts[0].shortcode);
-    assert.equal(post.post.url, `https://www.instagram.com/p/${post.post.shortcode}/`);
+    assert.equal(
+      post.post.url,
+      `https://www.instagram.com/p/${post.post.shortcode}/`,
+    );
   },
 );

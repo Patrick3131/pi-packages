@@ -52,6 +52,7 @@ const profileSchema = Type.Object(
       ),
       { maxItems: 10 },
     ),
+    total_like_count: Type.Optional(nullableCount),
   },
   { additionalProperties: true },
 );
@@ -71,7 +72,7 @@ const carouselItemSchema = Type.Object(
 const postSchema = Type.Object(
   {
     id: Type.String(),
-    shortcode: Type.String(),
+    shortcode: Type.Union([Type.String(), Type.Null()]),
     url: Type.String(),
     author: Type.Object(
       { id: Type.String(), username: Type.String() },
@@ -95,17 +96,37 @@ const postSchema = Type.Object(
     comment_count: nullableCount,
     view_count: nullableCount,
     play_count: nullableCount,
-    like_counts_hidden: Type.Boolean(),
+    share_count: Type.Optional(nullableCount),
+    collect_count: Type.Optional(nullableCount),
+    like_counts_hidden: nullableBoolean,
     is_paid_partnership: nullableBoolean,
+    is_ad: Type.Optional(nullableBoolean),
+    is_aigc: Type.Optional(nullableBoolean),
+    hashtags: Type.Optional(Type.Array(Type.String(), { maxItems: 20 })),
+    music: Type.Optional(
+      Type.Union([
+        Type.Object(
+          {
+            id: Type.Union([Type.String(), Type.Null()]),
+            title: nullableText,
+            author_name: nullableText,
+            original: nullableBoolean,
+          },
+          { additionalProperties: true },
+        ),
+        Type.Null(),
+      ]),
+    ),
   },
   { additionalProperties: true },
 );
 const profileResponseSchema = Type.Object(
   {
     id: Type.String(),
-    platform: Type.Literal("instagram"),
+    platform: Type.Union([Type.Literal("instagram"), Type.Literal("tiktok")]),
     observed_at: Type.String(),
     profile: profileSchema,
+    warnings: Type.Optional(Type.Array(Type.String(), { maxItems: 10 })),
     timings: timingsSchema,
   },
   { additionalProperties: true },
@@ -113,9 +134,10 @@ const profileResponseSchema = Type.Object(
 const postResponseSchema = Type.Object(
   {
     id: Type.String(),
-    platform: Type.Literal("instagram"),
+    platform: Type.Union([Type.Literal("instagram"), Type.Literal("tiktok")]),
     observed_at: Type.String(),
     post: postSchema,
+    warnings: Type.Optional(Type.Array(Type.String(), { maxItems: 10 })),
     timings: timingsSchema,
   },
   { additionalProperties: true },
@@ -143,7 +165,7 @@ const sampleFailureSchema = Type.Union([
 const profilePostsResponseSchema = Type.Object(
   {
     id: Type.String(),
-    platform: Type.Literal("instagram"),
+    platform: Type.Union([Type.Literal("instagram"), Type.Literal("tiktok")]),
     observed_at: Type.String(),
     profile: profileSchema,
     posts: Type.Array(postSchema, { maxItems: SOCIAL_MAX_POSTS }),
@@ -188,33 +210,45 @@ const resultEnvelope = (response: TSchema) =>
   );
 
 const platformField = Type.Optional(
-  Type.Literal("instagram", {
-    description: "Only instagram is supported; omit or pass instagram.",
+  Type.Union([Type.Literal("instagram"), Type.Literal("tiktok")], {
+    description: "Social platform; omit for instagram.",
   }),
 );
 const usernameField = Type.String({
   pattern: "^[A-Za-z0-9._]{1,30}$",
   minLength: 1,
   maxLength: 30,
-  description: "Instagram handle without @.",
+  description: "Profile handle without @. Instagram: 1-30 characters; TikTok: 1-24.",
 });
 const profileUrlField = Type.String({
   minLength: 1,
   maxLength: SOCIAL_URL_MAX_LENGTH,
   description:
-    "HTTPS instagram.com or www.instagram.com profile URL, for example https://www.instagram.com/lovelaurieb/.",
+    "HTTPS profile URL. Instagram: https://www.instagram.com/<username>/; TikTok: https://www.tiktok.com/@<username>.",
 });
 const postUrlField = Type.String({
   minLength: 1,
   maxLength: SOCIAL_URL_MAX_LENGTH,
   description:
-    "HTTPS Instagram post URL: /p/<shortcode>/, /reel/<shortcode>/, /reels/<shortcode>/ or /<username>/p/<shortcode>/.",
+    "HTTPS post URL. Instagram: /p|reel|reels/<shortcode>/ or /<username>/p/<shortcode>/; TikTok: /@<username>/video/<video_id>.",
 });
 const shortcodeField = Type.String({
   pattern: "^[A-Za-z0-9_-]{5,20}$",
   minLength: 5,
   maxLength: 20,
-  description: "Exact Instagram shortcode.",
+  description: "Exact Instagram shortcode (Instagram only).",
+});
+const videoIdField = Type.String({
+  pattern: "^[0-9]{15,20}$",
+  minLength: 15,
+  maxLength: 20,
+  description: "Exact TikTok video id (numeric).",
+});
+const authorField = Type.String({
+  pattern: "^[A-Za-z0-9._]{1,24}$",
+  minLength: 1,
+  maxLength: 24,
+  description: "TikTok author handle without @; required with video_id.",
 });
 const recordTimeoutField = Type.Optional(
   Type.Integer({
@@ -267,16 +301,33 @@ function postParameters() {
       { url: postUrlField, platform: platformField, timeout_ms: recordTimeoutField },
       { additionalProperties: false },
     ),
+    Type.Object(
+      {
+        platform: Type.Literal("tiktok"),
+        video_id: videoIdField,
+        username: authorField,
+        timeout_ms: recordTimeoutField,
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        platform: Type.Literal("tiktok"),
+        url: postUrlField,
+        timeout_ms: recordTimeoutField,
+      },
+      { additionalProperties: false },
+    ),
   ]);
 }
 
 export const socialProfileDefinition = {
   name: "social_profile",
-  label: "Instagram profile",
+  label: "Social profile",
   description:
-    "Look up one public Instagram profile: identity, follower/following/post counts, bio and bio links. One profile query only, so this is the cheap lookup before any sample. Private profile metadata can be returned, but private posts, stories and comments are never fetched. Counts are as observed and may be null; media URLs are references only.",
+    "Look up one public Instagram or TikTok profile: identity, follower/following/post counts, bio and bio links. One profile query only, so this is the cheap lookup before any sample. Private profile metadata can be returned, but private posts, stories and comments are never fetched. Counts are as observed and may be null; media URLs are references only. TikTok adds total_like_count; pass platform='tiktok' for TikTok.",
   promptSnippet:
-    "social_profile(username|url): one public Instagram profile lookup",
+    "social_profile(username|url): one public profile lookup",
   promptGuidelines: [
     "Use social_profile for identity and counts; only call social_profile_posts when actual post records are needed.",
     "Null profile counts mean unobserved, not zero; keep null, zero and hidden values distinct.",
@@ -286,11 +337,11 @@ export const socialProfileDefinition = {
 };
 export const socialProfilePostsDefinition = {
   name: "social_profile_posts",
-  label: "Instagram profile posts",
+  label: "Social profile posts",
   description:
-    "Return one public Instagram profile plus a bounded sample of fully hydrated posts (default 12, max 50). Costs roughly one profile query, one listing pass per 12 candidates and one hydration per candidate, so it is materially more expensive than social_profile. Order is upstream encounter order: pinned posts may lead and this is not a latest-chronological feed. partial=true is not a retry signal; inspect failed_posts, sample_failure (including retry_after_s) and truncation before deciding another call is worth the cost. Continuation is tri-state: true means unselected candidates remained, false means proven exhaustion, null means unknown. Media URLs are references only and may expire.",
+    "Return one public Instagram or TikTok profile plus a bounded sample of posts (default 12, max 50); Instagram posts are hydrated, TikTok posts come from the signed listing in one page per 12 records behind its gate. Costs roughly one profile query, one listing pass per 12 candidates and one hydration per candidate, so it is materially more expensive than social_profile. Order is upstream encounter order: pinned posts may lead and this is not a latest-chronological feed. partial=true is not a retry signal; inspect failed_posts, sample_failure (including retry_after_s) and truncation before deciding another call is worth the cost. Continuation is tri-state: true means unselected candidates remained, false means proven exhaustion, null means unknown. Media URLs are references only and may expire.",
   promptSnippet:
-    "social_profile_posts(username|url, max_posts): profile plus a bounded hydrated post sample",
+    "social_profile_posts(username|url, max_posts): profile plus a bounded post sample",
   promptGuidelines: [
     "Use social_profile_posts only when post records are needed; it costs one hydration per candidate.",
     "Never present returned posts as the latest N posts: pinned posts may lead and order is upstream encounter.",
@@ -305,11 +356,11 @@ export const socialProfilePostsDefinition = {
 };
 export const socialPostDefinition = {
   name: "social_post",
-  label: "Instagram post",
+  label: "Social post",
   description:
-    "Look up one exact public Instagram post by shortcode or URL. One post query; returns the actual author, caption, content type, hidden/null-explicit counts, carousel children and media URL references. No media is downloaded and counts can be hidden, zero or unknown.",
+    "Look up one exact public Instagram post by shortcode or URL, or a TikTok post by video_id plus author username, or a TikTok post URL. One post query; returns the actual author, caption, content type, hidden/null-explicit counts, carousel children and media URL references. No media is downloaded and counts can be hidden, zero or unknown.",
   promptSnippet:
-    "social_post(shortcode|url): one exact public Instagram post record",
+    "social_post(shortcode|url|video_id+username): one exact public post record",
   promptGuidelines: [
     "A not_found result proves this route returned no public post, not that the account is private.",
     "Media URLs are references only; do not treat them as stable or as downloaded assets.",

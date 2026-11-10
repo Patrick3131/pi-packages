@@ -3,7 +3,7 @@
  * Field names stay snake_case so structured output matches the API exactly.
  */
 
-export type SocialPlatform = "instagram";
+export type SocialPlatform = "instagram" | "tiktok";
 
 /** Post content type. Carousel children never use `carousel` as their own type. */
 export type SocialContentType = "image" | "video" | "carousel" | "unknown";
@@ -25,7 +25,8 @@ export type SocialWarning =
   | "pinned_posts_may_lead"
   | "posts_unavailable"
   | "like_counts_hidden"
-  | "media_urls_expire";
+  | "media_urls_expire"
+  | "metrics_unparsed";
 
 /** Sample-wide stop stage. */
 export type SocialFailureStage = "listing" | "hydration";
@@ -42,6 +43,7 @@ export const SOCIAL_SERVER_CODES = new Set([
   "social_upstream",
   "social_schema_changed",
   "social_timeout",
+  "social_verification_required",
 ]);
 
 export const SOCIAL_PROFILE_NOT_FOUND = "social_profile_not_found";
@@ -86,6 +88,7 @@ export interface SocialProfile {
   is_private: boolean;
   is_verified: boolean;
   bio_links: SocialBioLink[];
+  total_like_count?: number | null;
   [key: string]: unknown;
 }
 
@@ -110,9 +113,17 @@ export interface SocialCarouselItem {
   [key: string]: unknown;
 }
 
+export interface SocialMusic {
+  id: string | null;
+  title: string | null;
+  author_name: string | null;
+  original: boolean | null;
+  [key: string]: unknown;
+}
+
 export interface SocialPost {
   id: string;
-  shortcode: string;
+  shortcode: string | null;
   url: string;
   author: SocialAuthor;
   coauthors: string[];
@@ -128,8 +139,14 @@ export interface SocialPost {
   comment_count: number | null;
   view_count: number | null;
   play_count: number | null;
-  like_counts_hidden: boolean;
+  share_count?: number | null;
+  collect_count?: number | null;
+  like_counts_hidden: boolean | null;
   is_paid_partnership: boolean | null;
+  music?: SocialMusic | null;
+  hashtags?: string[];
+  is_ad?: boolean | null;
+  is_aigc?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -138,6 +155,7 @@ export interface SocialProfileResponse {
   platform: SocialPlatform;
   observed_at: string;
   profile: SocialProfile;
+  warnings?: string[];
   timings: SocialTimings;
   [key: string]: unknown;
 }
@@ -147,6 +165,7 @@ export interface SocialPostResponse {
   platform: SocialPlatform;
   observed_at: string;
   post: SocialPost;
+  warnings?: string[];
   timings: SocialTimings;
   [key: string]: unknown;
 }
@@ -198,6 +217,8 @@ export interface SocialProfilePostsParams extends SocialProfileParams {
 export interface SocialPostParams {
   platform?: SocialPlatform;
   shortcode?: string;
+  video_id?: string;
+  username?: string;
   url?: string;
   timeout_ms?: number;
 }

@@ -81,7 +81,7 @@ export async function executeSocialProfile(
     return successResult(formatSocialProfile(await getSocialProfile(params, { signal })));
   } catch (error) {
     if (!(error instanceof SocialClientError)) throw error;
-    return failureResult(error, SOCIAL_PROFILE_NOT_FOUND, "Instagram profile");
+    return failureResult(error, SOCIAL_PROFILE_NOT_FOUND, "profile");
   }
 }
 
@@ -96,7 +96,7 @@ export async function executeSocialProfilePosts(
     );
   } catch (error) {
     if (!(error instanceof SocialClientError)) throw error;
-    return failureResult(error, SOCIAL_PROFILE_NOT_FOUND, "Instagram profile");
+    return failureResult(error, SOCIAL_PROFILE_NOT_FOUND, "profile");
   }
 }
 
@@ -109,7 +109,7 @@ export async function executeSocialPost(
     return successResult(formatSocialPost(await getSocialPost(params, { signal })));
   } catch (error) {
     if (!(error instanceof SocialClientError)) throw error;
-    return failureResult(error, SOCIAL_POST_NOT_FOUND, "Instagram post");
+    return failureResult(error, SOCIAL_POST_NOT_FOUND, "post");
   }
 }
 

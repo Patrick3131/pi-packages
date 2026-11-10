@@ -10,6 +10,8 @@ import type {
 /** Model-visible text stays bounded; structured output keeps every record. */
 const TEXT_CAP = 12000;
 const LABEL_RESERVE = 220;
+const platformName = (platform: string) =>
+  platform === "tiktok" ? "TikTok" : "Instagram";
 const PREVIEW_POSTS = 5;
 const PREVIEW_CAPTION = 300;
 
@@ -36,6 +38,11 @@ function profileLines(profile: SocialProfile): string[] {
     `URL: ${profile.url}`,
     `Profile id=${profile.id} · ${profile.is_private ? "private" : "public"} · ${profile.is_verified ? "verified" : "not verified"}`,
   ];
+  if (
+    profile.total_like_count !== undefined &&
+    profile.total_like_count !== null
+  )
+    lines.push(`Total likes: ${count(profile.total_like_count)}`);
   if (profile.full_name) lines.push(`Name: ${clip(profile.full_name, 100)}`);
   if (profile.biography) lines.push(`Bio: ${clip(profile.biography, 1000)}`);
   if (profile.avatar_url) lines.push(`Avatar: ${profile.avatar_url}`);
@@ -54,14 +61,26 @@ function postLines(post: SocialPost, label: string): string[] {
   const lines = [
     `${label}: ${post.content_type} · ${post.published_at} · by @${post.author.username} (author id=${post.author.id})`,
     `  URL: ${post.url}`,
-    `  Likes: ${post.like_counts_hidden ? "hidden" : count(post.like_count)} · Comments: ${count(post.comment_count)} · Views: ${count(post.view_count)} · Plays: ${count(post.play_count)}`,
+    `  Likes: ${post.like_counts_hidden ? "hidden" : count(post.like_count)} · Comments: ${count(post.comment_count)} · Views: ${count(post.view_count)} · Plays: ${count(post.play_count)}` +
+      (post.share_count !== undefined
+        ? ` · Shares: ${count(post.share_count)}`
+        : "") +
+      (post.collect_count !== undefined
+        ? ` · Collects: ${count(post.collect_count)}`
+        : ""),
   ];
-  if (post.caption) lines.push(`  Caption: ${clip(post.caption, PREVIEW_CAPTION)}`);
+  if (post.caption)
+    lines.push(`  Caption: ${clip(post.caption, PREVIEW_CAPTION)}`);
   if (post.accessibility_caption)
-    lines.push(`  Accessibility caption: ${clip(post.accessibility_caption, PREVIEW_CAPTION)}`);
+    lines.push(
+      `  Accessibility caption: ${clip(post.accessibility_caption, PREVIEW_CAPTION)}`,
+    );
   if (post.thumbnail)
-    lines.push(`  Thumbnail: ${post.thumbnail.url}${dimension(post.thumbnail)}`);
-  if (post.video) lines.push(`  Video: ${post.video.url}${dimension(post.video)}`);
+    lines.push(
+      `  Thumbnail: ${post.thumbnail.url}${dimension(post.thumbnail)}`,
+    );
+  if (post.video)
+    lines.push(`  Video: ${post.video.url}${dimension(post.video)}`);
   if (post.carousel.length) {
     lines.push(
       `  Carousel: ${post.carousel.length} item${post.carousel.length === 1 ? "" : "s"}`,
@@ -74,7 +93,19 @@ function postLines(post: SocialPost, label: string): string[] {
   if (post.product_type)
     lines.push(`  Product type: ${clip(post.product_type, 100)}`);
   if (post.is_paid_partnership !== null)
-    lines.push(`  Paid partnership: ${post.is_paid_partnership ? "yes" : "no"}`);
+    lines.push(
+      `  Paid partnership: ${post.is_paid_partnership ? "yes" : "no"}`,
+    );
+  if (post.is_ad !== undefined && post.is_ad !== null)
+    lines.push(`  Ad: ${post.is_ad ? "yes" : "no"}`);
+  if (post.is_aigc !== undefined && post.is_aigc !== null)
+    lines.push(`  AI-generated: ${post.is_aigc ? "yes" : "no"}`);
+  if (post.music)
+    lines.push(
+      `  Music: ${post.music.title ?? "unknown"} by ${post.music.author_name ?? "unknown"}`,
+    );
+  if (post.hashtags?.length)
+    lines.push(`  Hashtags: ${post.hashtags.join(", ")}`);
   return lines;
 }
 
@@ -127,7 +158,7 @@ export function formatSocialProfile(result: SocialProfileResponse): {
 } {
   const profile = result.profile;
   const summary =
-    `Instagram profile @${profile.username} · ${count(profile.follower_count)} followers · ${count(profile.post_count)} posts · ${profile.is_private ? "private" : "public"}` +
+    `${platformName(result.platform)} profile @${profile.username} · ${count(profile.follower_count)} followers · ${count(profile.post_count)} posts · ${profile.is_private ? "private" : "public"}` +
     (profile.is_verified ? " · verified" : "");
   const { text, skipped } = assemble(summary, [
     profileLines(profile),
@@ -147,7 +178,7 @@ export function formatSocialPost(result: SocialPostResponse): {
   details: SocialResultEnvelope<SocialPostResponse>;
 } {
   const post = result.post;
-  const summary = `Instagram post ${post.shortcode} by @${post.author.username} · ${post.content_type} · ${post.published_at}`;
+  const summary = `${platformName(result.platform)} post ${post.shortcode ?? post.id} by @${post.author.username} · ${post.content_type} · ${post.published_at}`;
   const { text, skipped } = assemble(summary, [
     postLines(post, "Post"),
     ["Media URLs are references only; nothing is downloaded."],
@@ -167,10 +198,12 @@ export function formatSocialProfilePosts(result: SocialProfilePostsResponse): {
 } {
   const profile = result.profile;
   const summary =
-    `Instagram profile-posts sample @${profile.username} · ${result.returned_posts}/${result.requested_posts} posts · continuation: ${continuationLabel(result.has_more_posts)}` +
+    `${platformName(result.platform)} profile-posts sample @${profile.username} · ${result.returned_posts}/${result.requested_posts} posts · continuation: ${continuationLabel(result.has_more_posts)}` +
     (profile.is_private ? " · private" : "") +
     (result.partial ? " · partial" : "") +
-    (result.truncation.length ? ` · truncated (${result.truncation.join(", ")})` : "");
+    (result.truncation.length
+      ? ` · truncated (${result.truncation.join(", ")})`
+      : "");
 
   const status: string[] = [
     "Order is upstream encounter order; pinned posts may lead. This is not a latest-chronological feed.",
@@ -180,9 +213,13 @@ export function formatSocialProfilePosts(result: SocialProfilePostsResponse): {
   if (result.warnings.length)
     status.push(`Warnings: ${result.warnings.join(", ")}`);
   if (result.warnings.includes("pinned_posts_may_lead"))
-    status.push("Pinned posts may lead; do not present this as the latest N posts.");
+    status.push(
+      "Pinned posts may lead; do not present this as the latest N posts.",
+    );
   if (result.warnings.includes("media_urls_expire"))
-    status.push("Media URLs are references only and may expire; nothing is downloaded.");
+    status.push(
+      "Media URLs are references only and may expire; nothing is downloaded.",
+    );
   if (result.partial)
     status.push(
       "Partial is not a retry signal: inspect failed_posts, sample_failure and truncation before reacquiring.",
