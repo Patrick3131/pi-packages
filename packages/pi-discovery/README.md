@@ -184,20 +184,20 @@ holds no YouTube, residential-proxy, cookie, Data API or signer credentials. All
 four are default-on; set `DISCOVERY_YOUTUBE_ENABLED=0` (or false/off/no) or a
 project `.pi/tools.json` false to opt out.
 
-| Tool                 | Route                       | Selection and bounds                                                                                                                          |
-| -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `youtube_search`     | POST /v1/youtube/search     | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000                                                                   |
-| `youtube_channel`    | POST /v1/youtube/channel    | exactly one channel_id, handle or strict channel URL initially; or channel_id + cursor; language/region; timeout_ms 5000–30000; no max_videos |
-| `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format segments/text; max_chars 1000–300000; start_ms 0–86400000; timeout_ms 5000–30000        |
-| `youtube_video`      | POST /v1/youtube/video      | exactly one video_id or YouTube URL; timeout_ms 5000–30000; no batch selector                                                                 |
+| Tool                 | Route                       | Selection and bounds                                                                                                                                               |
+| -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `youtube_search`     | POST /v1/youtube/search     | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000                                                                                        |
+| `youtube_channel`    | POST /v1/youtube/channel    | exactly one channel_id, handle or strict channel URL initially; or channel_id + cursor; language/region; timeout_ms 5000–30000; no max_videos                      |
+| `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format text (default)/segments; max_chars 1000–300000, honoured exactly; start_ms 0–86400000; timeout_ms 5000–30000 |
+| `youtube_video`      | POST /v1/youtube/video      | exactly one video_id or YouTube URL; timeout_ms 5000–30000; no batch selector                                                                                      |
 
 `youtube_video` returns one video's exact ISO 8601 `published_at`, description,
 duration, view/like/comment counts, `live_status`, tags and category. The text
 shows a bounded description preview; structured output keeps the full
 description, and `description_truncated`/`tags_truncated` say when the server
-applied its own cap. It never fetches comments or a transcript. Channel text now
-includes `published_at` for the latest 15 videos and says plainly when a row only
-has relative `published_text`.
+applied its own cap. It never fetches comments or a transcript. Channel text
+includes `published_at` where the provider returned it and says plainly when a
+row only has relative `published_text`.
 
 The server needs its own YouTube Data API key for this route. Without it the call
 fails with 503 `youtube_metadata_unavailable` and a reason such as
@@ -217,13 +217,17 @@ means the videos are valid. `cursor_overflow: true` means more videos exist but
 paging is unavailable.
 
 Transcripts resolve `video_id` or `watch?v=`, `/shorts/`, `/embed/` and
-`youtu.be/` URLs locally; an omitted language means auto (manual tracks beat
-ASR). Segment and text windows contain whole segments only. `start_ms` resumes
-at a segment boundary; `next_start_ms`, `total_chars` and `returned_chars`
-describe exactly what was returned. The tool clamps its server request to the
-formatter budget (8000 text or 11500 segment characters), so `next_start_ms` is
-the first content the model did not see and a follow-up call makes progress. An
-empty window after the last segment is valid and complete, not malformed.
+`youtu.be/` URLs locally. An omitted language no longer picks "the first track":
+the server serves the video's original audio track, then English, then the first
+manual track, and the tool prints a mismatch line when an explicitly requested
+language was unavailable. `format` defaults to `text`, because timings make a
+segment response about six times larger. `max_chars` is honoured exactly: the
+text default is 300000 (the server cap, i.e. the whole transcript in one call)
+and the segment default is 12000. The first line says `FULL n chars` or
+`PARTIAL n of m chars (p%)` with the resume `start_ms`, so a partial read is
+never mistaken for the whole episode; segment and text windows still contain
+whole segments only, and an empty window after the last segment is valid and
+complete.
 
 `DISCOVERY_YOUTUBE_TIMEOUT_MS` is a 40000 ms floor. Omitted tool timeouts resolve
 to 30000 ms, and the HTTP budget is `max(floor, effective server budget + 10000)`.
@@ -237,17 +241,17 @@ are not retry signals; the channel and video tools use tool-specific copy. 503
 `youtube_timeout` are error envelopes with the safe reason and Retry-After when
 present. Caller abort stays `AbortError`.
 
-Model-visible text is bounded to 12000 characters. Channel text always includes
-all returned video ids/titles and the cursor instruction, with a ≤600-character
-about excerpt; the full description and records stay in structured output.
-Transcript text says exactly how many characters start at which time, plus the
-total and the next `start_ms`; it never re-clips a server window below 12000
-characters or claims that a later page is the beginning of the transcript.
+Model-visible text is bounded to 12000 characters for list-shaped results.
+Channel text always includes all returned video ids/titles and the cursor
+instruction, with a ≤600-character about excerpt; the full description and
+records stay in structured output. Transcript text is exempt from that cap
+because the transcript is the payload: it says `FULL`/`PARTIAL`, how many
+characters were served and the total, and it never re-clips a server window.
 Native outputSchema/structuredContent keeps the complete response. Harness-neutral
 exports: `searchYoutube`, `getYoutubeChannel`, `getYoutubeTranscript`,
 `getYoutubeVideo`, `formatYoutubeSearch`, `formatYoutubeChannel`,
 `formatYoutubeTranscript`, `formatYoutubeVideo`, `YoutubeClientError`, the tool
 definitions and their parameter/response types.
 
-The package is `0.9.0`; the four verbs remain separate so intent, cost and
+The package is `0.10.0`; the four verbs remain separate so intent, cost and
 failure surfaces stay explicit.

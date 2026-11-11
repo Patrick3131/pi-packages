@@ -12,8 +12,6 @@ const TEXT_CAP = 12000;
 const DESCRIPTION_PREVIEW = 1200;
 const LABEL_RESERVE = 240;
 const SEGMENT_PREVIEW = 30;
-export const TRANSCRIPT_TEXT_REQUEST_CHARS = 8000;
-export const TRANSCRIPT_SEGMENT_REQUEST_CHARS = 11500;
 
 const clip = (value: string, cap: number) =>
   value.length > cap ? `${value.slice(0, cap)}… [text shortened]` : value;
@@ -81,7 +79,13 @@ export function formatYoutubeSearch(result: YoutubeSearchResponse): {
   };
 }
 
-export function formatYoutubeTranscript(result: YoutubeTranscriptResponse): {
+const primaryLanguage = (value: string) =>
+  value.toLowerCase().replaceAll("_", "-").split("-")[0];
+
+export function formatYoutubeTranscript(
+  result: YoutubeTranscriptResponse,
+  requestedLanguage?: string,
+): {
   text: string;
   summary: string;
   details: YoutubeResultEnvelope<YoutubeTranscriptResponse>;
@@ -98,10 +102,14 @@ export function formatYoutubeTranscript(result: YoutubeTranscriptResponse): {
   const total = result.total_chars ?? returned;
   const windowStart = result.window_start_ms ?? 0;
   const next = result.next_start_ms ?? null;
-  const windowLabel = `${returned} chars from ${timestamp(windowStart)}; total ${total}; ${next === null ? "complete" : `continue at ${timestamp(next)} (start_ms=${next})`}`;
+  const percent = total > 0 ? Math.round((returned / total) * 100) : 100;
+  const completeness =
+    next === null
+      ? `FULL ${returned} chars`
+      : `PARTIAL ${returned} of ${total} chars (${percent}%) · continue at ${timestamp(next)} (start_ms=${next})`;
   const summary =
     `YouTube transcript ${result.video_id} · ${result.language} (${result.language_kind}) · ` +
-    windowLabel +
+    completeness +
     `${result.cached ? " · cached" : ""}`;
   const lines = [
     summary,
@@ -114,19 +122,23 @@ export function formatYoutubeTranscript(result: YoutubeTranscriptResponse): {
     lines.push(
       "Served from this worker's transcript cache; no upstream request.",
     );
+  if (
+    requestedLanguage &&
+    requestedLanguage !== "auto" &&
+    primaryLanguage(requestedLanguage) !== primaryLanguage(result.language)
+  )
+    lines.push(
+      `Requested language '${requestedLanguage}' is unavailable; served '${result.language}' (${result.language_kind}).`,
+    );
   if (next !== null)
     lines.push(
-      `This formatter never cuts inside a segment. Request the next window with start_ms=${next}.`,
+      `This is not the whole transcript. Call again with start_ms=${next} to read the rest; the formatter never cuts inside a segment.`,
     );
 
   if (result.text !== null) {
-    lines.push(`Text (${result.text.length} chars in this response):`);
-    if (result.text.length <= TEXT_CAP) lines.push(result.text);
-    else
-      lines.push(
-        clip(result.text, TEXT_CAP),
-        `Only this response is shortened for display; the structured response keeps all ${result.text.length} returned chars.`,
-      );
+    lines.push(`Text (${result.text.length} chars):`);
+    // A transcript body is the payload; only list-shaped tools use TEXT_CAP.
+    lines.push(result.text);
   } else if (result.segments.length === 0) {
     lines.push(
       "The requested window is empty; this is a valid complete position after the last segment.",
@@ -150,10 +162,10 @@ export function formatYoutubeTranscript(result: YoutubeTranscriptResponse): {
       );
     }
   }
+  // A transcript is the payload: the package-wide display cap protects list
+  // tools only, so this text is never shortened.
   return {
-    text: fit(lines.join("\n"), [
-      "Structured output keeps all returned segments, text, languages and timings; media is never downloaded.",
-    ]),
+    text: `${lines.join("\n")}\nStructured output keeps all returned segments, text, languages and timings; media is never downloaded.`,
     summary,
     details: { status: "ok", response: result },
   };

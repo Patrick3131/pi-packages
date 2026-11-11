@@ -93,6 +93,9 @@ test("registers four YouTube tools enabled by default with an explicit opt-out",
     [
       "ad_library_keyword_ads",
       "ad_library_domain_ads",
+      "amazon_new_releases",
+      "amazon_search",
+      "amazon_product",
       "social_profile",
       "social_profile_posts",
       "social_post",
@@ -173,7 +176,10 @@ test("transcript success preserves segments and text renderings", async (t) => {
     async () => new Response(JSON.stringify(segmentResponse)),
   );
   const tool = youtube(register(), "youtube_transcript");
-  const segments = await tool.execute("call", { video_id: "dQw4w9WgXcQ" });
+  const segments = await tool.execute("call", {
+    video_id: "dQw4w9WgXcQ",
+    format: "segments",
+  });
   assert.equal(segments.isError, false);
   assert.equal((segments.details as { status: string }).status, "ok");
   assert.deepEqual(
@@ -199,7 +205,8 @@ test("transcript success preserves segments and text renderings", async (t) => {
     Check(tool.outputSchema as never, joined.structuredContent as never),
   );
   assert.match(text(joined), /Served from this worker's transcript cache/);
-  assert.match(text(joined), /40 chars from 0:00; total 40; complete/);
+  assert.match(text(joined), /FULL 40 chars/);
+  assert.match(text(joined), /Text \(40 chars\):/);
 });
 
 test("channel success keeps metadata, all videos and cursor guidance", async (t) => {
@@ -277,7 +284,7 @@ test("channel not found uses channel-specific copy", async (t) => {
   );
 });
 
-test("transcript tool clamps the server window to its formatter budget", async (t) => {
+test("transcript tool asks for the whole transcript and honours max_chars", async (t) => {
   const bodies: Array<Record<string, unknown>> = [];
   t.mock.method(
     globalThis,
@@ -290,14 +297,21 @@ test("transcript tool clamps the server window to its formatter budget", async (
     },
   );
   const tool = youtube(register(), "youtube_transcript");
-  await tool.execute("call", { video_id: "dQw4w9WgXcQ", max_chars: 200000 });
+  // Default: text format at the full service cap, one request.
+  await tool.execute("call", { video_id: "dQw4w9WgXcQ" });
+  // An explicit budget is sent verbatim, never clamped.
   await tool.execute("call", {
     video_id: "dQw4w9WgXcQ",
     format: "text",
-    max_chars: 200000,
+    max_chars: 250000,
   });
-  assert.equal(bodies[0].max_chars, 11500);
-  assert.equal(bodies[1].max_chars, 8000);
+  // Segments keep a small default because timings cost ~6x.
+  await tool.execute("call", { video_id: "dQw4w9WgXcQ", format: "segments" });
+  assert.equal(bodies[0].format, "text");
+  assert.equal(bodies[0].max_chars, 300000);
+  assert.equal(bodies[1].max_chars, 250000);
+  assert.equal(bodies[2].format, "segments");
+  assert.equal(bodies[2].max_chars, 12000);
 });
 
 test("404 outcomes are typed not_found, not generic errors", async (t) => {

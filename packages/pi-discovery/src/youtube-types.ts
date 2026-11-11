@@ -50,7 +50,9 @@ export const YOUTUBE_MAX_TIMEOUT_MS = 30000;
 export const YOUTUBE_DEFAULT_TIMEOUT_MS = 30000;
 export const YOUTUBE_MIN_MAX_CHARS = 1000;
 export const YOUTUBE_MAX_MAX_CHARS = 300000;
-export const YOUTUBE_DEFAULT_MAX_CHARS = 200000;
+/** Text transcripts default to the whole service cap; timings cost ~6x. */
+export const YOUTUBE_DEFAULT_MAX_CHARS = YOUTUBE_MAX_MAX_CHARS;
+export const YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS = 12000;
 /** Client HTTP budget beyond the effective server budget. */
 export const YOUTUBE_HTTP_TIMEOUT_MARGIN_MS = 10000;
 

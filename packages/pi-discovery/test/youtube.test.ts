@@ -16,11 +16,13 @@ import {
   youtubeTranscriptRequest,
   youtubeVideoRequest,
   parseYoutubeVideoResponse,
+  transcriptRequestChars,
 } from "../src/youtube-validation.js";
 import {
   formatYoutubeSearch,
   formatYoutubeTranscript,
 } from "../src/youtube-format.js";
+import { youtubeTranscriptDefinition } from "../src/youtube-tools.js";
 import {
   channelResponse,
   segmentResponse,
@@ -152,14 +154,24 @@ test("transcript selectors accept one exact id or a canonical YouTube URL", () =
     endpoint: "/v1/youtube/transcript",
     body: {
       video_id: "dQw4w9WgXcQ",
-      format: "segments",
-      max_chars: 200000,
+      format: "text",
+      max_chars: 300000,
       timeout_ms: 30000,
     },
     serverTimeoutMs: 30000,
     resolvedVideoId: "dQw4w9WgXcQ",
-    format: "segments",
+    format: "text",
   });
+  assert.deepEqual(
+    youtubeTranscriptRequest({ video_id: "dQw4w9WgXcQ", format: "segments" })
+      .body,
+    {
+      video_id: "dQw4w9WgXcQ",
+      format: "segments",
+      max_chars: 12000,
+      timeout_ms: 30000,
+    },
+  );
   assert.deepEqual(
     youtubeTranscriptRequest({
       video_id: "dQw4w9WgXcQ",
@@ -203,7 +215,7 @@ test("one call per intent posts exactly to its route with no retry", async () =>
 
   const transcriptCall = recordingFetch(segmentResponse);
   const transcript = await getYoutubeTranscript(
-    { url: "https://youtu.be/dQw4w9WgXcQ" },
+    { url: "https://youtu.be/dQw4w9WgXcQ", format: "segments" },
     {
       env: { DISCOVERY_BASE_URL: "https://discovery.example" },
       fetch: transcriptCall.fetch,
@@ -216,7 +228,7 @@ test("one call per intent posts exactly to its route with no retry", async () =>
       body: {
         url: "https://youtu.be/dQw4w9WgXcQ",
         format: "segments",
-        max_chars: 200000,
+        max_chars: 12000,
         timeout_ms: 30000,
       },
     },
@@ -242,7 +254,7 @@ test("HTTP budget is max(floor, effective server budget + 10 s)", async (t) => {
     },
   );
   await getYoutubeTranscript(
-    { video_id: "dQw4w9WgXcQ", timeout_ms: 5000 },
+    { video_id: "dQw4w9WgXcQ", format: "segments", timeout_ms: 5000 },
     {
       env: { DISCOVERY_YOUTUBE_TIMEOUT_MS: "100" },
       fetch: recordingFetch(segmentResponse).fetch,
@@ -644,10 +656,10 @@ test("model-visible search and transcript output is bounded and explicit", () =>
   assert.ok(transcript.text.length <= 12000);
 
   const text = formatYoutubeTranscript(textResponse);
-  assert.match(text.text, /Text \(.* in this response\)/);
+  assert.match(text.text, /Text \(40 chars\):/);
+  assert.match(text.text, /FULL 40 chars/);
   assert.match(text.text, /Served from this worker's transcript cache/);
-  assert.match(text.text, /40 chars from 0:00; total 40; complete/);
-  assert.ok(text.text.length <= 12000);
+  assert.ok(text.text.includes("Hello and welcome. Today we ship Python."));
 
   const overshoot = {
     ...textResponse,
@@ -658,7 +670,9 @@ test("model-visible search and transcript output is bounded and explicit", () =>
   };
   const overshootText = formatYoutubeTranscript(overshoot).text;
   assert.ok(overshootText.includes("x".repeat(8000) + "y".repeat(900)));
-  assert.doesNotMatch(overshootText, /8000 chars from|showing first 8000/i);
+  assert.match(overshootText, /PARTIAL 8900 of 30000 chars \(30%\)/);
+  assert.match(overshootText, /not the whole transcript/);
+  assert.doesNotMatch(overshootText, /\[text shortened\]/);
 
   const huge = {
     ...segmentResponse,
@@ -754,4 +768,73 @@ test("channel parsing accepts a nullable published_at and rejects garbage", () =
     ),
   });
   assert.equal(legacy.videos[0]?.published_at, undefined);
+});
+
+test("transcript completeness, mismatch and whole-body rules", () => {
+  const full = formatYoutubeTranscript(textResponse);
+  assert.match(full.text, /· FULL 40 chars(?: ·|$)/m);
+  assert.doesNotMatch(full.text, /PARTIAL|\[text shortened\]/);
+
+  const partial = formatYoutubeTranscript({
+    ...textResponse,
+    text: "x".repeat(300000),
+    returned_chars: 300000,
+    total_chars: 412000,
+    next_start_ms: 5025000,
+    truncated: true,
+  });
+  assert.match(partial.text, /PARTIAL 300000 of 412000 chars \(73%\)/);
+  assert.match(partial.text, /start_ms=5025000/);
+  assert.match(partial.text, /not the whole transcript/);
+  // A transcript body is the payload: never clipped by the display cap.
+  assert.ok(partial.text.includes("x".repeat(300000)));
+  assert.doesNotMatch(partial.text, /\[text shortened\]/);
+
+  const empty = formatYoutubeTranscript({
+    ...segmentResponse,
+    segments: [],
+    text: null,
+    returned_chars: 0,
+    total_chars: 40,
+    next_start_ms: null,
+    truncated: false,
+  });
+  assert.match(empty.text, /FULL 0 chars/);
+
+  const mismatch = formatYoutubeTranscript(textResponse, "de");
+  assert.match(
+    mismatch.text,
+    /Requested language 'de' is unavailable; served 'en' \(manual\)\./,
+  );
+  assert.doesNotMatch(
+    formatYoutubeTranscript(textResponse, "en-US").text,
+    /Requested language/,
+  );
+  assert.doesNotMatch(
+    formatYoutubeTranscript({ ...textResponse, cached: false }).text,
+    /Served from this worker's transcript cache/,
+  );
+});
+
+test("transcript request sizing is honest for both formats", () => {
+  assert.equal(transcriptRequestChars("text"), 300000);
+  assert.equal(transcriptRequestChars("segments"), 12000);
+  assert.equal(
+    youtubeTranscriptRequest({ video_id: "dQw4w9WgXcQ", max_chars: 250000 })
+      .body.max_chars,
+    250000,
+  );
+  for (const max_chars of [0, 999, 300001, 1.5])
+    assert.throws(
+      () => youtubeTranscriptRequest({ video_id: "dQw4w9WgXcQ", max_chars }),
+      invalidRequest,
+    );
+  const definition = youtubeTranscriptDefinition.parameters as {
+    anyOf: Array<{ properties: Record<string, { default?: number }> }>;
+  };
+  assert.equal(definition.anyOf[0].properties.max_chars.default, 300000);
+  assert.equal(
+    (definition.anyOf[0].properties.format as { default?: string }).default,
+    "text",
+  );
 });

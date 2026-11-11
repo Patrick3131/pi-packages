@@ -18,6 +18,7 @@ import {
   YOUTUBE_MAX_TIMEOUT_MS,
   YOUTUBE_MAX_URL_LENGTH,
   YOUTUBE_MIN_MAX_CHARS,
+  YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS,
   YOUTUBE_MIN_TIMEOUT_MS,
   YOUTUBE_VIDEO_ID,
   type YoutubeAbout,
@@ -97,8 +98,15 @@ function maxResults(raw: unknown): number {
   return raw;
 }
 
-function maxChars(raw: unknown): number {
-  if (raw === undefined) return YOUTUBE_DEFAULT_MAX_CHARS;
+/** The request budget for one format; the schema default mirrors the text case. */
+export function transcriptRequestChars(format: "text" | "segments"): number {
+  return format === "text"
+    ? YOUTUBE_DEFAULT_MAX_CHARS
+    : YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS;
+}
+
+function maxChars(raw: unknown, format: "text" | "segments"): number {
+  if (raw === undefined) return transcriptRequestChars(format);
   if (
     typeof raw !== "number" ||
     !Number.isSafeInteger(raw) ||
@@ -225,7 +233,7 @@ export function youtubeTranscriptRequest(
     videoId = youtubeVideoIdFromUrl(params.url);
     selector.url = params.url.trim();
   }
-  const format = params.format ?? "segments";
+  const format = params.format ?? "text";
   if (format !== "segments" && format !== "text") return invalid();
   if (
     params.start_ms !== undefined &&
@@ -239,7 +247,7 @@ export function youtubeTranscriptRequest(
   const body: Record<string, unknown> = {
     ...selector,
     format,
-    max_chars: maxChars(params.max_chars),
+    max_chars: maxChars(params.max_chars, format),
     timeout_ms: effectiveTimeout,
   };
   if (params.start_ms !== undefined) body.start_ms = params.start_ms;

@@ -6,6 +6,7 @@ import {
   YOUTUBE_MAX_TIMEOUT_MS,
   YOUTUBE_MAX_URL_LENGTH,
   YOUTUBE_MIN_MAX_CHARS,
+  YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS,
   YOUTUBE_MIN_TIMEOUT_MS,
 } from "./youtube-types.js";
 
@@ -196,7 +197,7 @@ const maxCharsField = Type.Optional(
     minimum: YOUTUBE_MIN_MAX_CHARS,
     maximum: YOUTUBE_MAX_MAX_CHARS,
     default: YOUTUBE_DEFAULT_MAX_CHARS,
-    description: `Maximum returned transcript characters (${YOUTUBE_MIN_MAX_CHARS}-${YOUTUBE_MAX_MAX_CHARS}). Default: ${YOUTUBE_DEFAULT_MAX_CHARS}.`,
+    description: `Maximum returned transcript characters (${YOUTUBE_MIN_MAX_CHARS}-${YOUTUBE_MAX_MAX_CHARS}), honoured exactly. Default ${YOUTUBE_DEFAULT_MAX_CHARS} for text (the whole transcript) and ${YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS} for segments, which cost about 6x because of timings.`,
   }),
 );
 const startMsField = Type.Optional(
@@ -209,8 +210,9 @@ const startMsField = Type.Optional(
 );
 const formatField = Type.Optional(
   Type.Union([Type.Literal("segments"), Type.Literal("text")], {
-    default: "segments",
-    description: "Return timed segments (default) or one joined text block.",
+    default: "text",
+    description:
+      "One joined text block (default) or timed segments when timestamps matter.",
   }),
 );
 const videoIdField = Type.String({
@@ -267,14 +269,15 @@ export const youtubeTranscriptDefinition = {
   name: "youtube_transcript",
   label: "YouTube transcript",
   description:
-    "Fetch the public transcript of one YouTube video. Supply exactly one video_id or YouTube URL; optional language prefers a manual track, then ASR. Returns typed timed segments by default or one joined text block. start_ms resumes at a segment boundary; returned_chars, total_chars and next_start_ms describe the window. The formatter requests 8k text or ~11.5k segment characters so next_start_ms marks unseen content. A 404 means no captions or an unavailable/live video, not a retry signal. One server call; no client retry.",
+    "Fetch the public transcript of one YouTube video. Supply exactly one video_id or YouTube URL. Without a language the service serves the video's original audio track, then English, then the first manual track. Returns one joined text block by default (the whole transcript in one response, up to 300000 chars) or typed timed segments when timestamps matter. The first line is FULL or PARTIAL with the served and total characters, so a partial read is never mistaken for the whole thing; start_ms resumes at a segment boundary. A 404 means no captions or an unavailable/live video, not a retry signal. One server call; no client retry.",
   promptSnippet:
     "youtube_transcript(video_id|url, language, format, max_chars): one public transcript",
   promptGuidelines: [
     "Use an exact video id or YouTube URL; do not guess a transcript URL.",
     "A no-captions or unavailable 404 is a stable outcome, not an automatic retry.",
     "The structured response keeps every returned segment; the text preview may shorten it.",
-    "To read a long transcript, pass next_start_ms as start_ms; never guess a character offset.",
+    "A PARTIAL first line means more text exists: pass its start_ms to continue, never guess an offset.",
+    "Text is the default and costs ~6x less than segments; request segments only when timestamps are needed.",
   ],
   outputSchema: resultEnvelope(transcriptResponseSchema),
   parameters: Type.Union([

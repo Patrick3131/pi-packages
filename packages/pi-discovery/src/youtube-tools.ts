@@ -7,9 +7,8 @@ import {
   formatYoutubeSearch,
   formatYoutubeTranscript,
   formatYoutubeVideo,
-  TRANSCRIPT_SEGMENT_REQUEST_CHARS,
-  TRANSCRIPT_TEXT_REQUEST_CHARS,
 } from "./youtube-format.js";
+import { transcriptRequestChars } from "./youtube-validation.js";
 import {
   YOUTUBE_NOT_FOUND_CODES,
   type YoutubeChannelParams,
@@ -147,18 +146,15 @@ export async function executeYoutubeTranscript(
   signal?: AbortSignal,
 ): Promise<ToolResult> {
   try {
-    const format = params.format ?? "segments";
-    const budget =
-      format === "text"
-        ? TRANSCRIPT_TEXT_REQUEST_CHARS
-        : TRANSCRIPT_SEGMENT_REQUEST_CHARS;
-    const max_chars = Math.max(
-      1000,
-      Math.min(params.max_chars ?? budget, budget),
-    );
+    const format = params.format ?? "text";
+    const max_chars = params.max_chars ?? transcriptRequestChars(format);
     return successResult(
       formatYoutubeTranscript(
-        await getYoutubeTranscript({ ...params, max_chars }, { signal }),
+        await getYoutubeTranscript(
+          { ...params, format, max_chars },
+          { signal },
+        ),
+        params.language,
       ),
     );
   } catch (error) {
