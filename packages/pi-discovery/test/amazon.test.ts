@@ -649,7 +649,7 @@ test("New Releases text states the byline/date and usage caveats", () => {
   assert.match(formatted.text, /brand: none on New Releases \(no byline\)/);
   assert.match(formatted.text, /\$249\.99/);
   assert.match(formatted.text, /4\.6\/5 \(812 reviews\)/);
-  assert.match(formatted.text, /rank #3/);
+  assert.match(formatted.text, /position #3/);
   assert.match(formatted.text, /https:\/\/www\.amazon\.com\/dp\/B0HQZCTBPW/);
   assert.match(formatted.text, /no byline or date/i);
   assert.match(formatted.text, /cannot date a launch by itself/i);

@@ -69,9 +69,7 @@ function rating(item: {
 
 function itemLines(item: AmazonListingItem, index: number): string[] {
   const position =
-    item.rank_position === null
-      ? ""
-      : `${item.source === "search" ? "position" : "rank"} #${item.rank_position}`;
+    item.rank_position === null ? "" : `position #${item.rank_position}`;
   const sponsored =
     item.sponsored === true
       ? "sponsored"
