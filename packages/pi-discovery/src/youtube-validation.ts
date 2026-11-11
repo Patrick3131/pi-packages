@@ -4,6 +4,11 @@ import {
   YOUTUBE_CHANNEL_VIDEOS,
   YOUTUBE_CURSOR,
   YOUTUBE_DEFAULT_MAX_CHARS,
+  YOUTUBE_DESCRIPTION_CAP,
+  YOUTUBE_LIVE_STATUSES,
+  YOUTUBE_MAX_TAGS,
+  YOUTUBE_MAX_TAG_CHARS,
+  YOUTUBE_MAX_TAGS_TOTAL,
   YOUTUBE_DEFAULT_TIMEOUT_MS,
   YOUTUBE_HANDLE,
   YOUTUBE_LANGUAGE,
@@ -20,6 +25,8 @@ import {
   type YoutubeChannelParams,
   type YoutubeChannelResponse,
   type YoutubeChannelVideo,
+  type YoutubeVideoMetadata,
+  type YoutubeVideoParams,
   type YoutubeSearchItem,
   type YoutubeSearchParams,
   type YoutubeSearchResponse,
@@ -45,6 +52,8 @@ const invalid = (): never => {
 const malformed = (): never => {
   throw new YoutubeClientError("malformed");
 };
+
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -524,6 +533,12 @@ function parseChannelVideo(value: unknown): YoutubeChannelVideo {
     !(value.duration_s === null || isCount(value.duration_s)) ||
     !isNullableText(value.published_text) ||
     (value.published_text !== null && value.published_text.length > 100) ||
+    !(
+      value.published_at === undefined ||
+      value.published_at === null ||
+      (typeof value.published_at === "string" &&
+        ISO_UTC.test(value.published_at))
+    ) ||
     !(value.view_count === null || isCount(value.view_count)) ||
     typeof value.live !== "boolean" ||
     value.thumbnail_url !==
@@ -628,4 +643,88 @@ export function parseYoutubeChannelResponse(
   )
     return malformed();
   return data as unknown as YoutubeChannelResponse;
+}
+
+export function youtubeVideoRequest(
+  params: YoutubeVideoParams,
+): YoutubeRequest {
+  rejectUnknown(params, ["video_id", "url", "timeout_ms"]);
+  const hasId = params.video_id !== undefined;
+  const hasUrl = params.url !== undefined;
+  if (hasId === hasUrl) return invalid();
+  let videoId: string;
+  const selector: Record<string, string> = {};
+  if (hasId) {
+    if (typeof params.video_id !== "string") return invalid();
+    videoId = params.video_id.trim();
+    if (!YOUTUBE_VIDEO_ID.test(videoId)) return invalid();
+    selector.video_id = videoId;
+  } else {
+    if (typeof params.url !== "string") return invalid();
+    videoId = youtubeVideoIdFromUrl(params.url);
+    selector.url = params.url.trim();
+  }
+  const effectiveTimeout = timeout(params.timeout_ms);
+  return {
+    endpoint: "/v1/youtube/video",
+    body: { ...selector, timeout_ms: effectiveTimeout },
+    serverTimeoutMs: effectiveTimeout,
+    resolvedVideoId: videoId,
+  };
+}
+
+function parseVideoMetadata(value: unknown): YoutubeVideoMetadata {
+  if (
+    !isRecord(value) ||
+    typeof value.video_id !== "string" ||
+    !YOUTUBE_VIDEO_ID.test(value.video_id) ||
+    value.url !== `https://www.youtube.com/watch?v=${value.video_id}` ||
+    typeof value.title !== "string" ||
+    value.title.length > 1000 ||
+    typeof value.channel !== "string" ||
+    value.channel.length > 1000 ||
+    !(value.channel_id === null || typeof value.channel_id === "string") ||
+    typeof value.description !== "string" ||
+    value.description.length > YOUTUBE_DESCRIPTION_CAP ||
+    typeof value.description_truncated !== "boolean" ||
+    typeof value.published_at !== "string" ||
+    !ISO_UTC.test(value.published_at) ||
+    !(value.duration_s === null || isCount(value.duration_s)) ||
+    !(value.view_count === null || isCount(value.view_count)) ||
+    !(value.like_count === null || isCount(value.like_count)) ||
+    !(value.comment_count === null || isCount(value.comment_count)) ||
+    typeof value.live !== "boolean" ||
+    !YOUTUBE_LIVE_STATUSES.includes(
+      value.live_status as (typeof YOUTUBE_LIVE_STATUSES)[number],
+    ) ||
+    value.live !== (value.live_status === "live") ||
+    !Array.isArray(value.tags) ||
+    value.tags.length > YOUTUBE_MAX_TAGS ||
+    !value.tags.every(
+      (tag) =>
+        typeof tag === "string" &&
+        tag.length > 0 &&
+        tag.length <= YOUTUBE_MAX_TAG_CHARS,
+    ) ||
+    value.tags.reduce((total: number, tag: string) => total + tag.length, 0) >
+      YOUTUBE_MAX_TAGS_TOTAL ||
+    typeof value.tags_truncated !== "boolean" ||
+    !(value.category_id === null || typeof value.category_id === "string") ||
+    value.thumbnail_url !==
+      `https://i.ytimg.com/vi/${value.video_id}/hqdefault.jpg` ||
+    typeof value.cached !== "boolean" ||
+    value.source !== "youtube_data_api"
+  )
+    return malformed();
+  return value as unknown as YoutubeVideoMetadata;
+}
+
+export function parseYoutubeVideoResponse(
+  data: unknown,
+  resolvedVideoId?: string,
+): YoutubeVideoMetadata {
+  const record = parseVideoMetadata(data);
+  if (resolvedVideoId !== undefined && record.video_id !== resolvedVideoId)
+    return malformed();
+  return record;
 }

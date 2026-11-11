@@ -10,14 +10,18 @@ import {
   type YoutubeSearchResponse,
   type YoutubeTranscriptParams,
   type YoutubeTranscriptResponse,
+  type YoutubeVideoMetadata,
+  type YoutubeVideoParams,
 } from "./youtube-types.js";
 import {
   parseYoutubeChannelResponse,
   parseYoutubeSearchResponse,
   parseYoutubeTranscriptResponse,
+  parseYoutubeVideoResponse,
   youtubeChannelRequest,
   youtubeSearchRequest,
   youtubeTranscriptRequest,
+  youtubeVideoRequest,
   type YoutubeRequest,
 } from "./youtube-validation.js";
 
@@ -36,6 +40,8 @@ const CLIENT_CODE: Record<string, string> = {
   youtube_upstream: "upstream",
   youtube_timeout: "timeout",
   youtube_channel_not_found: "not_found",
+  youtube_video_not_found: "not_found",
+  youtube_metadata_unavailable: "metadata_unavailable",
 };
 
 function serverFailure(response: Response, data: unknown): YoutubeClientError {
@@ -157,6 +163,18 @@ export async function getYoutubeChannel(
 ): Promise<YoutubeChannelResponse> {
   const request = youtubeChannelRequest(params);
   return parseYoutubeChannelResponse(await requestYoutube(request, options));
+}
+
+/** One keyed Data API metadata read; no comments and no transcript. */
+export async function getYoutubeVideo(
+  params: YoutubeVideoParams,
+  options: YoutubeClientOptions = {},
+): Promise<YoutubeVideoMetadata> {
+  const request = youtubeVideoRequest(params);
+  return parseYoutubeVideoResponse(
+    await requestYoutube(request, options),
+    request.resolvedVideoId,
+  );
 }
 
 export { YoutubeClientError } from "./youtube-errors.js";

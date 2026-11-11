@@ -18,12 +18,15 @@ export const YOUTUBE_SERVER_CODES = new Set([
   "youtube_upstream",
   "youtube_timeout",
   "youtube_channel_not_found",
+  "youtube_video_not_found",
+  "youtube_metadata_unavailable",
 ]);
 
 export const YOUTUBE_NOT_FOUND_CODES = new Set([
   "youtube_no_captions",
   "youtube_unavailable",
   "youtube_channel_not_found",
+  "youtube_video_not_found",
 ]);
 
 export const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -35,6 +38,13 @@ export const YOUTUBE_HANDLE = /^@[A-Za-z0-9._-]{3,30}$/;
 export const YOUTUBE_CURSOR = /^[A-Za-z0-9_%=+./-]+$/;
 export const YOUTUBE_MAX_CURSOR = 8192;
 export const YOUTUBE_CHANNEL_VIDEOS = 30;
+export const YOUTUBE_DESCRIPTION_CAP = 5000;
+export const YOUTUBE_MAX_TAGS = 50;
+export const YOUTUBE_MAX_TAG_CHARS = 100;
+export const YOUTUBE_MAX_TAGS_TOTAL = 500;
+export const YOUTUBE_MAX_VIDEO_IDS = 50;
+export const YOUTUBE_LIVE_STATUSES = ["none", "live", "upcoming"] as const;
+export type YoutubeLiveStatus = (typeof YOUTUBE_LIVE_STATUSES)[number];
 export const YOUTUBE_MIN_TIMEOUT_MS = 5000;
 export const YOUTUBE_MAX_TIMEOUT_MS = 30000;
 export const YOUTUBE_DEFAULT_TIMEOUT_MS = 30000;
@@ -156,6 +166,7 @@ export interface YoutubeChannelVideo {
   title: string;
   duration_s: number | null;
   published_text: string | null;
+  published_at?: string | null;
   view_count: number | null;
   live: boolean;
   thumbnail_url: string;
@@ -183,6 +194,36 @@ export interface YoutubeChannelResponse {
   cursor_overflow: boolean;
   cached: boolean;
   [key: string]: unknown;
+}
+
+export interface YoutubeVideoMetadata {
+  video_id: string;
+  url: string;
+  title: string;
+  channel: string;
+  channel_id: string | null;
+  description: string;
+  description_truncated: boolean;
+  published_at: string;
+  duration_s: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  live: boolean;
+  live_status: YoutubeLiveStatus;
+  tags: string[];
+  tags_truncated: boolean;
+  category_id: string | null;
+  thumbnail_url: string;
+  cached: boolean;
+  source: "youtube_data_api";
+  [key: string]: unknown;
+}
+
+export interface YoutubeVideoParams {
+  video_id?: string;
+  url?: string;
+  timeout_ms?: number;
 }
 
 export interface YoutubeChannelParams {

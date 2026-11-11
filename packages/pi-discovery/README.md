@@ -177,18 +177,33 @@ Harness-neutral exports: `getSocialProfile`, `getSocialProfilePosts`,
 `formatSocialPost` and `SocialClientError`. Each accepts injected `env`, `fetch`
 and `AbortSignal` and returns typed API data without TUI dependencies.
 
-## YouTube search, channels and transcripts
+## YouTube search, channels, transcripts and video metadata
 
-Three tools query the server-owned YouTube routes. Pi never contacts YouTube and
-holds no YouTube, residential-proxy, cookie or signer credentials. All three are
-default-on; set `DISCOVERY_YOUTUBE_ENABLED=0` (or false/off/no) or a project
-`.pi/tools.json` false to opt out.
+Four tools query the server-owned YouTube routes. Pi never contacts YouTube and
+holds no YouTube, residential-proxy, cookie, Data API or signer credentials. All
+four are default-on; set `DISCOVERY_YOUTUBE_ENABLED=0` (or false/off/no) or a
+project `.pi/tools.json` false to opt out.
 
 | Tool                 | Route                       | Selection and bounds                                                                                                                          |
 | -------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `youtube_search`     | POST /v1/youtube/search     | query 1–200 chars; max_results 1–20; language/region; timeout_ms 5000–30000                                                                   |
 | `youtube_channel`    | POST /v1/youtube/channel    | exactly one channel_id, handle or strict channel URL initially; or channel_id + cursor; language/region; timeout_ms 5000–30000; no max_videos |
 | `youtube_transcript` | POST /v1/youtube/transcript | exactly one video_id or YouTube URL; language; format segments/text; max_chars 1000–300000; start_ms 0–86400000; timeout_ms 5000–30000        |
+| `youtube_video`      | POST /v1/youtube/video      | exactly one video_id or YouTube URL; timeout_ms 5000–30000; no batch selector                                                                 |
+
+`youtube_video` returns one video's exact ISO 8601 `published_at`, description,
+duration, view/like/comment counts, `live_status`, tags and category. The text
+shows a bounded description preview; structured output keeps the full
+description, and `description_truncated`/`tags_truncated` say when the server
+applied its own cap. It never fetches comments or a transcript. Channel text now
+includes `published_at` for the latest 15 videos and says plainly when a row only
+has relative `published_text`.
+
+The server needs its own YouTube Data API key for this route. Without it the call
+fails with 503 `youtube_metadata_unavailable` and a reason such as
+`data_api_key_missing` or `data_api_quota_exceeded`; that is a server
+configuration/quota condition, not a video-based retry signal, and search,
+channel and transcript keep working.
 
 Search is deliberately one provider page of up to 20 videos: there is no `page`
 or continuation. `captions_advertised` is the provider caption badge, not a
@@ -213,9 +228,11 @@ empty window after the last segment is valid and complete, not malformed.
 `DISCOVERY_YOUTUBE_TIMEOUT_MS` is a 40000 ms floor. Omitted tool timeouts resolve
 to 30000 ms, and the HTTP budget is `max(floor, effective server budget + 10000)`.
 No client retries, waits, rotates sessions or probes health. HTTP 404
-`youtube_no_captions`, `youtube_unavailable` and `youtube_channel_not_found` are
-`status: not_found` with the exact server code and are not retry signals; the
-channel tool uses channel-specific copy. 401 `youtube_disabled`, 429
+`youtube_no_captions`, `youtube_unavailable`, `youtube_channel_not_found` and
+`youtube_video_not_found` are `status: not_found` with the exact server code and
+are not retry signals; the channel and video tools use tool-specific copy. 503
+`youtube_metadata_unavailable` reports the allowlisted reason. 401
+`youtube_disabled`, 429
 `youtube_queue_full`, 502 `youtube_blocked`/`youtube_upstream` and 504
 `youtube_timeout` are error envelopes with the safe reason and Retry-After when
 present. Caller abort stays `AbortError`.
@@ -228,8 +245,9 @@ total and the next `start_ms`; it never re-clips a server window below 12000
 characters or claims that a later page is the beginning of the transcript.
 Native outputSchema/structuredContent keeps the complete response. Harness-neutral
 exports: `searchYoutube`, `getYoutubeChannel`, `getYoutubeTranscript`,
-`formatYoutubeSearch`, `formatYoutubeChannel`, `formatYoutubeTranscript`,
-`YoutubeClientError`, the tool definitions and their parameter/response types.
+`getYoutubeVideo`, `formatYoutubeSearch`, `formatYoutubeChannel`,
+`formatYoutubeTranscript`, `formatYoutubeVideo`, `YoutubeClientError`, the tool
+definitions and their parameter/response types.
 
-The package is `0.8.0`; the three verbs remain separate so intent, cost and
+The package is `0.9.0`; the four verbs remain separate so intent, cost and
 failure surfaces stay explicit.

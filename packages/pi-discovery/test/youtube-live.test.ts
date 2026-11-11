@@ -4,7 +4,9 @@ import { liveEnabled } from "../src/config.js";
 import {
   getYoutubeChannel,
   getYoutubeTranscript,
+  getYoutubeVideo,
   searchYoutube,
+  YoutubeClientError,
 } from "../src/youtube.js";
 
 test(
@@ -47,6 +49,13 @@ test(
         `https://www.youtube.com/watch?v=${video.video_id}`,
       );
     }
+    assert.ok(
+      channel.videos.some((video) => typeof video.published_at === "string"),
+      "the first channel page must carry exact feed dates",
+    );
+    const dated = channel.videos.find(
+      (video) => typeof video.published_at === "string",
+    );
     if (channel.next_cursor !== null) {
       const next = await getYoutubeChannel({
         channel_id: channel.channel.channel_id,
@@ -55,6 +64,24 @@ test(
       assert.equal(next.channel.channel_id, channel.channel.channel_id);
       assert.ok(next.videos.length > 0);
       assert.equal(next.channel.title, null);
+    }
+
+    if (dated) {
+      // The metadata route is key-gated; a keyless deployment is a valid
+      // configuration and must fail with its typed 503, not a generic error.
+      try {
+        const metadata = await getYoutubeVideo({ video_id: dated.video_id });
+        assert.equal(metadata.video_id, dated.video_id);
+        assert.equal(metadata.published_at, dated.published_at);
+        assert.equal(metadata.source, "youtube_data_api");
+        assert.ok(metadata.description.length <= 5000);
+        assert.equal(typeof metadata.live, "boolean");
+        assert.equal(metadata.live, metadata.live_status === "live");
+      } catch (error) {
+        assert.ok(error instanceof YoutubeClientError);
+        assert.equal(error.code, "metadata_unavailable");
+        assert.equal(error.status, 503);
+      }
     }
 
     const segments = await getYoutubeTranscript({

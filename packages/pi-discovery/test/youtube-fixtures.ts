@@ -125,6 +125,7 @@ export const channelResponse = {
       title: "Why consumers behave differently",
       duration_s: 2662,
       published_text: "6 days ago",
+      published_at: "2026-11-04T17:04:42Z",
       view_count: 162,
       live: false,
       thumbnail_url: "https://i.ytimg.com/vi/9K9AL0Sji6U/hqdefault.jpg",
@@ -144,6 +145,29 @@ export const channelResponse = {
   has_more: true,
   cursor_overflow: false,
   cached: false,
+};
+
+export const videoResponse = {
+  video_id: "p48f-kj1U28",
+  url: "https://www.youtube.com/watch?v=p48f-kj1U28",
+  title: "A long interview",
+  channel: "The Consumer Behavior Lab",
+  channel_id: "UCaobKrMmIx40ZE_MGxbqDPA",
+  description: "A long interview about consumer behavior.",
+  description_truncated: false,
+  published_at: "2026-10-28T16:51:31Z",
+  duration_s: 4258,
+  view_count: 405,
+  like_count: 5,
+  comment_count: 0,
+  live: false,
+  live_status: "none",
+  tags: ["consumer", "marketing"],
+  tags_truncated: false,
+  category_id: "24",
+  thumbnail_url: "https://i.ytimg.com/vi/p48f-kj1U28/hqdefault.jpg",
+  cached: false,
+  source: "youtube_data_api",
 };
 
 export const channelTextResponse = {

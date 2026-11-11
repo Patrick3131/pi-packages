@@ -3,10 +3,13 @@ import type {
   YoutubeResultEnvelope,
   YoutubeSearchResponse,
   YoutubeTranscriptResponse,
+  YoutubeVideoMetadata,
 } from "./youtube-types.js";
 
 /** Model-visible text stays bounded; structured output keeps every record. */
 const TEXT_CAP = 12000;
+/** The model sees an excerpt; structured output keeps the full description. */
+const DESCRIPTION_PREVIEW = 1200;
 const LABEL_RESERVE = 240;
 const SEGMENT_PREVIEW = 30;
 export const TRANSCRIPT_TEXT_REQUEST_CHARS = 8000;
@@ -188,7 +191,7 @@ export function formatYoutubeChannel(result: YoutubeChannelResponse): {
     lines.push("Videos:");
     for (const [index, video] of result.videos.entries())
       lines.push(
-        `${index + 1}. ${clip(video.title, 120)} · ${video.video_id} · ${duration(video.duration_s)}${video.live ? " · LIVE" : ""}`,
+        `${index + 1}. ${clip(video.title, 120)} · ${video.video_id} · ${duration(video.duration_s)}${video.live ? " · LIVE" : ""} · ${video.published_at ? `published ${video.published_at}` : `published ${video.published_text ?? "unknown"} (relative provider text, not an exact date)`}`,
       );
   }
   if (result.cursor_overflow)
@@ -206,9 +209,48 @@ export function formatYoutubeChannel(result: YoutubeChannelResponse): {
   );
   const labels = [
     "Structured output keeps the full description, links and every returned video record.",
+    "published_at is exact ISO 8601 from the channel feed and covers only the latest 15 videos; older rows keep a null date and relative published_text.",
   ];
   return {
     text: fit(lines.join("\n"), labels),
+    summary,
+    details: { status: "ok", response: result },
+  };
+}
+
+export function formatYoutubeVideo(result: YoutubeVideoMetadata): {
+  text: string;
+  summary: string;
+  details: YoutubeResultEnvelope<YoutubeVideoMetadata>;
+} {
+  const counts = [
+    `${count(result.view_count)} views`,
+    `${count(result.like_count)} likes`,
+    `${count(result.comment_count)} comments`,
+  ].join(" · ");
+  const summary =
+    `YouTube video ${result.title} · ${result.channel} · published ${result.published_at}` +
+    `${result.cached ? " · cached" : ""}`;
+  const lines = [
+    summary,
+    `Video id: ${result.video_id}`,
+    `Channel: ${result.channel}${result.channel_id ? ` (${result.channel_id})` : ""}`,
+    `Published: ${result.published_at} (exact ISO 8601, UTC) · duration ${duration(result.duration_s)}`,
+    `Counts: ${counts}`,
+    `Live: ${result.live_status}${result.live ? " (live now)" : ""} · category ${result.category_id ?? "unknown"}`,
+    `Tags: ${result.tags.length === 0 ? "none" : result.tags.map((tag) => clip(tag, 40)).join(", ")}${result.tags_truncated ? " … [tags shortened to the server cap]" : ""}`,
+    `Description${result.description_truncated ? " (shortened to 5000 chars)" : ""}:`,
+    result.description.length === 0
+      ? "(empty)"
+      : result.description.length <= DESCRIPTION_PREVIEW
+        ? result.description
+        : `${result.description.slice(0, DESCRIPTION_PREVIEW)}… [preview shortened; structured output keeps the full description]`,
+  ];
+  return {
+    text: fit(lines.join("\n"), [
+      "Structured output keeps every metadata field and the full description; comments and transcripts are never fetched here.",
+      "Call youtube_transcript separately for one chosen video_id.",
+    ]),
     summary,
     details: { status: "ok", response: result },
   };

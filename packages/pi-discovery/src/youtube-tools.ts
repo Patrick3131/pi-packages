@@ -6,6 +6,7 @@ import {
   formatYoutubeChannel,
   formatYoutubeSearch,
   formatYoutubeTranscript,
+  formatYoutubeVideo,
   TRANSCRIPT_SEGMENT_REQUEST_CHARS,
   TRANSCRIPT_TEXT_REQUEST_CHARS,
 } from "./youtube-format.js";
@@ -15,16 +16,19 @@ import {
   type YoutubeSearchParams,
   type YoutubeTranscriptParams,
   type YoutubeResultEnvelope,
+  type YoutubeVideoParams,
 } from "./youtube-types.js";
 import {
   getYoutubeChannel,
   getYoutubeTranscript,
+  getYoutubeVideo,
   searchYoutube,
 } from "./youtube.js";
 import {
   youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
+  youtubeVideoDefinition,
 } from "./youtube-definitions.js";
 
 type Structured = NonNullable<
@@ -37,11 +41,40 @@ export {
   youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
+  youtubeVideoDefinition,
 } from "./youtube-definitions.js";
+
+function failureText(
+  error: YoutubeClientError,
+  status: "not_found" | "error",
+  kind: "transcript" | "channel" | "video",
+): string {
+  if (error.code === "metadata_unavailable")
+    return "YouTube video metadata is unavailable on the server: the Data API key is missing, revoked, forbidden or its daily quota is exhausted. This is not a video-based retry signal; search, channel and transcript stay available.";
+  if (status === "not_found" && kind === "video")
+    return "No public video metadata was found for this id. It may be private, deleted or region-blocked; this is not a retry signal.";
+  if (status === "not_found" && kind === "channel")
+    return "No public channel was found for this selector. This is not a retry signal; check the channel id, handle or URL.";
+  if (status === "not_found")
+    return `No public transcript is available for this video (${error.serverCode}). This is not a retry signal and is not proof that the video is private.`;
+  if (error.code === "disabled")
+    return "YouTube acquisition is disabled by the server gate.";
+  if (error.code === "queue_full")
+    return "YouTube acquisition capacity is full; this client does not retry.";
+  if (error.code === "blocked")
+    return `YouTube acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). This client does not retry.`;
+  if (error.code === "timeout")
+    return "YouTube acquisition exceeded the server deadline.";
+  if (error.code === "malformed")
+    return "The YouTube endpoint returned a malformed success response.";
+  if (error.code === "transport")
+    return "The YouTube endpoint could not be reached.";
+  return `YouTube request failed (${error.code}).`;
+}
 
 function failureResult(
   error: YoutubeClientError,
-  kind: "transcript" | "channel" = "transcript",
+  kind: "transcript" | "channel" | "video" = "transcript",
 ): ToolResult {
   const status = YOUTUBE_NOT_FOUND_CODES.has(error.serverCode ?? "")
     ? "not_found"
@@ -55,24 +88,7 @@ function failureResult(
   ]
     .filter(Boolean)
     .join(" ");
-  const text =
-    status === "not_found" && kind === "channel"
-      ? "No public channel was found for this selector. This is not a retry signal; check the channel id, handle or URL."
-      : status === "not_found"
-        ? `No public transcript is available for this video (${error.serverCode}). This is not a retry signal and is not proof that the video is private.`
-        : error.code === "disabled"
-          ? "YouTube acquisition is disabled by the server gate."
-          : error.code === "queue_full"
-            ? "YouTube acquisition capacity is full; this client does not retry."
-            : error.code === "blocked"
-              ? `YouTube acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). This client does not retry.`
-              : error.code === "timeout"
-                ? "YouTube acquisition exceeded the server deadline."
-                : error.code === "malformed"
-                  ? "The YouTube endpoint returned a malformed success response."
-                  : error.code === "transport"
-                    ? "The YouTube endpoint could not be reached."
-                    : `YouTube request failed (${error.code}).`;
+  const text = failureText(error, status, kind);
   const details: YoutubeResultEnvelope<never> = {
     status,
     error: {
@@ -166,6 +182,21 @@ export async function executeYoutubeChannel(
   }
 }
 
+/** One keyed Data API metadata read; never comments and never a transcript. */
+export async function executeYoutubeVideo(
+  params: YoutubeVideoParams,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
+  try {
+    return successResult(
+      formatYoutubeVideo(await getYoutubeVideo(params, { signal })),
+    );
+  } catch (error) {
+    if (!(error instanceof YoutubeClientError)) throw error;
+    return failureResult(error, "video");
+  }
+}
+
 export function registerYoutube(pi: ExtensionAPI): void {
   const defaultActive = isYoutubeEnabledByEnv();
   pi.registerTool({
@@ -189,6 +220,19 @@ export function registerYoutube(pi: ExtensionAPI): void {
         params as unknown as YoutubeTranscriptParams,
         signal,
       ),
+    renderResult(result, { expanded }) {
+      const text = result.content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n");
+      return new Text(expanded ? text : text.split("\n")[0], 0, 0);
+    },
+  });
+  pi.registerTool({
+    ...youtubeVideoDefinition,
+    defaultActive,
+    execute: async (_id, params, signal) =>
+      executeYoutubeVideo(params as unknown as YoutubeVideoParams, signal),
     renderResult(result, { expanded }) {
       const text = result.content
         .filter((c) => c.type === "text")

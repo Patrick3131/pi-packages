@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   getYoutubeChannel,
   getYoutubeTranscript,
+  getYoutubeVideo,
   searchYoutube,
   YoutubeClientError,
 } from "../src/youtube.js";
@@ -13,6 +14,8 @@ import {
   youtubeChannelRequest,
   youtubeSearchRequest,
   youtubeTranscriptRequest,
+  youtubeVideoRequest,
+  parseYoutubeVideoResponse,
 } from "../src/youtube-validation.js";
 import {
   formatYoutubeSearch,
@@ -23,6 +26,7 @@ import {
   segmentResponse,
   searchResponse,
   textResponse,
+  videoResponse,
   recordingFetch,
 } from "./youtube-fixtures.js";
 
@@ -668,4 +672,86 @@ test("model-visible search and transcript output is bounded and explicit", () =>
   assert.ok(bounded.text.length <= 12000);
   assert.match(bounded.text, /Text previews shortened/);
   assert.deepEqual(bounded.details.response, huge);
+});
+
+test("video request resolves one selector and never sends a batch", () => {
+  const byId = youtubeVideoRequest({ video_id: "p48f-kj1U28" });
+  assert.equal(byId.endpoint, "/v1/youtube/video");
+  assert.deepEqual(byId.body, { video_id: "p48f-kj1U28", timeout_ms: 30000 });
+  assert.equal(byId.resolvedVideoId, "p48f-kj1U28");
+  const byUrl = youtubeVideoRequest({ url: "https://youtu.be/p48f-kj1U28" });
+  assert.deepEqual(byUrl.body, {
+    url: "https://youtu.be/p48f-kj1U28",
+    timeout_ms: 30000,
+  });
+  assert.equal(byUrl.resolvedVideoId, "p48f-kj1U28");
+  for (const params of [
+    {},
+    { video_id: "p48f-kj1U28", url: "https://youtu.be/p48f-kj1U28" },
+    { video_id: "short" },
+    { url: "https://evil.example/watch?v=p48f-kj1U28" },
+    { video_id: "p48f-kj1U28", timeout_ms: 4999 },
+    { video_id: "p48f-kj1U28", timeout_ms: 30001 },
+    { video_ids: ["p48f-kj1U28"] },
+    { video_id: "p48f-kj1U28", language: "de" },
+  ])
+    assert.throws(() => youtubeVideoRequest(params as never), invalidRequest);
+});
+
+test("video response parsing enforces the wire contract", () => {
+  assert.equal(
+    parseYoutubeVideoResponse(videoResponse, "p48f-kj1U28").published_at,
+    "2026-10-28T16:51:31Z",
+  );
+  const broken = [
+    { ...videoResponse, published_at: "2026-10-28" },
+    { ...videoResponse, live_status: "none", live: true },
+    { ...videoResponse, live_status: "weird" },
+    { ...videoResponse, description: "d".repeat(5001) },
+    { ...videoResponse, tags: Array.from({ length: 51 }, () => "t") },
+    { ...videoResponse, tags: ["x".repeat(101)] },
+    { ...videoResponse, source: "innertube" },
+    { ...videoResponse, thumbnail_url: "https://evil.example/x.jpg" },
+    { ...videoResponse, url: "https://www.youtube.com/watch?v=AAAAAAAAAAA" },
+  ];
+  for (const value of broken)
+    assert.throws(() => parseYoutubeVideoResponse(value), malformed);
+  assert.throws(
+    () => parseYoutubeVideoResponse(videoResponse, "AAAAAAAAAAA"),
+    malformed,
+  );
+});
+
+test("getYoutubeVideo sends one request and no client retry", async (t) => {
+  const { calls, fetch } = recordingFetch(videoResponse);
+  t.mock.method(globalThis, "fetch", fetch);
+  const result = await getYoutubeVideo({ video_id: "p48f-kj1U28" });
+  assert.equal(result.published_at, "2026-10-28T16:51:31Z");
+  assert.deepEqual(calls[0]?.body, {
+    video_id: "p48f-kj1U28",
+    timeout_ms: 30000,
+  });
+  assert.equal(calls.length, 1);
+});
+
+test("channel parsing accepts a nullable published_at and rejects garbage", () => {
+  const parsed = parseYoutubeChannelResponse(channelResponse);
+  assert.equal(parsed.videos[0]?.published_at, "2026-11-04T17:04:42Z");
+  assert.equal(parsed.videos[1]?.published_at, undefined);
+  for (const published_at of ["yesterday", 42, "2026-11-04"])
+    assert.throws(
+      () =>
+        parseYoutubeChannelResponse({
+          ...channelResponse,
+          videos: [{ ...channelResponse.videos[0], published_at }],
+        }),
+      malformed,
+    );
+  const legacy = parseYoutubeChannelResponse({
+    ...channelResponse,
+    videos: channelResponse.videos.map(
+      ({ published_at: _omit, ...rest }) => rest,
+    ),
+  });
+  assert.equal(legacy.videos[0]?.published_at, undefined);
 });

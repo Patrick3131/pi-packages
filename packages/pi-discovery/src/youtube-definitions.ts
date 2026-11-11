@@ -92,6 +92,36 @@ const transcriptResponseSchema = Type.Object(
   { additionalProperties: true },
 );
 
+const videoMetadataSchema = Type.Object(
+  {
+    video_id: Type.String(),
+    url: Type.String(),
+    title: Type.String(),
+    channel: Type.String(),
+    channel_id: nullableText,
+    description: Type.String({ maxLength: 5000 }),
+    description_truncated: Type.Boolean(),
+    published_at: Type.String(),
+    duration_s: nullableCount,
+    view_count: nullableCount,
+    like_count: nullableCount,
+    comment_count: nullableCount,
+    live: Type.Boolean(),
+    live_status: Type.Union([
+      Type.Literal("none"),
+      Type.Literal("live"),
+      Type.Literal("upcoming"),
+    ]),
+    tags: Type.Array(Type.String(), { maxItems: 50 }),
+    tags_truncated: Type.Boolean(),
+    category_id: nullableText,
+    thumbnail_url: Type.String(),
+    cached: Type.Boolean(),
+    source: Type.Literal("youtube_data_api"),
+  },
+  { additionalProperties: true },
+);
+
 const aboutLinkSchema = Type.Object(
   { title: Type.String(), url: Type.String() },
   { additionalProperties: true },
@@ -113,6 +143,7 @@ const channelVideoSchema = Type.Object(
     title: Type.String(),
     duration_s: nullableCount,
     published_text: nullableText,
+    published_at: Type.Optional(nullableText),
     view_count: nullableCount,
     live: Type.Boolean(),
     thumbnail_url: Type.String(),
@@ -327,4 +358,30 @@ export const youtubeChannelDefinition = {
     },
     { additionalProperties: false },
   ),
+};
+
+export const youtubeVideoDefinition = {
+  name: "youtube_video",
+  label: "YouTube video metadata",
+  description:
+    "Read one public YouTube video's metadata: exact ISO 8601 published_at, description, duration, view/like/comment counts, live status, tags and category. Supply exactly one video_id or YouTube URL. The text shows a bounded description preview; structured output keeps the full description. This tool never fetches comments or a transcript, and there is no batch mode. A 404 youtube_video_not_found is a stable outcome; 503 youtube_metadata_unavailable means the server has no Data API key or its quota/auth failed. One server call; no client retry.",
+  promptSnippet:
+    "youtube_video(video_id|url): one video's exact date, description and counts",
+  promptGuidelines: [
+    "Use youtube_video when exact publish dates, descriptions or counts matter; do not scrape watch pages or use yt-dlp.",
+    "published_at is the provider's exact UTC timestamp; do not replace it with a relative label.",
+    "Fetch comments or transcripts with a separate tool; this tool never returns them.",
+    "Treat 503 youtube_metadata_unavailable as a server configuration/quota condition, not a retry signal from this client.",
+  ],
+  outputSchema: resultEnvelope(videoMetadataSchema),
+  parameters: Type.Union([
+    Type.Object(
+      { video_id: videoIdField, timeout_ms: timeoutField },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      { url: videoUrlField, timeout_ms: timeoutField },
+      { additionalProperties: false },
+    ),
+  ]),
 };

@@ -7,13 +7,17 @@ import {
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
 } from "../src/youtube-tools.js";
-import { formatYoutubeChannel } from "../src/youtube-format.js";
+import {
+  formatYoutubeChannel,
+  formatYoutubeVideo,
+} from "../src/youtube-format.js";
 import {
   channelResponse,
   recordingFetch,
   searchResponse,
   segmentResponse,
   textResponse,
+  videoResponse,
 } from "./youtube-fixtures.js";
 
 type Registered = {
@@ -82,7 +86,7 @@ function text(result: {
     .join("\n");
 }
 
-test("registers three YouTube tools enabled by default with an explicit opt-out", () => {
+test("registers four YouTube tools enabled by default with an explicit opt-out", () => {
   const registered = register();
   assert.deepEqual(
     registered.map((tool) => tool.name),
@@ -94,6 +98,7 @@ test("registers three YouTube tools enabled by default with an explicit opt-out"
       "social_post",
       "youtube_search",
       "youtube_transcript",
+      "youtube_video",
       "youtube_channel",
       "web_search_searxng",
       "web_answer",
@@ -395,4 +400,107 @@ test("collapsed TUI renders one summary line and expanded uses text content", as
   assert.equal(collapsed.render(100).length, 1);
   const expanded = tool.renderResult(result, { expanded: true });
   assert.ok(expanded.render(100).length > 1);
+});
+
+test("video metadata returns the full contract and structured schema", async (t) => {
+  const fetchMock = t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify(videoResponse)),
+  );
+  const tool = youtube(register(), "youtube_video");
+  const result = await tool.execute("call", { video_id: "p48f-kj1U28" });
+  assert.equal(result.isError, false);
+  const details = result.details as {
+    status: string;
+    response: typeof videoResponse;
+  };
+  assert.equal(details.status, "ok");
+  assert.deepEqual(details.response, videoResponse);
+  assert.ok(
+    Check(tool.outputSchema as never, result.structuredContent as never),
+  );
+  assert.match(text(result), /2026-10-28T16:51:31Z/);
+  assert.match(text(result), /405 views/);
+  assert.match(text(result), /long interview about consumer behavior/);
+  assert.match(text(result), /never fetched here/);
+  assert.equal(fetchMock.mock.callCount(), 1);
+});
+
+test("video metadata accepts a URL selector and stays one request", async (t) => {
+  const fetchMock = t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify(videoResponse)),
+  );
+  const tool = youtube(register(), "youtube_video");
+  const result = await tool.execute("call", {
+    url: "https://youtu.be/p48f-kj1U28",
+  });
+  assert.equal(result.isError, false);
+  assert.match(text(result), /p48f-kj1U28/);
+  assert.equal(fetchMock.mock.callCount(), 1);
+});
+
+test("video metadata preview is bounded while structured output keeps all", () => {
+  const long = { ...videoResponse, description: "d".repeat(5000) };
+  const formatted = formatYoutubeVideo(long as never);
+  assert.ok(formatted.text.length <= 12000);
+  assert.match(formatted.text, /preview shortened/);
+  assert.equal(
+    (formatted.details.response as typeof videoResponse).description.length,
+    5000,
+  );
+});
+
+test("video not found and metadata-unavailable use distinct copy", async (t) => {
+  const cases = [
+    ["youtube_video_not_found", 404, /No public video metadata was found/],
+    [
+      "youtube_metadata_unavailable",
+      503,
+      /Data API key is missing, revoked, forbidden or its daily quota is exhausted/,
+    ],
+  ] as const;
+  for (const [code, status, pattern] of cases) {
+    t.mock.method(
+      globalThis,
+      "fetch",
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code, message: "safe", request_id: "r" },
+          }),
+          { status },
+        ),
+    );
+    const tool = youtube(register(), "youtube_video");
+    const result = await tool.execute("call", { video_id: "p48f-kj1U28" });
+    assert.equal(result.isError, status === 503);
+    assert.match(text(result), pattern);
+  }
+});
+
+test("video parameters reject mixed selectors before dispatch", async (t) => {
+  const fetchMock = t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response("{}"),
+  );
+  const tool = youtube(register(), "youtube_video");
+  const result = await tool.execute("call", {
+    video_id: "p48f-kj1U28",
+    url: "https://youtu.be/p48f-kj1U28",
+  });
+  assert.equal(result.isError, true);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("channel text shows exact dates and labels relative-only rows", () => {
+  const formatted = formatYoutubeChannel(channelResponse);
+  assert.match(formatted.text, /published 2026-11-04T17:04:42Z/);
+  assert.match(
+    formatted.text,
+    /published 13 days ago \(relative provider text, not an exact date\)/,
+  );
 });
