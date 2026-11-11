@@ -86,6 +86,7 @@ test(
 
     const segments = await getYoutubeTranscript({
       video_id: "dQw4w9WgXcQ",
+      format: "segments",
       max_chars: 1000,
     });
     assert.equal(segments.video_id, "dQw4w9WgXcQ");
@@ -101,6 +102,7 @@ test(
     ) {
       const following = await getYoutubeTranscript({
         video_id: "dQw4w9WgXcQ",
+        format: "segments",
         max_chars: 1000,
         start_ms: segments.next_start_ms,
       });
@@ -109,6 +111,13 @@ test(
         (following.returned_chars ?? 0) <= (following.total_chars ?? 0),
       );
     }
+
+    // A default text request asks for the whole transcript in one call.
+    const whole = await getYoutubeTranscript({ video_id: "dQw4w9WgXcQ" });
+    assert.equal(typeof whole.text, "string");
+    assert.ok((whole.text ?? "").length > 0);
+    if (whole.next_start_ms === null || whole.next_start_ms === undefined)
+      assert.equal(whole.returned_chars, whole.total_chars);
 
     const text = await getYoutubeTranscript({
       url: "https://youtu.be/dQw4w9WgXcQ",
