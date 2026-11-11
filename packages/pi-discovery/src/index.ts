@@ -1,4 +1,5 @@
 import { registerAdLibrary } from "./ad-library-tools.js";
+import { registerAmazon } from "./amazon-tools.js";
 import { registerSocial } from "./social-tools.js";
 import { registerYoutube } from "./youtube-tools.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -18,6 +19,7 @@ import {
 
 export default function discovery(pi: ExtensionAPI): void {
   registerAdLibrary(pi);
+  registerAmazon(pi);
   registerSocial(pi);
   registerYoutube(pi);
   pi.registerTool({

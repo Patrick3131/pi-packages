@@ -1,4 +1,5 @@
 import { WebAnswerClientError } from "./answer-errors.js";
+import { AMAZON_DEFAULT_HTTP_TIMEOUT_MS } from "./amazon-types.js";
 import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "./types.js";
 
 export function isSearxngEnabledByEnv(
@@ -170,5 +171,34 @@ export function resolveYoutubeConfig(env: NodeJS.ProcessEnv = process.env): {
     timeoutMs > 2147483647
   )
     throw new Error("Invalid YouTube timeout.");
+  return { baseUrl, timeoutMs };
+}
+
+/** Amazon tools are off by default; enable with DISCOVERY_AMAZON_ENABLED=1/true. */
+export function isAmazonEnabledByEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return ["1", "true"].includes(
+    env.DISCOVERY_AMAZON_ENABLED?.trim().toLowerCase() ?? "",
+  );
+}
+
+export function resolveAmazonConfig(env: NodeJS.ProcessEnv = process.env): {
+  baseUrl: string;
+  timeoutMs: number;
+} {
+  const baseUrl = resolveDiscoveryConfig({
+    ...env,
+    DISCOVERY_WEB_ANSWER_TIMEOUT_MS: "310000",
+  }).baseUrl;
+  const timeoutMs = Number(
+    env.DISCOVERY_AMAZON_TIMEOUT_MS ?? AMAZON_DEFAULT_HTTP_TIMEOUT_MS,
+  );
+  if (
+    !Number.isSafeInteger(timeoutMs) ||
+    timeoutMs <= 0 ||
+    timeoutMs > 2147483647
+  )
+    throw new Error("Invalid Amazon timeout.");
   return { baseUrl, timeoutMs };
 }

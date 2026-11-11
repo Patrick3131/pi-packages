@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-10-23
+last_verified: 2026-11-11
 applies_to: packages/pi-discovery/**
 inherits_from: ../../CONTEXT.md
 canonical_for: pi-discovery architecture
@@ -21,6 +21,10 @@ src/youtube-validation.ts selector, URL and wire-response validation
 src/youtube.ts          POST /v1/youtube/{search,transcript} clients
 src/youtube-format.ts   bounded model-visible YouTube text
 src/youtube-tools.ts    native YouTube tools and output schema
+src/amazon-validation.ts selector, request and wire-response validation
+src/amazon.ts           POST /v1/amazon/{new-releases,search,product} clients
+src/amazon-format.ts    bounded model-visible Amazon text
+src/amazon-tools.ts     native Amazon tools and output schema
 src/index.ts            register every tool with native defaultActive
 ```
 

@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-10-23
+last_verified: 2026-11-11
 applies_to: packages/pi-discovery/**
 inherits_from: ../../AGENTS.md
 canonical_for: pi-discovery package conventions
@@ -10,18 +10,21 @@ canonical_for: pi-discovery package conventions
 
 ## Purpose
 
-Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata and YouTube tools.
+Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata, YouTube and Amazon tools.
 
 ## Rules
 
-  `ad_library_domain_ads`, `social_profile`, `social_profile_posts`,
-  `social_post`, `youtube_search` and `youtube_transcript`. Every provider-backed tool talks only to the discovery API; no provider secrets.
+`ad_library_domain_ads`, `social_profile`, `social_profile_posts`,
+`social_post`, `youtube_search`, `youtube_transcript`, `amazon_new_releases`,
+`amazon_search` and `amazon_product`. Every provider-backed tool talks only to the discovery API; no provider secrets.
+
 - Social tools support Instagram and TikTok. Send exactly one selector, never a
   caller-built upstream URL, and keep canonical URL validation mirrored between
   client and service. Keep TikTok nullable/metrics semantics intact.
 - Do not add `web_fetch`, Brave API search, or xAI search.
 - Default tools **off**, except the YouTube tools, which ship on and accept an
-  explicit `DISCOVERY_YOUTUBE_ENABLED=0/false` opt-out.
+  explicit `DISCOVERY_YOUTUBE_ENABLED=0/false` opt-out; Amazon tools default off
+  and need `DISCOVERY_AMAZON_ENABLED=1`.
 - Default URL is the VPN bind, not localhost.
 - Default engines are `brave,duckduckgo`.
 - Keep MIT attribution to `pi-searxng-search`.

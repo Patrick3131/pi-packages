@@ -98,6 +98,9 @@ test("registers the social tools alongside default-on YouTube tools", () => {
     [
       "ad_library_keyword_ads",
       "ad_library_domain_ads",
+      "amazon_new_releases",
+      "amazon_search",
+      "amazon_product",
       "social_profile",
       "social_profile_posts",
       "social_post",

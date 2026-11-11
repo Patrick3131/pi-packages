@@ -1,9 +1,10 @@
 # pi-discovery
 
 Direct SearXNG search (`web_search_searxng`), server-owned Luna research
-(`web_answer`), Meta Ad Library, Instagram/TikTok public metadata, and YouTube
-search/channels/transcripts. Search, answer, Ad Library and social tools default off; the
-YouTube tools default on. All tools use Pi's native defaultActive policy.
+(`web_answer`), Meta Ad Library, Instagram/TikTok public metadata, YouTube
+search/channels/transcripts, and Amazon New Releases/search/product detail.
+Search, answer, Ad Library, social and Amazon tools default off; the YouTube
+tools default on. All tools use Pi's native defaultActive policy.
 Enable the default-off tools with project `.pi/tools.json`, explicit host
 selection or env defaults:
 
@@ -253,5 +254,76 @@ exports: `searchYoutube`, `getYoutubeChannel`, `getYoutubeTranscript`,
 `formatYoutubeTranscript`, `formatYoutubeVideo`, `YoutubeClientError`, the tool
 definitions and their parameter/response types.
 
-The package is `0.10.0`; the four verbs remain separate so intent, cost and
+The package is `0.11.0`; the provider verbs remain separate so intent, cost and
 failure surfaces stay explicit.
+
+## Amazon New Releases, newest search and product detail
+
+Three default-off tools query the server-owned Amazon routes. Pi never contacts
+Amazon and holds no Amazon, proxy or cookie credentials; the discovery API is a
+private/VPN service, so the `DISCOVERY_BASE_URL` origin must be reachable over
+the VPN. Enable the client tools with `DISCOVERY_AMAZON_ENABLED=1` (or `true`)
+or a project `.pi/tools.json` true; the server's own `AMAZON_ENABLED` gate
+defaults false and stays authoritative, and a disabled server returns a typed
+`amazon_disabled` error.
+
+| Tool                  | Route                        | Selection and bounds                                                                                                            |
+| --------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `amazon_new_releases` | POST /v1/amazon/new-releases | node: department slug (`baby-products`) or slug/numeric; page 1–5; timeout_ms 5000–60000 (default 30000)                        |
+| `amazon_search`       | POST /v1/amazon/search       | keyword 1–120; node: numeric browse node or slug/numeric only; page 1–5; sort newest (default)/relevance; timeout_ms 5000–60000 |
+| `amazon_product`      | POST /v1/amazon/product      | asin: 10 characters, canonicalized to upper case; timeout_ms 5000–60000                                                         |
+
+| Configuration               | Default            |
+| --------------------------- | ------------------ |
+| DISCOVERY_AMAZON_ENABLED    | false              |
+| DISCOVERY_AMAZON_TIMEOUT_MS | 40000 (HTTP floor) |
+
+`DISCOVERY_AMAZON_TIMEOUT_MS` is a 40000 ms floor. Omitted tool timeouts resolve
+to 30000 ms and the HTTP budget is `max(floor, effective server budget + 10000)`.
+A bare department slug is rejected for `amazon_search`: Amazon's `rh=n:` filter
+needs a numeric browse node, so a slug would be silently ignored. Each call is
+exactly one HTTP exchange to exactly one route: no client retries, no wait, no
+session rotation, no health probe. Caller abort always wins and stays
+`AbortError`.
+
+All responses carry `schema_version: "amazon.v1"` and a per-call
+`usage: {decoded_bytes, wire_bytes, wire_estimated, requests}` (plus
+optional `wire_incomplete`); a cache hit
+reports `cached: true` with zero requests and zero wire bytes. Usage is per call,
+so sum it across pages. The one-time server bootstrap (~175 KB) is charged only
+to the call that performs it and is included in that call's usage. Measured
+pages are ~119 KB (New Releases), ~242 KB (search) and ~345–409 KB (product).
+Listings return up to 60 items with `asin`, `title`, `brand`, `price`,
+`price_amount`, `currency`, `rating`, `review_count`, `rank_position`, `badge`,
+`sponsored`, `image_url`, `product_url`, `node`, `source` and `fetched_at`.
+Product responses add `brand`, `manufacturer`, `seller_name`, `sold_by_amazon`,
+`date_first_available`, `release_date`, `variation_parent_asin`,
+`variation_count`, `category_path`, `best_sellers_rank`, `bullet_points`,
+`has_brand_store`, `has_video`, `subscription_available` and `warnings`.
+
+Two caveats belong to the data, not the transport. New Releases has no byline or
+date: `brand` is usually null and no launch date is present, so diff successive
+sweeps for new ASINs instead of dating a launch from the listing. Newest-sorted
+search orders churn between sweeps, so it is discovery only and never a launch
+signal. `date_first_available` is sparse provider evidence — brand-new ASINs
+usually omit it — so combine first-seen sweep diffs with it, collapse variations
+via `variation_parent_asin`/`variation_count` before counting brands, and enrich
+only the ASINs that came from a listing.
+
+Errors are one fixed table: 400 `amazon_invalid_request`; 401 `amazon_disabled`;
+404 `amazon_not_found` (`delisted`); 429 `amazon_queue_full` with `Retry-After: 1`;
+502 `amazon_blocked` (`browser_check`, `captcha`, `rate_limited`, `http_<status>`,
+`transport`, `proxy_missing`, `proxy_unavailable`) or `amazon_upstream` (`layout_change`, `schema`,
+`body_too_large`, `empty_page`, `http_<status>`); 504 `amazon_timeout`
+(`deadline`). A 407 response or a CONNECT 407 is `proxy_unavailable`, never
+Amazon's own status. 404 is `status: not_found` and is not a retry signal; 401/429/502/504
+are error envelopes with the sanitized reason, request id and per-call usage, and
+any `Retry-After` is advisory only — this client never retries or waits.
+Model-visible text is bounded to 12000 characters and states the New Releases
+and search caveats, the sparse `date_first_available` evidence, the cached flag
+and the per-call usage bytes/requests (including `wire_incomplete` when the
+server flags it). Native outputSchema/structuredContent keeps every returned
+record, bullet, rank, warning and additive server field. Harness-neutral exports:
+`newAmazonReleases`, `searchAmazon`, `getAmazonProduct`, `formatAmazonListing`,
+`formatAmazonProduct`, `AmazonClientError`, the tool definitions and their
+parameter/response types.
