@@ -154,7 +154,7 @@ export function formatAmazonListing(
         ? "Relevance-sorted search returns one bounded provider page (pages 1–5), not a launch signal; use New Releases for sweep diffs."
         : "Newest-sorted search is discovery only, not a launch signal: its order churns between sweeps and the returned rows are one bounded provider page (pages 1–5). Use New Releases for sweep diffs.",
     "Listing position, price and rating are snapshots of the returned page and may be missing or stale; position is not a sales rank.",
-    "This client makes exactly one request per call and never retries, waits or probes health; usage is per call, so sum it across calls.",
+    "This client makes exactly one HTTP exchange per call and never retries, waits or probes health; usage.requests counts server upstream dispatches, so sum usage across calls.",
     preview.length < result.items.length
       ? `Text previews shortened: showing ${preview.length}/${result.items.length} items; structured output keeps every returned record.`
       : "Structured output keeps every returned record and any additive server fields.",
