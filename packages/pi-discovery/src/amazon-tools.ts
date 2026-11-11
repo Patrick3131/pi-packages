@@ -49,7 +49,7 @@ function failureText(
     case "queue_full":
       return "Amazon acquisition capacity is full; this client does not retry.";
     case "blocked":
-      return `Amazon acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). This client does not retry.`;
+      return `Amazon acquisition was blocked by the provider or proxy (${error.serverCode ?? "blocked"}). A later identical call may still succeed; this client never retries on its own.`;
     case "upstream":
       return error.reason
         ? `The Amazon upstream failed (${error.reason}); the page may have changed layout or returned an unusable body.`
@@ -72,15 +72,26 @@ function failureResult(
   const status = AMAZON_NOT_FOUND_CODES.has(error.serverCode ?? "")
     ? "not_found"
     : "error";
+  const usageText = error.usage
+    ? [
+        error.usage.wire_estimated
+          ? `~${error.usage.wire_bytes} wire bytes (gzip estimate)`
+          : `${error.usage.wire_bytes} wire bytes`,
+        `${error.usage.decoded_bytes} decoded bytes`,
+        `${error.usage.requests} request${error.usage.requests === 1 ? "" : "s"}`,
+        error.usage.wire_incomplete ? "(incomplete)" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
   const suffix = [
     error.serverCode ? `Server code: ${error.serverCode}.` : "",
     error.reason ? `Reason: ${error.reason}.` : "",
     error.retryAfterMs
       ? `Advisory retry after ${Math.ceil(error.retryAfterMs / 1000)} s; this client does not retry or wait.`
       : "",
-    error.usage
-      ? `Usage for this call: ${error.usage.wire_bytes} wire bytes, ${error.usage.requests} requests.`
-      : "",
+    error.requestId ? `Request ID: ${error.requestId}.` : "",
+    usageText ? `Usage for this call: ${usageText}.` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -138,14 +149,16 @@ export async function executeAmazonNewReleases(
   }
 }
 
-/** One newest-sorted search page. */
+/** One search page; sort is supplied to the formatter for honest copy. */
 export async function executeAmazonSearch(
   params: AmazonSearchParams,
   signal?: AbortSignal,
 ): Promise<ToolResult> {
   try {
     return successResult(
-      formatAmazonListing(await searchAmazon(params, { signal })),
+      formatAmazonListing(await searchAmazon(params, { signal }), {
+        sort: params.sort ?? "newest",
+      }),
     );
   } catch (error) {
     if (!(error instanceof AmazonClientError)) throw error;

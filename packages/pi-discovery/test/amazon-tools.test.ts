@@ -180,6 +180,23 @@ test("search success keeps usage and the discovery-only caveat", async (t) => {
   assert.match(text(result), /discovery only, not a launch signal/i);
   assert.match(text(result), /241000 decoded bytes · 1 request/);
 });
+test("search passes relevance sort into the visible text", async (t) => {
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response(JSON.stringify(searchResponse)),
+  );
+  const tool = amazon(register(), "amazon_search");
+  const result = await tool.execute("call", {
+    keyword: "baby stroller",
+    sort: "relevance",
+  });
+  assert.equal(result.isError, false);
+  assert.match(text(result), /Amazon relevance-sorted search/);
+  assert.doesNotMatch(text(result), /newest-sorted search/);
+  assert.doesNotMatch(text(result), /order churns/);
+  assert.match(text(result), /not a launch signal/);
+});
 
 test("cached listings report zero usage and stay schema-valid", async (t) => {
   t.mock.method(
@@ -288,6 +305,7 @@ test("product not_found uses ASIN-specific guidance", async (t) => {
   assert.equal((result.details as { status: string }).status, "not_found");
   assert.match(text(result), /No public Amazon product page was found/);
   assert.doesNotMatch(text(result), /listing page/);
+  assert.match(text(result), /Request ID: r/);
   assert.match(text(result), /Reason: delisted/);
 });
 
@@ -351,6 +369,10 @@ test("disabled, blocked, queue, timeout and malformed failures are error envelop
     }
     assert.ok(text(result).includes(expected), expected);
     assert.doesNotMatch(text(result), /RAW/);
+    assert.match(text(result), /Request ID: r\./);
+    assert.match(text(result), /1 request\./);
+    if (serverCode === "amazon_blocked")
+      assert.match(text(result), /later identical call may still succeed/);
     assert.ok(
       Check(tool.outputSchema as never, result.structuredContent as never),
     );

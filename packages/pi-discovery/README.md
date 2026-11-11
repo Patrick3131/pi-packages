@@ -254,7 +254,7 @@ exports: `searchYoutube`, `getYoutubeChannel`, `getYoutubeTranscript`,
 `formatYoutubeTranscript`, `formatYoutubeVideo`, `YoutubeClientError`, the tool
 definitions and their parameter/response types.
 
-The package is `0.11.0`; the provider verbs remain separate so intent, cost and
+The package is `0.11.1`; the provider verbs remain separate so intent, cost and
 failure surfaces stay explicit.
 
 ## Amazon New Releases, newest search and product detail
@@ -285,16 +285,19 @@ needs a numeric browse node, so a slug would be silently ignored. Each call is
 exactly one HTTP exchange to exactly one route: no client retries, no wait, no
 session rotation, no health probe. Caller abort always wins and stays
 `AbortError`.
+Live tests opt in with `DISCOVERY_LIVE=1`.
 
 All responses carry `schema_version: "amazon.v1"` and a per-call
 `usage: {decoded_bytes, wire_bytes, wire_estimated, requests}` (plus
 optional `wire_incomplete`); a cache hit
-reports `cached: true` with zero requests and zero wire bytes. Usage is per call,
-so sum it across pages. The one-time server bootstrap (~175 KB) is charged only
-to the call that performs it and is included in that call's usage. Measured
+reports `cached: true` with zero requests and zero wire bytes. The cache and its
+one-time bootstrap (~175 KB) are per server worker: an identical repeat may
+dispatch if it lands on another worker, and the first call on each worker is
+charged for its bootstrap. Usage is per call, so sum it across pages. Measured
 pages are ~119 KB (New Releases), ~242 KB (search) and ~345–409 KB (product).
 Listings return up to 60 items with `asin`, `title`, `brand`, `price`,
-`price_amount`, `currency`, `rating`, `review_count`, `rank_position`, `badge`,
+`price_amount`, `currency`, `rating`, `review_count`, `rank_position` (listing
+position, not a sales rank), `badge`,
 `sponsored`, `image_url`, `product_url`, `node`, `source` and `fetched_at`.
 Product responses add `brand`, `manufacturer`, `seller_name`, `sold_by_amazon`,
 `date_first_available`, `release_date`, `variation_parent_asin`,
@@ -304,8 +307,9 @@ Product responses add `brand`, `manufacturer`, `seller_name`, `sold_by_amazon`,
 Two caveats belong to the data, not the transport. New Releases has no byline or
 date: `brand` is usually null and no launch date is present, so diff successive
 sweeps for new ASINs instead of dating a launch from the listing. Newest-sorted
-search orders churn between sweeps, so it is discovery only and never a launch
-signal. `date_first_available` is sparse provider evidence — brand-new ASINs
+orders churn between sweeps, and relevance ordering is still only one bounded
+page; both are discovery only and never a launch signal. `date_first_available`
+is sparse provider evidence — brand-new ASINs
 usually omit it — so combine first-seen sweep diffs with it, collapse variations
 via `variation_parent_asin`/`variation_count` before counting brands, and enrich
 only the ASINs that came from a listing.
@@ -318,7 +322,8 @@ Errors are one fixed table: 400 `amazon_invalid_request`; 401 `amazon_disabled`;
 (`deadline`). A 407 response or a CONNECT 407 is `proxy_unavailable`, never
 Amazon's own status. 404 is `status: not_found` and is not a retry signal; 401/429/502/504
 are error envelopes with the sanitized reason, request id and per-call usage, and
-any `Retry-After` is advisory only — this client never retries or waits.
+any `Retry-After` is advisory only — this client never retries or waits, and a
+later identical call may still succeed after a transient proxy block.
 Model-visible text is bounded to 12000 characters and states the New Releases
 and search caveats, the sparse `date_first_available` evidence, the cached flag
 and the per-call usage bytes/requests (including `wire_incomplete` when the

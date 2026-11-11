@@ -1,6 +1,6 @@
 {
   "name": "pi-discovery",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Pi discovery: search, web answers, Ad Library, social metadata, YouTube and Amazon",
   "type": "module",
   "scripts": {

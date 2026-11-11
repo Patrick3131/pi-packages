@@ -138,7 +138,7 @@ export async function newAmazonReleases(
   );
 }
 
-/** One newest-sorted search page; no continuation and no client retry. */
+/** One search page; the caller chooses newest or relevance; no continuation and no client retry. */
 export async function searchAmazon(
   params: AmazonSearchParams,
   options: AmazonClientOptions = {},

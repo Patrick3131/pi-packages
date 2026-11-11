@@ -4,11 +4,11 @@ import type {
   AmazonListingResponse,
   AmazonProductResponse,
   AmazonResultEnvelope,
+  AmazonSort,
 } from "./amazon-types.js";
 
 /** Model-visible text stays bounded; structured output keeps every record. */
 const TEXT_CAP = 12000;
-const LABEL_RESERVE = 480;
 const LISTING_PREVIEW = 25;
 const BULLET_PREVIEW = 5;
 const BULLET_CHARS = 300;
@@ -23,7 +23,7 @@ const count = (value: number | null) =>
 /** Per-call transfer accounting; cached responses cost no upstream request. */
 function transfer(usage: AmazonDataUsage, cached: boolean): string {
   if (cached)
-    return "served from cache: zero upstream requests, zero wire bytes for this call";
+    return "served from cache (retained snapshot, not a fresh provider read): zero upstream requests, zero wire bytes for this call";
   const wire = usage.wire_estimated
     ? `~${usage.wire_bytes} wire bytes (gzip estimate)`
     : `${usage.wire_bytes} wire bytes`;
@@ -49,18 +49,35 @@ function price(item: {
   return `${item.price_amount.toFixed(2)} ${item.currency ?? ""}`.trim();
 }
 
+const plural = (value: number, singular: string) =>
+  `${value} ${value === 1 ? singular : `${singular}s`}`;
+
 function rating(item: {
   rating: number | null;
   review_count: number | null;
 }): string {
+  const reviews =
+    item.review_count === null
+      ? "reviews unknown"
+      : plural(item.review_count, "review");
   if (item.rating === null)
     return item.review_count === null
       ? "no rating or reviews shown"
-      : `rating not shown · ${item.review_count} reviews`;
-  return `${item.rating}/5 (${count(item.review_count)} reviews)`;
+      : `rating not shown · ${reviews}`;
+  return `${item.rating}/5 (${reviews})`;
 }
 
 function itemLines(item: AmazonListingItem, index: number): string[] {
+  const position =
+    item.rank_position === null
+      ? ""
+      : `${item.source === "search" ? "position" : "rank"} #${item.rank_position}`;
+  const sponsored =
+    item.sponsored === true
+      ? "sponsored"
+      : item.sponsored === null && item.source === "search"
+        ? "sponsored unknown"
+        : "";
   const facts = [
     price(item),
     rating(item),
@@ -69,10 +86,10 @@ function itemLines(item: AmazonListingItem, index: number): string[] {
         ? "brand: none on New Releases (no byline)"
         : "brand not shown"
       : `brand ${item.brand}`,
-    item.rank_position === null ? "" : `rank #${item.rank_position}`,
+    position,
     item.node === null ? "" : `node ${item.node}`,
     item.badge === null ? "" : `badge ${item.badge}`,
-    item.sponsored === true ? "sponsored" : "",
+    sponsored,
   ].filter(Boolean);
   return [
     `${index + 1}. ${item.asin} · ${clip(item.title, 180)}`,
@@ -82,30 +99,40 @@ function itemLines(item: AmazonListingItem, index: number): string[] {
 }
 
 function fit(text: string, labels: string[]): string {
-  let result = text;
-  for (const label of labels)
-    if (label && result.length + label.length + 1 <= TEXT_CAP)
-      result += "\n" + label;
-  if (result.length > TEXT_CAP)
-    result = `${result.slice(0, TEXT_CAP - LABEL_RESERVE - 1)}… [text shortened]`;
-  return result;
+  const tail = labels.filter(Boolean).join("\n");
+  if (!tail)
+    return text.length > TEXT_CAP ? `${text.slice(0, TEXT_CAP - 1)}…` : text;
+  const budget = Math.max(0, TEXT_CAP - tail.length - 1);
+  let body = text;
+  if (body.length > budget) {
+    const marker = "… [text shortened]";
+    body =
+      budget > marker.length
+        ? `${body.slice(0, budget - marker.length)}${marker}`
+        : "";
+  }
+  return [body, tail].filter(Boolean).join("\n");
 }
 
 /**
  * New Releases and newest search are listings, not launch evidence: New
  * Releases has no byline or date, and search order churns between sweeps.
  */
-export function formatAmazonListing(result: AmazonListingResponse): {
+export function formatAmazonListing(
+  result: AmazonListingResponse,
+  options: { sort?: AmazonSort } = {},
+): {
   text: string;
   summary: string;
   details: AmazonResultEnvelope<AmazonListingResponse>;
 } {
   const releases = result.source === "new_releases";
+  const relevance = !releases && (options.sort ?? "newest") === "relevance";
   const selector = releases
     ? `node ${result.node ?? "root"}`
     : `"${result.keyword ?? ""}"${result.node === null ? "" : ` in node ${result.node}`}`;
   const summary =
-    `${releases ? "Amazon New Releases" : "Amazon newest-sorted search"} · ` +
+    `${releases ? "Amazon New Releases" : `Amazon ${relevance ? "relevance" : "newest"}-sorted search`} · ` +
     `${selector} · page ${result.page} · ${result.item_count} items` +
     `${result.cached ? " · cached" : ""}`;
   const lines = [
@@ -114,7 +141,7 @@ export function formatAmazonListing(result: AmazonListingResponse): {
   ];
   if (result.items.length === 0)
     lines.push(
-      "No items on this page. An out-of-range page is an empty listing, not an error, and an empty page is not proof that a category has no new items.",
+      "No items on this page. A provider-side out-of-range page is an empty listing, not an error, and an empty page is not proof that a category has no new items.",
     );
   else lines.push("Items:");
   const preview = result.items.slice(0, LISTING_PREVIEW);
@@ -122,9 +149,11 @@ export function formatAmazonListing(result: AmazonListingResponse): {
     lines.push(...itemLines(item, index));
   const labels = [
     releases
-      ? "Amazon New Releases has no byline or date: brand is usually absent and this listing never carries a launch date, so it cannot date a launch by itself. Page 1-5 of one provider page; diff successive sweeps to find new ASINs."
-      : "Newest-sorted search is discovery only, not a launch signal: its order churns between sweeps and the returned rows are one bounded provider page (page 1-5). Use New Releases for sweep diffs.",
-    "Rank, price and rating are provider-reported snapshots and may be missing or stale.",
+      ? "Amazon New Releases has no byline or date: brand is usually absent and this listing never carries a launch date, so it cannot date a launch by itself. Pages 1–5 of one provider page; diff successive sweeps to find new ASINs."
+      : relevance
+        ? "Relevance-sorted search returns one bounded provider page (pages 1–5), not a launch signal; use New Releases for sweep diffs."
+        : "Newest-sorted search is discovery only, not a launch signal: its order churns between sweeps and the returned rows are one bounded provider page (pages 1–5). Use New Releases for sweep diffs.",
+    "Listing position, price and rating are snapshots of the returned page and may be missing or stale; position is not a sales rank.",
     "This client makes exactly one request per call and never retries, waits or probes health; usage is per call, so sum it across calls.",
     preview.length < result.items.length
       ? `Text previews shortened: showing ${preview.length}/${result.items.length} items; structured output keeps every returned record.`
@@ -178,7 +207,7 @@ export function formatAmazonProduct(result: AmazonProductResponse): {
       `Text preview shortened: showing ${BULLET_PREVIEW}/${product.bullet_points.length} bullet points; structured output keeps every bullet.`,
     );
   lines.push(
-    `Signals: brand store ${product.has_brand_store === true ? "yes" : "no"}, video ${product.has_video === true ? "yes" : "no"}, subscription ${product.subscription_available === true ? "yes" : "no"}`,
+    `Signals: brand store ${product.has_brand_store === true ? "yes" : product.has_brand_store === false ? "no" : "unknown"}, video ${product.has_video === true ? "yes" : product.has_video === false ? "no" : "unknown"}, subscription ${product.subscription_available === true ? "yes" : product.subscription_available === false ? "no" : "unknown"}`,
     `URL: ${product.product_url}`,
     `Fetched: ${product.fetched_at} · ${transfer(result.usage, result.cached)}`,
     `Warnings: ${product.warnings.length === 0 ? "none" : product.warnings.join(", ")}`,

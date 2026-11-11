@@ -36,7 +36,7 @@ pi-packages/
 │   │   ├── src/features/     # Four separate extension entry points
 │   │   └── package.json
 │   │
-│   ├── pi-discovery/         # SearXNG, web_answer, social, YouTube
+│   ├── pi-discovery/         # SearXNG, web_answer, social, YouTube, Amazon
 │   │   ├── src/
 │   │   └── package.json
 │   │

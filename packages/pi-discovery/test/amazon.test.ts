@@ -672,6 +672,33 @@ test("search text is discovery-only and wire_incomplete is surfaced", () => {
   assert.match(formatted.text, /brand ExampleBrand/);
   assert.match(formatted.text, /sponsored/);
 });
+test("search text labels relevance, listing position and tri-state sponsorship", () => {
+  const relevance = formatAmazonListing(searchResponse, { sort: "relevance" });
+  assert.match(relevance.text, /Amazon relevance-sorted search/);
+  assert.doesNotMatch(relevance.text, /newest-sorted search/);
+  assert.doesNotMatch(relevance.text, /order churns/);
+  assert.match(relevance.text, /not a launch signal/);
+
+  const formatted = formatAmazonListing({
+    ...searchResponse,
+    items: [
+      {
+        ...searchResponse.items[0],
+        rank_position: 31,
+        sponsored: null,
+        rating: null,
+        review_count: 1,
+      },
+    ],
+    item_count: 1,
+  });
+  assert.match(formatted.text, /position #31/);
+  assert.doesNotMatch(formatted.text, /rank #31/);
+  assert.match(formatted.text, /sponsored unknown/);
+  assert.match(formatted.text, /rating not shown · 1 review\b/);
+  assert.doesNotMatch(formatted.text, /1 reviews/);
+  assert.match(formatted.text, /position is not a sales rank/);
+});
 
 test("listing text stays bounded and labels shortened previews", () => {
   const items = Array.from({ length: 60 }, (_, index) => ({
@@ -686,6 +713,7 @@ test("listing text stays bounded and labels shortened previews", () => {
   });
   assert.ok(formatted.text.length <= 12000);
   assert.match(formatted.text, /Text previews shortened: showing 25\/60 items/);
+  assert.match(formatted.text, /never retries/i);
   assert.equal(formatted.details.response?.items.length, 60);
 });
 
@@ -724,6 +752,22 @@ test("product text labels sparse date evidence, variations and warnings", () => 
   assert.match(formatted.text, /never retries/);
   assert.match(formatted.text, /119000 wire bytes/);
   assert.ok(formatted.text.length <= 12000);
+});
+
+test("product text renders null signals as unknown, never no", () => {
+  const formatted = formatAmazonProduct({
+    ...productResponse,
+    product: {
+      ...productResponse.product,
+      has_brand_store: null,
+      has_video: null,
+      subscription_available: null,
+    },
+  });
+  assert.match(
+    formatted.text,
+    /brand store unknown, video unknown, subscription unknown/,
+  );
 });
 
 test("product text shows missing provider facts as not shown, never invented", () => {

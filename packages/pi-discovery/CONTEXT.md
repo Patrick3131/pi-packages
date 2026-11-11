@@ -136,3 +136,25 @@ transcript preview); native structured output keeps the complete API response.
 Harness-neutral exports live in `src/youtube.ts` and `src/youtube-format.ts`; the
 root research entry re-exports the clients, formatters, error, types and tool
 definitions.
+
+## Amazon listings and product detail
+
+`amazon_new_releases`, `amazon_search` and `amazon_product` are default-off
+clients for the server-owned Amazon routes; enable with `DISCOVERY_AMAZON_ENABLED=1`
+or a project tool selection. `src/amazon-validation.ts` owns request selectors,
+page bounds, canonical ASINs and additive response parsing; `src/amazon.ts` makes
+exactly one HTTP exchange per call with a configurable timeout floor, no retry,
+redirect refusal and caller-abort precedence. Listings return one provider page
+(pages 1-5) with `rank_position` as page/listing position, not a sales rank;
+New Releases has no date and search ordering is not a launch signal. A cache hit
+reports zero usage, but the server cache and bootstrap are per worker.
+
+`AmazonClientError` preserves the sanitized code, status, serverCode, requestId,
+reason, Retry-After and per-call usage; 404 is `not_found`, while disabled,
+blocked, upstream and timeout are error envelopes and are never retried.
+`src/amazon-format.ts` bounds model text to 12000 characters, preserves the
+policy caveats after truncation, pluralizes counts and renders null signals as
+unknown. Harness-neutral exports live in `src/amazon.ts` and
+`src/amazon-format.ts`; the root research entry re-exports the clients,
+formatters, error, types and tool definitions. Live acceptance opts in with
+`DISCOVERY_LIVE=1`.
