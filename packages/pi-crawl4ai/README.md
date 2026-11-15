@@ -32,7 +32,7 @@ Optional agents are discovered separately by pi-subagents through `pi.subagents.
 
 ## Configure the service and register tools
 
-JSON is searched in the working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` in each directory. Use `~/.pi/agent/extensions/crawl4ai.json` for shared service defaults across projects; add `.pi/crawl4ai.json` only for an intentional project override. The first matching file wins; JSON files are not merged across directories. Its values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
+JSON is searched in the working directory, `.pi/`, then `~/.pi/agent/extensions/`, using `crawl4ai.json` before `.crawl4ai.json` in each directory. Use `~/.pi/agent/extensions/crawl4ai.json` for shared service defaults across projects; add `.pi/crawl4ai.json` only for an intentional project override. The first matching file supplies the crawl settings. A project config that omits `deepseekApiKey` can inherit that field from the global config when `DEEPSEEK_API_KEY` is unset. Its values take precedence over environment fallback/defaults. `${ENV_VAR}` substitution works in string values.
 
 For the compatible operator service (`/acquire` and `/execute_js`), use:
 
@@ -107,6 +107,16 @@ Use `crawl_read` with an **exact printed page path**, or read the printed `crawl
 ```
 
 Modes: `outline`, `chunks` (optionally ranked by `query`), `window` (1-based `offset`/`limit` lines), `full`. `maxChars` can lower the read cap. URL-only reads select the newest matching completed session in the default output root. Providing a session/manifest context makes lookup strict: a missing/wrong context does not fall back to another session. Custom output sessions work via exact paths. Results report the chosen source/path and time when available.
+
+### Retry one page with DeepSeek Fetch
+
+Set `deepseekApiKey` in the global crawl config or `DEEPSEEK_API_KEY` in Pi’s environment. Call `crawl` normally first. Each regular result reminds the agent it can retry once for the same public URL if acquisition is blocked or returns unusable content. The agent makes that decision.
+
+```json
+{"urls":["https://example.com/article"],"fallback":true}
+```
+
+This sends the URL to DeepSeek and returns Markdown for one page. Use public URLs you can share with DeepSeek. Deep traversal, browser controls, PDF extraction, and HTML/link output require a separate crawl. The tool returns its usual file index or inline preview and identifies DeepSeek in the output and manifest. Use `crawl_read` if you need more of the saved Markdown.
 
 ### Fixed presentation limits
 

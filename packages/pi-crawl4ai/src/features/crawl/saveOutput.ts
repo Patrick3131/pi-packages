@@ -155,6 +155,7 @@ export interface CrawlManifestRequest {
 /** Service endpoint that produced a crawl, without credentials. */
 export interface CrawlManifestService {
   baseUrl: string;
+  provider?: "deepseek";
 }
 
 export interface CrawlManifest {

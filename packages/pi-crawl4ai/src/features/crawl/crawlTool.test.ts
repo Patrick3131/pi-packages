@@ -66,6 +66,78 @@ function invoke(params: Partial<CrawlToolParams> = {}, tool = createTool(), sign
 beforeEach(() => { resetEnv(); resetRequestPacingState(); registeredTools.length = 0; });
 afterEach(() => { rmSync(TEST_SAVE_DIR, { recursive: true, force: true }); restoreFetch(); jest.useRealTimers(); });
 
+describe("DeepSeek Fetch", () => {
+  const key = "test-deepseek-key";
+  const createFallbackTool = () => createTool(60000, config => { config.raw.deepseekApiKey = key; });
+
+  it("suggests a retry after a block and fetches only when explicitly requested", async () => {
+    const markdown = "# Example article\n\n" + "Article paragraph with original Markdown. ".repeat(400);
+    const fetchMock = mockFetch([
+      { data: { success: true, results: [{ url: URL, success: false, status_code: 403 }] } },
+      { data: { title: "Example article", content: markdown } },
+    ]);
+    const tool = createFallbackTool();
+    await expect(invoke({}, tool)).rejects.toMatchObject({ code: "website_blocked", message: expect.stringContaining("fallback=true") });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:11235/crawl");
+
+    const result = await invoke({ fallback: true }, tool);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith("https://api.deepseek.com/v1/tools/fetch", expect.objectContaining({
+      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      redirect: "error", body: JSON.stringify({ url: URL }),
+    }));
+    expect(result.content[0].text).toContain("DeepSeek Fetch");
+    expect(result.content[0].text).not.toContain("fallback=true");
+    expect(result.details.execution).toEqual({ provider: "deepseek", egress: "deepseek-managed" });
+    const manifestText = readFileSync(result.details.manifestPath, "utf8");
+    const manifest = JSON.parse(manifestText);
+    expect(manifestText).not.toContain(key);
+    expect(manifest.service).toEqual({ provider: "deepseek", baseUrl: "https://api.deepseek.com" });
+    expect(manifest.pages[0]).toMatchObject({ title: "Example article", success: true });
+    expect(manifest.pages[0]).not.toHaveProperty("rawHtmlFile");
+    expect(readFileSync(result.details.savedFiles[0].path, "utf8")).toBe(markdown);
+    const read = await executeCrawlRead({ path: result.details.savedFiles[0].path, mode: "full" }, { cwd: process.cwd(), outputRoot: TEST_SAVE_DIR });
+    expect(read.text).toContain("Article paragraph with original Markdown.");
+  });
+
+  it.each<Partial<CrawlToolParams>>([
+    { urls: [URL, "https://example.org"] }, { format: "html" }, { deepCrawl: { maxDepth: 1 } },
+    { selector: "main" }, { waitFor: 100 }, { bypassCache: true }, { urls: [URL + "/page.pdf"] },
+    { urls: ["https://localhost"] }, { urls: ["http://127.0.0.1"] },
+  ])("rejects incompatible requests before dispatch: %j", async params => {
+    const fetchMock = mockFetch({});
+    await expect(invoke({ fallback: true, ...params }, createFallbackTool())).rejects.toBeInstanceOf(CrawlValidationError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { markdown: "", metadata: { title: "Example" } },
+    { markdown: "Enable JavaScript and cookies to continue", metadata: { title: "Just a moment..." } },
+    { markdown: "Working content.", metadata: { title: "Example" } },
+  ])("always shows the hint and leaves the decision to the caller", async page => {
+    const fetchMock = respond([{ ...PAGE, ...page, status_code: 200 }]);
+    const tool = createFallbackTool();
+    expect(tool.parameters.properties.fallback).toBeDefined();
+    expect(tool.parameters.properties.provider).toBeUndefined();
+    const result = await invoke({ save: false }, tool);
+    expect(result.content[0].text).toContain("fallback=true");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires a key and keeps provider errors free of upstream bodies", async () => {
+    const fetchMock = mockFetch({ ok: false, status: 404, text: key });
+    const noKey = createTool(60000, config => { delete config.raw.deepseekApiKey; });
+    await expect(invoke({ fallback: true }, noKey)).rejects.toThrow("requires deepseekApiKey or DEEPSEEK_API_KEY");
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(invoke({ fallback: true }, createFallbackTool())).rejects.toMatchObject({
+      code: "provider_failure", status: 404, message: "Crawl failed: DeepSeek Fetch could not retrieve usable page content (HTTP 404)",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(existsSync(TEST_SAVE_DIR)).toBe(false);
+  });
+});
+
 describe("crawl reliability regressions", () => {
   it.each([
     [{ urls: [URL, "https://example.org"], deepCrawl: { maxDepth: 1 } }, "Deep crawling requires exactly one start URL"],

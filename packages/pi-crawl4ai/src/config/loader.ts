@@ -1,5 +1,5 @@
 import { loadEnvFile, resolveEnvVars, resolveNumber } from "./env";
-import { findConfigFile, loadJsonConfig } from "./files";
+import { findConfigFile, findGlobalConfigFile, loadJsonConfig } from "./files";
 import type {
   Crawl4AIJsonConfig,
   ResolvedConfig,
@@ -79,6 +79,9 @@ export function mergeConfigWithEnv(jsonConfig: Crawl4AIJsonConfig | null): Resol
         ? resolveNumber(jsonConfig.minRequestIntervalMs)
         : resolveNumber(process.env.CRAWL4AI_MIN_REQUEST_INTERVAL_MS),
     apiToken: resolveApiToken(jsonConfig),
+    deepseekApiKey: (jsonConfig?.deepseekApiKey !== undefined
+      ? resolveEnvVars(jsonConfig.deepseekApiKey)
+      : process.env.DEEPSEEK_API_KEY)?.trim() || undefined,
     retention: resolveRetention(jsonConfig),
     capabilities: {
       acquisition: jsonConfig?.capabilities?.acquisition ?? parseBoolean(process.env.CRAWL4AI_ACQUISITION_ENABLED, false),
@@ -102,5 +105,13 @@ export function loadConfig(cwd?: string): ResolvedConfig {
   loadEnvFile(cwd);
   const configPath = findConfigFile(cwd);
   const jsonConfig = configPath ? loadJsonConfig(configPath) : null;
-  return mergeConfigWithEnv(jsonConfig);
+  const config = mergeConfigWithEnv(jsonConfig);
+  if (jsonConfig?.deepseekApiKey === undefined && !config.deepseekApiKey) {
+    const globalPath = findGlobalConfigFile();
+    if (globalPath && globalPath !== configPath) {
+      const globalKey = loadJsonConfig(globalPath)?.deepseekApiKey;
+      config.deepseekApiKey = globalKey ? resolveEnvVars(globalKey).trim() || undefined : undefined;
+    }
+  }
+  return config;
 }

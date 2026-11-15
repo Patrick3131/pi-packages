@@ -9,12 +9,14 @@ export const crawlToolDefinition = {
     promptSnippet: "Crawl known URLs; complete files, manifest/index and exact paths by default—then use crawl_read.",
     promptGuidelines: [
       "Pass only urls by default.",
+      "If a crawl is blocked, returns a bot challenge, or has no usable page content, retry the same public URL once with fallback=true. This sends the URL to DeepSeek for Markdown. A usable page needs no retry.",
       "Read the crawl-manifest.json or an exact printed page path with crawl_read; never invent flattened filenames.",
       "Use deepCrawl only for cross-page discovery with low maxDepth/maxPages.",
       "Use bm25Query only to narrow one large Markdown page.",
     ],
     parameters: Type.Object({
       urls: Type.Array(Type.String(), { minItems: 1, description: "HTTP(S) URLs; exactly one seed for deepCrawl" }),
+      fallback: Type.Optional(Type.Boolean({ description: "Retry a failed acquisition for the same public URL once via DeepSeek Fetch. One URL and Markdown only." })),
       format: Type.Optional(Type.Union([Type.Literal("markdown"), Type.Literal("html"), Type.Literal("links"), Type.Literal("text")], { description: "Default raw markdown; text broadly renders HTML without Python" })),
       waitFor: Type.Optional(Type.Number({ exclusiveMinimum: 0, description: "Milliseconds to wait after rendering before extraction" })),
       bypassCache: Type.Optional(Type.Boolean()),

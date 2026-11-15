@@ -19,6 +19,8 @@ export interface Crawl4AIJsonConfig {
    * Supports ${ENV_VAR} substitution.
    */
   apiToken?: string;
+  /** Optional DeepSeek Fetch key. Supports ${ENV_VAR} substitution. */
+  deepseekApiKey?: string;
   /** Retention policy for saved crawl session directories. */
   retention?: RetentionSettings;
   /** Default directory for saved crawls (also used by auto-save / cleanup). */
@@ -36,6 +38,7 @@ export interface ResolvedRetention {
 }
 
 export interface ResolvedConfig {
+  deepseekApiKey?: string;
   baseUrl: string;
   timeout: number;
   minRequestIntervalMs?: number;

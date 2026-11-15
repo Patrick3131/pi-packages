@@ -47,6 +47,8 @@ export interface DeepCrawlConfig {
  * Parameters for the crawl tool.
  */
 export interface CrawlToolParams extends AcquisitionOptions {
+  /** Retry a blocked or unusable acquisition for one public URL. */
+  fallback?: boolean;
   bm25Query?: string;
   bm25Threshold?: number;
   includeLinks?: boolean;

@@ -4,7 +4,7 @@
 
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { findConfigFile, loadJsonConfig, mergeConfigWithEnv, type Crawl4AIJsonConfig } from "./loader";
+import { findConfigFile, loadConfig, loadJsonConfig, mergeConfigWithEnv, type Crawl4AIJsonConfig } from "./loader";
 import { resetEnv } from "../test-utils";
 
 // Mock homedir to use a temp directory
@@ -77,6 +77,28 @@ describe("findConfigFile", () => {
     const found = findConfigFile(testDir);
     expect(found).toBe(join(piDir, "crawl4ai.json"));
   });
+});
+
+it("inherits the global DeepSeek key when a project overrides crawl settings", () => {
+  const globalDir = join(tempDir, ".pi", "agent", "extensions");
+  const projectDir = join(tempDir, "project-with-deepseek");
+  const previous = process.env.DEEPSEEK_API_KEY;
+  try {
+    delete process.env.DEEPSEEK_API_KEY;
+    mkdirSync(globalDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(globalDir, "crawl4ai.json"), '{"url":"https://global.example","deepseekApiKey":"global-key"}');
+    const projectFile = join(projectDir, "crawl4ai.json");
+    writeFileSync(projectFile, '{"url":"https://project.example"}');
+    expect(loadConfig(projectDir)).toMatchObject({ baseUrl: "https://project.example", deepseekApiKey: "global-key" });
+    writeFileSync(projectFile, '{"deepseekApiKey":""}');
+    expect(loadConfig(projectDir).deepseekApiKey).toBeUndefined();
+  } finally {
+    if (previous === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previous;
+    rmSync(globalDir, { recursive: true, force: true });
+    rmSync(projectDir, { recursive: true, force: true });
+  }
 });
 
 describe("loadJsonConfig", () => {
@@ -205,6 +227,19 @@ describe("mergeConfigWithEnv", () => {
       apiToken: "json-literal-token",
     });
     expect(config.apiToken).toBe("json-literal-token");
+  });
+
+  it("loads the DeepSeek key from JSON or the environment", () => {
+    const previous = process.env.DEEPSEEK_API_KEY;
+    try {
+      process.env.DEEPSEEK_API_KEY = "deepseek-env";
+      expect(mergeConfigWithEnv(null).deepseekApiKey).toBe("deepseek-env");
+      expect(mergeConfigWithEnv({ deepseekApiKey: "${DEEPSEEK_API_KEY}" }).deepseekApiKey).toBe("deepseek-env");
+      expect(mergeConfigWithEnv({ deepseekApiKey: "  deepseek-config  " }).deepseekApiKey).toBe("deepseek-config");
+    } finally {
+      if (previous === undefined) delete process.env.DEEPSEEK_API_KEY;
+      else process.env.DEEPSEEK_API_KEY = previous;
+    }
   });
 
   it("should use env vars when no JSON config", () => {

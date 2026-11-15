@@ -71,6 +71,8 @@ All configuration via environment variables or JSON (no hardcoded credentials):
 
 Do **not** configure client-side proxy credentials. Proxy/egress belongs on the crawl4ai host.
 
+DeepSeek Fetch is an optional Markdown retry for one public URL, explicitly selected with `fallback: true` and authenticated with `deepseekApiKey` or `DEEPSEEK_API_KEY`. Record DeepSeek as the source in output and manifests.
+
 ### Adding New Features
 
 1. Create a new folder in `src/features/`

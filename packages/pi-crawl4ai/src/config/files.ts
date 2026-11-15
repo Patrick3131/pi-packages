@@ -5,22 +5,21 @@ import type { Crawl4AIJsonConfig } from "./types";
 
 const CONFIG_FILENAMES = ["crawl4ai.json", ".crawl4ai.json"];
 
+function findConfigIn(dir: string): string | null {
+  for (const filename of CONFIG_FILENAMES) {
+    const filepath = join(dir, filename);
+    if (existsSync(filepath)) return filepath;
+  }
+  return null;
+}
+
+export function findGlobalConfigFile(): string | null {
+  return findConfigIn(join(homedir(), ".pi", "agent", "extensions"));
+}
+
 export function findConfigFile(cwd?: string): string | null {
   const baseDir = cwd || process.cwd();
-  const searchDirs = [
-    baseDir,
-    join(baseDir, ".pi"),
-    join(homedir(), ".pi", "agent", "extensions"),
-  ];
-
-  for (const dir of searchDirs) {
-    for (const filename of CONFIG_FILENAMES) {
-      const filepath = join(dir, filename);
-      if (existsSync(filepath)) return filepath;
-    }
-  }
-
-  return null;
+  return findConfigIn(baseDir) ?? findConfigIn(join(baseDir, ".pi")) ?? findGlobalConfigFile();
 }
 
 export function loadJsonConfig(filepath: string): Crawl4AIJsonConfig | null {

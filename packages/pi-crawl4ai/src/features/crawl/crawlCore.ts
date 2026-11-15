@@ -1,8 +1,10 @@
 import { acquirePages, validateAcquisitionOptions, persistCapabilityViews } from "./crawlCapabilities";
+import { DEEPSEEK_BASE_URL, fetchDeepSeekPage } from "./deepseekFetch";
 import { htmlToText } from "./htmlText";
 import { pageEvidence, evidenceView, jsonProjection } from "./evidence";
 import { CrawlOperationError } from "./http";
 import { resolve } from "node:path";
+import { isIP } from "node:net";
 import type { Crawl4AIConfig } from "../../config";
 import type { CrawlFormat, CrawlToolParams, Crawl4AIResponse, DeepCrawlConfig } from "./types";
 import { applyRequestPacing } from "./requestPacing";
@@ -68,7 +70,27 @@ function effectiveCrawlRequest(params: CrawlToolParams, format: CrawlFormat, pre
   };
 }
 
+const FALLBACK_HINT = "If a page was blocked, showed a bot challenge, or returned no usable content, you can retry the same public URL once with fallback=true in a single-URL Markdown crawl.";
+
+function supportsFetchFallback(params: CrawlToolParams): boolean {
+  if (params.urls?.length !== 1 || (params.format ?? "markdown") !== "markdown" ||
+      params.deepCrawl !== undefined || params.waitFor !== undefined || params.waitForSelector !== undefined ||
+      params.selector !== undefined || params.excludeSelector !== undefined || params.extractionSchema !== undefined ||
+      params.jsCode !== undefined || params.bypassCache || params.preferFitMarkdown || params.includeLinks) return false;
+  const url = new URL(params.urls[0]);
+  const host = url.hostname.replace(/\.$/, "");
+  return params.urls[0].length <= 8192 && !/\.pdf$/i.test(url.pathname) &&
+    host.includes(".") && !isIP(host) && !/\.(localhost|local|internal|lan|home\.arpa)$/i.test(host);
+}
+
 function validateParams(params: CrawlToolParams, config: Crawl4AIConfig): void {
+  if (params.fallback !== undefined && typeof params.fallback !== "boolean") throw new Error("fallback must be a boolean");
+  if (params.fallback) {
+    if (!supportsFetchFallback(params)) {
+      throw new Error("fallback=true requires one public web page and Markdown output without traversal, browser controls, cache bypass, fit Markdown, or link extraction");
+    }
+    if (!config.raw.deepseekApiKey) throw new Error("DeepSeek Fetch requires deepseekApiKey or DEEPSEEK_API_KEY");
+  }
   validateAcquisitionOptions(params);
   const focused = params.waitForSelector || params.selector || params.excludeSelector || params.extractionSchema;
   if (focused && !config.raw.capabilities?.acquisition) throw new CrawlOperationError("unsupported_capability", "Focused acquisition requires capabilities.acquisition on a compatible operator service");
@@ -246,6 +268,11 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
       const budget = resolvePreviewSettings(params);
       const format = params.format ?? "markdown";
       const effectiveRequest = effectiveCrawlRequest(params, format, budget.preferFitMarkdown);
+      const deepseek = params.fallback === true;
+      const showFallbackHint = !deepseek && !options.acquire;
+      const egress = deepseek ? "deepseek-managed" as const : "server-managed" as const;
+      const service = deepseek ? { baseUrl: DEEPSEEK_BASE_URL, provider: "deepseek" as const }
+        : { baseUrl: credentialFreeBaseUrl(config.baseUrl) };
       const cwd = options.cwd;
       const selectedDir = resolveOutputDir(params.save, config.raw.outputDir);
       const outputDir = selectedDir ? resolve(cwd, selectedDir) : undefined;
@@ -254,28 +281,36 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
       let recoveryHtmlPath: string | undefined;
       try {
         if (operation.signal.aborted) throw operation.signal.reason;
-        options.onUpdate?.({ content: [{ type: "text", text: "Waiting for crawl service…" }], details: undefined });
-        const queue = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
         let pacing: Awaited<ReturnType<typeof applyRequestPacing>>;
-        try { pacing = await applyRequestPacing(config, queue.signal); }
-        finally { queue.dispose(); }
-        const crawlerParams: Record<string, unknown> = {
-          cache_mode: { type: "CacheMode", params: params.bypassCache ? "bypass" : "enabled" },
-        };
-        if (params.waitFor !== undefined) crawlerParams.delay_before_return_html = params.waitFor / 1000;
-
-        if (params.deepCrawl) crawlerParams.deep_crawl_strategy = buildDeepCrawlStrategy(params.deepCrawl, DEFAULT_DEEP_MAX_PAGES);
-        const unsupportedPdfUrls = !config.raw.capabilities?.acquisition && !options.acquire ? params.urls.filter(url => /\.pdf$/i.test(new URL(url).pathname)) : [];
-        const supportedUrls = params.urls.filter(url => !unsupportedPdfUrls.includes(url));
-        if (!supportedUrls.length) throw new CrawlOperationError("unsupported_capability", "unsupported_document: PDF extraction requires the document capability on the configured crawl service");
-        const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal, options.acquisitionDeadlineAt) : undefined);
-        const raw = acquire ? undefined : await fetchCrawlApi(config, "/crawl", {
-          method: "POST",
-          body: JSON.stringify({ urls: supportedUrls, crawler_config: { type: "CrawlerRunConfig", params: crawlerParams } }),
-        }, operation.signal);
         let data: unknown;
-        if (acquire) data = await acquire(operation.signal, options.acquisitionDeadlineAt);
-        else try { data = JSON.parse(raw!); } catch { throw new CrawlOperationError("provider_failure", "Malformed crawl4ai JSON response"); }
+        let unsupportedPdfUrls: string[] = [];
+        if (deepseek) {
+          options.onUpdate?.({ content: [{ type: "text", text: "Waiting for DeepSeek Fetch…" }], details: undefined });
+          const acquisition = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
+          try { data = await fetchDeepSeekPage(params.urls[0], config.raw.deepseekApiKey!, acquisition.signal); }
+          finally { acquisition.dispose(); }
+        } else {
+          options.onUpdate?.({ content: [{ type: "text", text: "Waiting for crawl service…" }], details: undefined });
+          const queue = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
+          try { pacing = await applyRequestPacing(config, queue.signal); }
+          finally { queue.dispose(); }
+          const crawlerParams: Record<string, unknown> = {
+            cache_mode: { type: "CacheMode", params: params.bypassCache ? "bypass" : "enabled" },
+          };
+          if (params.waitFor !== undefined) crawlerParams.delay_before_return_html = params.waitFor / 1000;
+
+          if (params.deepCrawl) crawlerParams.deep_crawl_strategy = buildDeepCrawlStrategy(params.deepCrawl, DEFAULT_DEEP_MAX_PAGES);
+          unsupportedPdfUrls = !config.raw.capabilities?.acquisition && !options.acquire ? params.urls.filter(url => /\.pdf$/i.test(new URL(url).pathname)) : [];
+          const supportedUrls = params.urls.filter(url => !unsupportedPdfUrls.includes(url));
+          if (!supportedUrls.length) throw new CrawlOperationError("unsupported_capability", "unsupported_document: PDF extraction requires the document capability on the configured crawl service");
+          const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal, options.acquisitionDeadlineAt) : undefined);
+          const raw = acquire ? undefined : await fetchCrawlApi(config, "/crawl", {
+            method: "POST",
+            body: JSON.stringify({ urls: supportedUrls, crawler_config: { type: "CrawlerRunConfig", params: crawlerParams } }),
+          }, operation.signal);
+          if (acquire) data = await acquire(operation.signal, options.acquisitionDeadlineAt);
+          else try { data = JSON.parse(raw!); } catch { throw new CrawlOperationError("provider_failure", "Malformed crawl4ai JSON response"); }
+        }
         validateCrawlResponse(data);
         for (const url of unsupportedPdfUrls) data.results.push({ url, success: false, error_message: "unsupported_document: PDF extraction requires the document capability on the configured crawl service" });
         if (data.results.every(result => !result.success)) throw new CrawlOperationError(data.results.every(result => result.status_code === 403 || result.status_code === 429) ? "website_blocked" : "provider_failure", `All pages failed: ${data.results.map(result => `${result.url}: ${result.error_message ?? "Unknown error"}`).join("; ")}`);
@@ -338,13 +373,13 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
         if (operation.signal.aborted) throw operation.signal.reason;
         const pages = toFormattedPages(data.results, format, budget);
         const decision = decideReturnMode({ requestedMode: budget.returnMode, saveRequested: params.save });
-        const saved = outputDir ? saveCrawlResultsDetailed(outputDir, params.urls, data.results, format, params.deepCrawl ? { maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? DEFAULT_DEEP_MAX_PAGES } : undefined, { deferManifest: true, preferFitMarkdown: budget.preferFitMarkdown, retention: config.raw.retention, sessionDir, artifacts, request: effectiveRequest, service: { baseUrl: credentialFreeBaseUrl(config.baseUrl) } }) : undefined;
+        const saved = outputDir ? saveCrawlResultsDetailed(outputDir, params.urls, data.results, format, params.deepCrawl ? { maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? DEFAULT_DEEP_MAX_PAGES } : undefined, { deferManifest: true, preferFitMarkdown: budget.preferFitMarkdown, retention: config.raw.retention, sessionDir, artifacts, request: effectiveRequest, service }) : undefined;
         const savedFiles = saved?.pagePaths.map(page => ({ ...page, relativePath: page.file }));
         partial = data.results.some(result => !result.success || result.evidence?.usability === "unusable");
         const warnings = pages.filter((page, index) => page.usability === "unusable" && !artifacts[index]?.filter).map(page => `${page.url}: ${(page.usabilityReasons ?? []).join(", ")}`);
         const bm25 = artifacts[0]?.filter;
         const filterSummary = bm25 ? `\nBM25 query=${JSON.stringify(bm25.query)}, matched ${bm25.matchedSectionCount}/${bm25.totalSections} sections, threshold=${bm25.threshold}${bm25.matchedSectionCount === 0 ? " (valid empty selection)" : ""}` : "";
-        const built = buildBudgetedToolText({ pages, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=server-managed${partial ? " — Partial results (some acquisitions failed or content is unusable)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}` });
+        const built = buildBudgetedToolText({ pages, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=${egress}${deepseek ? " (DeepSeek Fetch)" : ""}${partial ? " — Partial results (some acquisitions failed or content is unusable)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}${showFallbackHint ? `\n${FALLBACK_HINT}` : ""}` });
         const capabilityIndex = data.results.flatMap(result => result.evidence!.views
           .filter(view => ["selected_html", "structured", "before_interaction_html", "interaction_result", "original_document", "document_pages"].includes(view.kind))
           .map(view => `${view.kind}${view.callerScriptInfluenced ? " [caller-script-influenced]" : ""}: ${view.path ?? "not saved"}`)).join("\n");
@@ -369,7 +404,7 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
         return jsonProjection({
           content: [{ type: "text" as const, text: finalOutput.text }],
           details: {
-            evidence: { version: 1 as const, pages: data.results.map(result => result.evidence!) }, results: slimResultDetails(built.pages, data.results, savedFiles), format, egress: "server-managed", execution: { egress: "server-managed" }, partial, warnings, bm25,
+            evidence: { version: 1 as const, pages: data.results.map(result => result.evidence!) }, results: slimResultDetails(built.pages, data.results, savedFiles), format, egress, execution: { egress, ...(deepseek ? { provider: "deepseek" as const } : {}) }, partial, warnings, bm25,
             minRequestIntervalMs: pacing?.minRequestIntervalMs, rateLimitWaitedMs: pacing?.waitedMs,
             savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles,
             returnMode: built.mode, returnModeReason: decision.reason, truncated: built.pages.some(page => page.truncated) || built.truncated,
@@ -382,7 +417,9 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
           if (error instanceof Error) error.message = redactError(error.message, config);
           throw error;
         }
-        throw new CrawlOperationError(error instanceof CrawlOperationError ? error.code : operation.signal.aborted ? "transport_failure" : "provider_failure", `Crawl failed: ${redactError(error instanceof Error ? error.message : String(error), config)}${recoveryHtmlPath ? `. Original HTML: ${recoveryHtmlPath}` : ""}`, error instanceof CrawlOperationError ? error.status : undefined,
+        const hint = showFallbackHint && !operation.signal.aborted ? ` ${FALLBACK_HINT}` : "";
+        const message = redactError(error instanceof Error ? error.message : String(error), config).slice(0, 2000 - hint.length);
+        throw new CrawlOperationError(error instanceof CrawlOperationError ? error.code : operation.signal.aborted ? "transport_failure" : "provider_failure", `Crawl failed: ${message}${recoveryHtmlPath ? `. Original HTML: ${recoveryHtmlPath}` : ""}${hint}`, error instanceof CrawlOperationError ? error.status : undefined,
           error instanceof CrawlOperationError ? { serverCode: error.serverCode, phase: error.phase, retryable: error.retryable, operationOutcome: error.operationOutcome } : {});
       } finally { operation.dispose(); }
 
