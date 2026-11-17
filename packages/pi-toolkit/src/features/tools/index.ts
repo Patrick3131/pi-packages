@@ -19,6 +19,7 @@ import { searchablePicker } from "../../shared/searchable-picker.js";
 import { cliOwnsTools, getToolsArgumentCompletions, matchTools, parseToolsArgs } from "./args.js";
 import {
 	formatToolsDump,
+	formatToolsList,
 	formatUnavailableSaved,
 	isDeclaredSwitch,
 	isHiddenTool,
@@ -40,9 +41,34 @@ export interface ToolsPrintData {
 	text: string;
 	query?: string;
 	toolNames: string[];
+	/** "dump" (default) is the diagnostic detail dump; "list" is the compact roster. */
+	mode?: "dump" | "list";
 }
 
 const PRINT_ENTRY_TYPE = "tools-print";
+
+const START_LIST_ENV = "PI_TOOLS_LIST_AT_START";
+const START_LIST_TRUTHY = new Set(["1", "true", "yes", "on"]);
+
+/**
+ * Opt-in startup roster via the environment. `.pi/tools.json` stays a map of
+ * tool decisions the active set honors; a display preference there would leak
+ * into the override and save logic, so the environment owns this switch.
+ */
+function startRosterRequested(): boolean {
+	const value = (process.env[START_LIST_ENV] ?? "").trim().toLowerCase();
+	return START_LIST_TRUTHY.has(value);
+}
+
+/**
+ * Fresh sessions only. Resume, fork, and reload replay the transcript —
+ * including a roster printed earlier — so reprinting would duplicate it, and
+ * an event without a known reason is treated the same way.
+ */
+function isFreshSessionStart(event: unknown): boolean {
+	const reason = (event as { reason?: string } | undefined)?.reason;
+	return reason === "startup" || reason === "new";
+}
 
 export default function toolsExtension(pi: ExtensionAPI) {
 	let enabledTools: Set<string> = new Set();
@@ -156,30 +182,43 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		return read.status === "ok" ? read.tools : undefined;
 	}
 
-	function printTools(query: string, ctx: ExtensionCommandContext) {
+	function printTools(
+		query: string,
+		ctx: ExtensionContext,
+		mode: "dump" | "list" = "dump",
+		options: { notifyOutsideTui?: boolean } = {},
+	) {
 		refreshCatalog();
 		enabledTools = new Set(pi.getActiveTools());
 		const matched = matchTools(allTools, query);
 		if (matched.length === 0) {
-			ctx.ui.notify(`No tools match "${query}"`, "warning");
+			ctx.ui.notify(query ? `No tools match "${query}"` : "No tools are registered.", "warning");
 			return;
 		}
 
-		const preferences = readPreferences(ctx) ?? {};
-		const unavailable = unavailableSavedToolNames(preferences, catalogNames());
-		const sections = [formatToolsDump(matched, { enabledTools })];
-		const savedSection = query ? "" : formatUnavailableSaved(unavailable);
-		if (savedSection) {
-			sections.push(savedSection);
+		let text: string;
+		if (mode === "list") {
+			// The roster is a glance, not a diagnosis: it skips the saved-preferences
+			// warnings and the unavailable section that the dump reports.
+			text = formatToolsList(matched, { enabledTools });
+		} else {
+			const preferences = readPreferences(ctx) ?? {};
+			const unavailable = unavailableSavedToolNames(preferences, catalogNames());
+			const sections = [formatToolsDump(matched, { enabledTools })];
+			const savedSection = query ? "" : formatUnavailableSaved(unavailable);
+			if (savedSection) {
+				sections.push(savedSection);
+			}
+			text = sections.join("\n\n---\n\n");
 		}
-		const text = sections.join("\n\n---\n\n");
 		pi.appendEntry<ToolsPrintData>(PRINT_ENTRY_TYPE, {
 			text,
 			query: query || undefined,
 			toolNames: matched.map((tool) => tool.name),
+			mode: mode === "list" ? "list" : undefined,
 		});
 
-		if (ctx.mode !== "tui") {
+		if (options.notifyOutsideTui !== false && ctx.mode !== "tui") {
 			ctx.ui.notify(text, "info");
 		}
 	}
@@ -296,7 +335,12 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			return undefined;
 		}
 
-		const title = data.query ? `Tools dump (${data.query})` : "Tools dump";
+		let title = "Tools dump";
+		if (data.mode === "list") {
+			title = data.query ? `Tools (list: ${data.query})` : "Tools";
+		} else if (data.query) {
+			title = `Tools dump (${data.query})`;
+		}
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
 		box.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
 		box.addChild(new Text(data.text, 1, 0));
@@ -312,13 +356,17 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				printTools(command.query, ctx);
 				return;
 			}
+			if (command.action === "list") {
+				printTools(command.query, ctx, "list");
+				return;
+			}
 			if (command.action === "save") {
 				saveProjectDefaults(ctx);
 				return;
 			}
 			if (command.action === "unknown") {
 				ctx.ui.notify(
-					`Unknown /tools argument "${command.raw}". Try /tools, /tools print [name], or /tools save`,
+				`Unknown /tools argument "${command.raw}". Try /tools, /tools list [name], /tools print [name], or /tools save`,
 					"error",
 				);
 				return;
@@ -327,19 +375,33 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		},
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		refreshCatalog();
-		if (cliOwnsTools(process.argv.slice(2)) || !sessionOwnsProjectPreferences(ctx) || presetOwnsTools(ctx)) {
-			return;
+		const entries = ctx.sessionManager.getEntries();
+		// CLI selection, a delegated child session, an owning preset, and a
+		// transcript-declared loadout each own the tool set; only a session that has
+		// not chosen yet takes the project defaults.
+		if (
+			sessionOwnsProjectPreferences(ctx) &&
+			!cliOwnsTools(process.argv.slice(2)) &&
+			!presetOwnsTools(ctx) &&
+			!declaresToolLoadout(entries)
+		) {
+			const tools = readPreferences(ctx);
+			if (tools) {
+				applyProjectOverrides(tools);
+			}
 		}
-		// Resume, fork, and reload re-declare their own loadout; only a session
-		// that has not chosen yet may take the project defaults.
-		if (declaresToolLoadout(ctx.sessionManager.getEntries())) {
-			return;
-		}
-		const tools = readPreferences(ctx);
-		if (tools) {
-			applyProjectOverrides(tools);
+
+		if (
+			startRosterRequested() &&
+			isFreshSessionStart(event) &&
+			sessionOwnsProjectPreferences(ctx) &&
+			!declaresToolLoadout(entries)
+		) {
+			// The roster is a transcript entry, not a toast: non-TUI clients keep it in
+			// the session file instead of being notified on every startup.
+			printTools("", ctx, "list", { notifyOutsideTui: false });
 		}
 	});
 }

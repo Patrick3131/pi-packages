@@ -5,10 +5,12 @@ import { firstLine, type ToolLike } from "./format.js";
 export type ToolsCommand =
 	| { action: "picker" }
 	| { action: "print"; query: string }
+	| { action: "list"; query: string }
 	| { action: "save" }
 	| { action: "unknown"; raw: string };
 
 const PRINT_COMMAND = "print";
+const LIST_COMMAND = "list";
 const SAVE_COMMAND = "save";
 
 export function parseToolsArgs(args: string): ToolsCommand {
@@ -23,6 +25,9 @@ export function parseToolsArgs(args: string): ToolsCommand {
 	}
 	if (first?.toLowerCase() === SAVE_COMMAND && rest.length === 0) {
 		return { action: "save" };
+	}
+	if (first?.toLowerCase() === LIST_COMMAND) {
+		return { action: "list", query: rest.join(" ").trim() };
 	}
 
 	return { action: "unknown", raw: trimmed };
@@ -82,6 +87,11 @@ export function getToolsArgumentCompletions(
 				description: "Dump tool details into the session (not sent to the model)",
 			},
 			{
+				value: LIST_COMMAND,
+				label: LIST_COMMAND,
+				description: "Compact one-line tool roster in the session (not sent to the model)",
+			},
+			{
 				value: SAVE_COMMAND,
 				label: SAVE_COMMAND,
 				description: "Write the current session tools to .pi/tools.json",
@@ -90,7 +100,8 @@ export function getToolsArgumentCompletions(
 		return commands.length > 0 ? commands : null;
 	}
 
-	if (first.toLowerCase() !== PRINT_COMMAND) {
+	const verb = first.toLowerCase();
+	if (verb !== PRINT_COMMAND && verb !== LIST_COMMAND) {
 		return null;
 	}
 
@@ -101,7 +112,7 @@ export function getToolsArgumentCompletions(
 	}
 
 	return matched.map((tool) => ({
-		value: `${PRINT_COMMAND} ${tool.name}`,
+		value: `${verb} ${tool.name}`,
 		label: tool.name,
 		description: firstLine(tool.description) || undefined,
 	}));

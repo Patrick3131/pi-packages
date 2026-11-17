@@ -63,6 +63,10 @@ Pi's metadata for diagnosis, and toggles are read back from `getActiveTools()`.
 Names saved in the file but not registered in this session are listed separately
 as unavailable.
 
+`/tools list` is the compact roster counterpart: one line per tool grouped
+active/inactive/indirect/hidden under a count summary. It is a transcript
+entry like the dump and reports no saved-preferences warnings.
+
 `Tab`/`Shift+Tab` cycle `all → active → inactive`; active and inactive contain only
 declared-switch rows, and the filter is session-local. `?` expands details and
 `Ctrl+S` saves; printable letters remain search input.

@@ -4,7 +4,7 @@ Everyday Pi conveniences, installed through the repository Git package:
 
 | Feature | Surface |
 |---|---|
-| Tools | `/tools`, `/tools print`, `/tools save` |
+| Tools | `/tools`, `/tools list`, `/tools print`, `/tools save` |
 | Presets | `/preset`, `--preset`, Ctrl+Shift+U |
 | Skill mentions | `$skill-name` anywhere in a message, autocomplete, `/skill-mentions` |
 | Inline actions | `$model:`, `$thinking:`, `$tools:`, `$preset:` anywhere in a message; picking one or leaving the argument empty opens its picker |
@@ -12,6 +12,13 @@ Everyday Pi conveniences, installed through the repository Git package:
 
 Every picker (`/tools`, `/preset`, `$model:`, `$tools:`, `$preset:`) filters as
 you type: fuzzy match, ↑↓ to move, Enter to pick, Esc to cancel.
+
+`/tools list` prints a compact roster — one line per tool, grouped
+active/inactive/indirect/hidden — without taking over the screen.
+`PI_TOOLS_LIST_AT_START=1` prints the same roster when a fresh session starts;
+resumed, forked, reloaded, loadout-declared, and delegated child sessions stay
+quiet. See the
+[tools notes](src/features/tools/README.md#startup-roster).
 
 ## My Pi
 

@@ -8,6 +8,7 @@ import {
 	formatToolDetails,
 	formatToolSummary,
 	formatToolsDump,
+	formatToolsList,
 	formatUnavailableSaved,
 	isDeclaredSwitch,
 	isHiddenTool,
@@ -128,4 +129,40 @@ test("formatUnavailableSaved reports preserved names and stays empty otherwise",
 	assert.match(text, /not registered in this session/);
 	assert.match(text, /mcp__gone__one/);
 	assert.match(text, /mcp__gone__two/);
+});
+
+
+test("formatToolsList groups by reachability with a count summary", () => {
+	const list = formatToolsList(
+		[
+			{ name: "read", description: "Read a file from disk" },
+			{ name: "bash", description: "Run a shell command" },
+			{ name: "stripe-docs", description: "Read Stripe documentation or API reference" },
+			{ name: "crawl_read", description: "Read a saved crawl page", exposure: "deferred" },
+			{ name: "mcp__admin__gone", description: "Gone", exposure: "hidden" },
+		],
+		{ enabledTools: ["read"] },
+	);
+	assert.match(list, /Tools \(5\) — 1 active · 2 inactive · 1 indirect · 1 hidden/);
+	assert.match(list, /active:\n  read {2,}Read a file from disk/);
+	assert.match(list, /inactive:\n  bash {2,}Run a shell command\n  stripe-docs {2,}Read Stripe documentation or API reference/);
+	assert.match(list, /indirect \(reachable via tool_search or codemode\):\n  crawl_read/);
+	assert.match(list, /hidden:\n  mcp__admin__gone/);
+});
+
+test("without an active set the roster claims no on/off state", () => {
+	const list = formatToolsList([{ name: "read", description: "Read a file" }]);
+	assert.match(list, /Tools \(1\) — 1 declared/);
+	assert.match(list, /declared:\n  read {2,}Read a file/);
+	assert.doesNotMatch(list, /active|inactive/);
+});
+
+test("long descriptions are truncated to one line", () => {
+	const list = formatToolsList([{ name: "read", description: "x".repeat(100) }], { enabledTools: [] });
+	assert.match(list, /x{71}…/);
+	assert.doesNotMatch(list, /x{72}/);
+});
+
+test("an empty catalog prints a quiet line", () => {
+	assert.equal(formatToolsList([]), "No tools are registered.");
 });

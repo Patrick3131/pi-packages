@@ -182,6 +182,108 @@ export function formatToolsDump(tools: ToolLike[], options?: { enabledTools?: It
 		.join("\n\n---\n\n");
 }
 
+export interface ToolsListOptions {
+	enabledTools?: Iterable<string>;
+}
+
+const LIST_DESCRIPTION_LIMIT = 72;
+const LIST_NAME_COLUMN = 28;
+
+function truncateLine(text: string, limit: number): string {
+	if (text.length <= limit) {
+		return text;
+	}
+	return `${text.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function listRow(tool: ToolLike, column: number): string {
+	const description = firstLine(tool.description);
+	if (!description) {
+		return `  ${tool.name}`;
+	}
+	const gap = " ".repeat(Math.max(2, column - tool.name.length));
+	return `  ${tool.name}${gap}${truncateLine(description, LIST_DESCRIPTION_LIMIT)}`;
+}
+
+/**
+ * Compact roster: one line per tool, grouped by reachability. This is the
+ * glanceable counterpart to formatToolsDump, which stays the diagnostic dump.
+ * When no active set is known, declared tools are listed without an on/off
+ * claim instead of being reported as all enabled or all disabled.
+ */
+export function formatToolsList(tools: ToolLike[], options?: ToolsListOptions): string {
+	if (tools.length === 0) {
+		return "No tools are registered.";
+	}
+
+	const enabled = options?.enabledTools === undefined ? undefined : new Set(options.enabledTools);
+	const byName = (left: ToolLike, right: ToolLike): number =>
+		left.name.localeCompare(right.name, undefined, { sensitivity: "base", numeric: true });
+
+	const declared: ToolLike[] = [];
+	const active: ToolLike[] = [];
+	const inactive: ToolLike[] = [];
+	const indirect: ToolLike[] = [];
+	const hidden: ToolLike[] = [];
+	for (const tool of tools) {
+		if (isHiddenTool(tool)) {
+			hidden.push(tool);
+		} else if (isIndirectlyReachable(tool)) {
+			indirect.push(tool);
+		} else if (enabled === undefined) {
+			declared.push(tool);
+		} else if (enabled.has(tool.name)) {
+			active.push(tool);
+		} else {
+			inactive.push(tool);
+		}
+	}
+
+	const column = Math.min(Math.max(...tools.map((tool) => tool.name.length)), LIST_NAME_COLUMN) + 2;
+	const summaryParts: string[] = [];
+	if (enabled === undefined) {
+		if (declared.length > 0) {
+			summaryParts.push(`${declared.length} declared`);
+		}
+	} else {
+		if (active.length > 0) {
+			summaryParts.push(`${active.length} active`);
+		}
+		if (inactive.length > 0) {
+			summaryParts.push(`${inactive.length} inactive`);
+		}
+	}
+	if (indirect.length > 0) {
+		summaryParts.push(`${indirect.length} indirect`);
+	}
+	if (hidden.length > 0) {
+		summaryParts.push(`${hidden.length} hidden`);
+	}
+
+	const sections: string[][] = [];
+	const pushSection = (header: string, members: ToolLike[]): void => {
+		if (members.length === 0) {
+			return;
+		}
+		sections.push([`${header}:`, ...members.sort(byName).map((tool) => listRow(tool, column))]);
+	};
+
+	if (enabled === undefined) {
+		pushSection("declared", declared);
+	} else {
+		pushSection("active", active);
+		pushSection("inactive", inactive);
+	}
+	pushSection("indirect (reachable via tool_search or codemode)", indirect);
+	pushSection("hidden", hidden);
+
+	const lines = [`Tools (${tools.length})${summaryParts.length > 0 ? ` — ${summaryParts.join(" · ")}` : ""}`];
+	for (const section of sections) {
+		lines.push("", ...section);
+	}
+	return lines.join("\n");
+}
+
 /**
  * Names saved in `.pi/tools.json` that this session does not register. They are
  * kept on disk by a save but cannot take effect here, so they are reported

@@ -83,3 +83,25 @@ test("completions offer print, then matching tool names", () => {
 	assert.equal(getToolsArgumentCompletions("dump", tools), null);
 	assert.equal(getToolsArgumentCompletions("print nope", tools), null);
 });
+
+
+test("parseToolsArgs accepts list with an optional query", () => {
+	assert.deepEqual(parseToolsArgs("list"), { action: "list", query: "" });
+	assert.deepEqual(parseToolsArgs("LIST crawl"), { action: "list", query: "crawl" });
+	assert.deepEqual(parseToolsArgs("list crawl_read"), { action: "list", query: "crawl_read" });
+});
+
+test("completions offer list and complete tool names after it", () => {
+	assert.deepEqual(
+		getToolsArgumentCompletions("li", tools)?.map((item) => item.value),
+		["list"],
+	);
+
+	const afterList = getToolsArgumentCompletions("list ", tools);
+	assert.deepEqual(
+		afterList?.map((item) => item.value),
+		["list crawl", "list crawl_read", "list read", "list bash"],
+	);
+	assert.equal(getToolsArgumentCompletions("list cra", tools)?.[0]?.label, "crawl");
+	assert.equal(getToolsArgumentCompletions("list nope", tools), null);
+});

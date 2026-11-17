@@ -50,6 +50,11 @@ canonical_for: pi-tools package conventions
   never treat activation as a decision, and keep it out of the non-TUI selector.
 - Do not call `getActiveTools` / `setActiveTools` during module load.
 - Print dumps go through `appendEntry("tools-print")`.
+- `/tools list` and the `PI_TOOLS_LIST_AT_START=1` startup roster use the same
+  `tools-print` entry with `mode: "list"`: the roster is a display surface, so
+  its switch lives in the environment and it never reads or writes
+  `.pi/tools.json`, prints only on `startup`/`new`, and stays quiet in delegated
+  child sessions and loadout-declared sessions.
 - Job lists stay in `presets.json`.
 
 ## Commands

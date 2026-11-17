@@ -69,6 +69,11 @@ contain only declared-switch rows; the indirect read-only section is shown only 
 read back from Pi after a change, so a tool that cannot be activated is never
 reported as enabled, and exposure itself is managed in `.pi/mcp.json` or `/mcp`.
 
+`/tools list` is the glanceable counterpart: a compact roster with one line per
+tool, grouped `active` / `inactive` / `indirect` / `hidden` under a count
+summary. It skips the unavailable-saved section and saved-preferences warnings
+that the diagnostic dump reports.
+
 ## Commands
 
 - `/tools` — picker. Type to filter; `Tab` cycles all/active/inactive. Enter/Space
@@ -76,10 +81,27 @@ reported as enabled, and exposure itself is managed in `.pi/mcp.json` or `/mcp`.
   `Ctrl+S` merges project defaults, Esc closes. Printable letters are always search
   input; actions use non-letter keys.
 - `/tools print` / `/tools print crawl` — transcript dump, not sent to the model
+- `/tools list` / `/tools list crawl` — compact one-line roster grouped by
+  reachability, not sent to the model
 - Bare `/tools` opens the interactive picker in the TUI and automatically
   prints the catalog in non-TUI clients such as Pi Web.
 - `/tools save` — merge the current session's declared-switch decisions into
   `.pi/tools.json`
+
+## Startup roster
+
+`PI_TOOLS_LIST_AT_START=1` prints the `/tools list` roster automatically when a
+fresh session starts (`startup` or `new`). A resumed, forked, or reloaded
+session replays its transcript — including a roster printed earlier — so
+nothing is reprinted; delegated subagent sessions and sessions that already
+declare a tool loadout stay quiet. A preset-driven or CLI-selected session
+still gets the roster — it describes the catalog and is independent of who
+owns activation. The switch lives in the environment, not in
+`.pi/tools.json`: that file stays a map of tool decisions, and a display key
+would leak into the override and save logic.
+
+The startup roster is the catalog at that moment. MCP servers that are still
+connecting register later; `/tools` shows the live state.
 
 ## Install
 
