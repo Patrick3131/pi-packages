@@ -335,8 +335,8 @@ parameter/response types.
 
 ## Reddit research
 
-Set `DISCOVERY_REDDIT_ENABLED=1` to activate the `reddit` tool by default. It
-uses `DISCOVERY_BASE_URL` with the same VPN default as other Discovery tools.
+The `reddit` tool is active by default. It uses `DISCOVERY_BASE_URL` with the
+same VPN default as other Discovery tools.
 
 - `search` finds posts by topic and optionally scopes results to a subreddit.
 - `thread` opens a post or a specific comment branch by Reddit permalink or ID.

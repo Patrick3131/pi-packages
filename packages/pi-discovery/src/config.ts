@@ -203,14 +203,6 @@ export function resolveAmazonConfig(env: NodeJS.ProcessEnv = process.env): {
   return { baseUrl, timeoutMs };
 }
 
-export function isRedditEnabledByEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  return ["1", "true"].includes(
-    env.DISCOVERY_REDDIT_ENABLED?.trim().toLowerCase() ?? "",
-  );
-}
-
 export function resolveRedditConfig(env: NodeJS.ProcessEnv = process.env): {
   baseUrl: string;
 } {

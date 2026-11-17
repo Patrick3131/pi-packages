@@ -33,6 +33,7 @@ function tool(): Tool {
 
 test("Reddit dispatches four actions to Discovery and returns the source data", async (t) => {
   const reddit = tool();
+  assert.equal(reddit.defaultActive, true);
   const cases = [
     [{ action: "search", query: "espresso" }, "search", "posts"],
     [{ action: "thread", post_id: "abc" }, "thread", "comments"],

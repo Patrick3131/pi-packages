@@ -22,7 +22,7 @@ Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata, YouTu
   caller-built upstream URL, and keep canonical URL validation mirrored between
   client and service. Keep TikTok nullable/metrics semantics intact.
 - Do not add `web_fetch`, Brave API search, or xAI search.
-- Default tools **off**, except the YouTube tools, which ship on and accept an
+- Default tools **off**, except the Reddit tool and the YouTube tools. YouTube accepts an
   explicit `DISCOVERY_YOUTUBE_ENABLED=0/false` opt-out; Amazon tools default off
   and need `DISCOVERY_AMAZON_ENABLED=1`.
 - Default URL is the VPN bind, not localhost.
@@ -92,6 +92,6 @@ codes, reasons and Retry-After. Model-visible text stays under 12000 characters
 while structured output keeps every returned segment/result. Never log or return
 a caption URL or provider prose.
 
-The opt-in `reddit` tool covers four on-demand read actions. Use Discovery only,
+The default-active `reddit` tool covers four on-demand read actions. Use Discovery only,
 preserve source and canonical citation URLs, and keep the full returned data in
 structured output. Show server rate limits without retrying.
