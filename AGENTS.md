@@ -17,9 +17,9 @@ Root guidance for the pi-packages monorepo. Contains Pi extensions distributed t
 - `packages/pi-crawl4ai` - Web crawling extension with crawl4ai
 - `packages/pi-work` - Docs-as-work skills, scaffold, and `/work` wizard
 - `packages/pi-delegation` - Capability-gated delegation instructions
-- `packages/pi-toolkit` - Everyday utilities: `/tools`, `/preset`, skill mentions, and `/overview` (separate feature entry points)
+- `packages/pi-toolkit` - Everyday utilities: `/tools` (picker, compact roster, optional startup listing), `/preset`, `$skill` mentions, inline `$` actions, and `/overview` (separate feature entry points)
 - `packages/pi-recap` - Session recap HTML: user questions with short, expandable answers (`/recap`, `/user-messages`)
-- `packages/pi-discovery` - Search, Luna `web_answer`, Ad Library, social, YouTube and Amazon search/channel/transcript/product tools (YouTube on by default; others opt-in)
+- `packages/pi-discovery` - Search, Luna `web_answer`, Ad Library, social, Reddit research, YouTube and Amazon search/channel/transcript/product tools (YouTube on by default; others opt-in)
 - `paseo-melon/` - Paseo workspace panel for Melon worktrees and previews (installed with `paseo plugin add`)
 - `configs/global` - Sanitized machine restore snapshot, reusable custom agent definitions, native MCP preset/write policy, and subagent worktree setup hook (not a published package)
 - `scripts/pi-sync` - Explicit published-package/shared-config sync to local global Pi and melon-remote's Pi/Paseo service via temporary disabled Dokploy API tasks; verify terminal status and completion logs, never scan/clean workspaces or use SSH/sudo

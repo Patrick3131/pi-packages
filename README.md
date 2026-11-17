@@ -4,15 +4,15 @@ A monorepo of [Pi](https://github.com/earendil-works/pi) extensions distributed 
 
 ## Packages
 
-| Package                                   | Description                                                                                                                  | Distribution |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| [pi-crawl4ai](./packages/pi-crawl4ai)     | Remote browser crawling, file-first reads, BM25 and optional Trafilatura/agents; server-managed egress                       | Git package  |
-| [pi-work](./packages/pi-work)             | Detailed planning, optional parallel sliced implementation/integration, safe work-note cleanup, scaffold, and `/work` wizard | Git package  |
-| [pi-delegation](./packages/pi-delegation) | Standing delegation policy, injected only in sessions that can delegate                                                      | Git package  |
-| [pi-toolkit](./packages/pi-toolkit)       | Everyday utilities: `/tools`, `/preset`, `$skill-name` mentions, and My Pi HTML `/overview`                                  | Git package  |
-| [pi-recap](./packages/pi-recap)           | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`)                                  | Git package  |
-| [pi-discovery](./packages/pi-discovery)   | Search, Luna `web_answer`, Ad Library, Instagram/TikTok metadata, YouTube and Amazon tools                                   | Git package  |
-| [paseo-melon](./paseo-melon)              | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees                                  | Paseo plugin |
+| Package                                     | Description                                                                                                                    | Distribution   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| [pi-crawl4ai](./packages/pi-crawl4ai)       | Remote browser crawling, file-first reads, BM25 and optional Trafilatura/agents; server-managed egress                         | Git package    |
+| [pi-work](./packages/pi-work)               | Detailed planning, optional parallel sliced implementation/integration, safe work-note cleanup, scaffold, and `/work` wizard   | Git package    |
+| [pi-delegation](./packages/pi-delegation)   | Standing delegation policy, injected only in sessions that can delegate                                                        | Git package    |
+| [pi-toolkit](./packages/pi-toolkit)         | Everyday utilities: `/tools` (picker, roster), `/preset`, `$skill` mentions, inline `$` actions, and My Pi HTML `/overview`    | Git package    |
+| [pi-recap](./packages/pi-recap)             | Session recap as user questions with short, expandable answers (`/recap`, `/user-messages`)                                    | Git package    |
+| [pi-discovery](./packages/pi-discovery)     | Search, Luna `web_answer`, Ad Library, Instagram/TikTok metadata, Reddit research, YouTube and Amazon tools                    | Git package    |
+| [paseo-melon](./paseo-melon)                | Paseo workspace panel driving `melon-worktree` and `melon-preview` for Melon task worktrees                                    | Paseo plugin   |
 
 ## Installation
 
@@ -75,6 +75,10 @@ is the no-write opt-out and forfeits omitted-content recovery. BM25 retains
 pre-filter source, including valid empty selections. Optional Trafilatura uses
 configured local Python (`CRAWL4AI_TRAFILATURA_PYTHON`, trafilatura>=2,<3) on
 remote-rendered HTML and preserves raw HTML; native structure may be lost.
+
+If an acquisition is blocked or bot-challenged, one retry of the same public
+URL goes through DeepSeek Fetch for that single page's Markdown; the output
+and manifest identify DeepSeek, and the page must be public.
 
 `/tools`, presets and explicit CLI/child allowlists own activation. `/crawl-status` checks health on demand,
 not at startup. HTTP abort may not stop remote browser work. Stock Crawl4AI 0.9.4 rejects untrusted deep strategies. The operator-managed
