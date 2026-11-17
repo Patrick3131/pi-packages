@@ -247,24 +247,20 @@ no installed config/packages. Successful task cleanup removes its task logs.
 ```
 pi-packages/
 ├── packages/
-│   ├── pi-crawl4ai/
-│   │   ├── src/
-│   │   ├── package.json
-│   │   └── README.md
-│   ├── pi-work/
-│   │   ├── src/
-│   │   ├── skills/
-│   │   ├── package.json
-│   │   └── README.md
-│   └── pi-presets/
-│       ├── src/
-│       ├── package.json
-│       └── README.md
-├── configs/global/       # Restore snapshot for ~/.pi/agent
-├── package.json          # Workspace root
-├── AGENTS.md             # Working agreements
-├── CONTEXT.md            # Architecture
-└── README.md             # This file
+│   ├── pi-crawl4ai/       # Remote crawling, crawl_read sessions, research cores
+│   ├── pi-work/           # Docs-as-work skills, scaffold, /work wizard
+│   ├── pi-delegation/     # Standing delegation policy prompt
+│   ├── pi-toolkit/        # /tools, /preset, $ mentions + actions, /overview
+│   ├── pi-recap/          # Session recap HTML (/recap, /user-messages)
+│   ├── pi-discovery/      # Search, web_answer, ads, social, YouTube, Amazon, Reddit
+│   └── [future packages]/
+├── paseo-melon/           # Paseo workspace panel (installed with `paseo plugin add`)
+├── configs/global/        # Restore snapshot for ~/.pi/agent
+├── scripts/               # pi-sync deployment, prepare-research, capability smoke
+├── package.json           # Workspace root
+├── AGENTS.md              # Working agreements
+├── CONTEXT.md             # Architecture
+└── README.md              # This file
 ```
 
 ## License

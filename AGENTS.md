@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-08-13
+last_verified: 2026-11-17
 applies_to: /**
 inherits_from: none
 canonical_for: Repo-wide working agreements and navigation

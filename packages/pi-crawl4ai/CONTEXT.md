@@ -32,6 +32,12 @@ crawl_interact → configured /execute_js → isolated pre/post snapshots
 
 Deep support is deployment-specific. The operator-managed discovery-services adapter, verified on its 0.9.5 image, exposes narrowly validated, non-streaming server-owned strategies while preserving ordinary UNTRUSTED loading, SSRF/DNS pinning and operator egress. Operator attempts/frontiers/deadlines are bounded; deep streaming/raw-regex filters are unsupported. Other deployments still need genuine runtime proof; health/unit/package checks are insufficient.
 
+`deepseekFetch.ts` is the one agent-selected retry: `fallback: true` re-acquires a
+single public URL through DeepSeek Fetch and returns its Markdown, recording
+DeepSeek as the source in output and manifest. It requires `deepseekApiKey` or
+`DEEPSEEK_API_KEY`, performs no other automatic fallback, and does not relax the
+SSRF/egress gates above.
+
 ## File-first policy and presentation
 
 `presentation.ts` defines fixed previews and compact saved-page indexes. Omitted save persists even small crawls; auto returns paths. Explicit inline saves complete bodies too. save=false means bounded inline with no writes; files+no-save fails preflight. Smaller positive caller preview caps apply, bounded by the fixed 12,000-character total body cap. Default deep maxPages is 10 and index excerpts are 200 characters; presentation defaults have no JSON/env plumbing. Final output uses host byte/line truncation; the index lists at most 20 entries and points to the complete manifest. `crawl_read` defaults to 6,000 characters and is also host-bounded. Saved content is not presentation-truncated; zero remaining space is not unlimited.

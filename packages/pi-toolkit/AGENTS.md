@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-10-07
+last_verified: 2026-11-17
 applies_to: packages/pi-toolkit/**
 inherits_from: ../../AGENTS.md
 canonical_for: Toolkit working agreements
@@ -8,9 +8,10 @@ canonical_for: Toolkit working agreements
 
 # Pi Toolkit
 
-Four independently filterable extension entry points; no aggregate entry point
-that registers all features twice. Preserve relative preset/tools/mentions hook
-order and existing commands, shortcuts, flags, config paths, and preset-state.
+Five independently filterable extension entry points; no aggregate entry point
+that registers all features twice. Preserve relative preset/tools/mentions
+hook order and existing commands, shortcuts, flags, config paths, and
+preset-state.
 Keep detailed feature rules in src/features/*/AGENTS.md.
 
 Overview is read-only except private report output and optional browser opening.
