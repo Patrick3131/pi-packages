@@ -91,3 +91,7 @@ is `status: not_found` and is not a retry signal; 401/429/502/504 keep sanitized
 codes, reasons and Retry-After. Model-visible text stays under 12000 characters
 while structured output keeps every returned segment/result. Never log or return
 a caption URL or provider prose.
+
+The opt-in `reddit` tool covers four on-demand read actions. Use Discovery only,
+preserve source and canonical citation URLs, and keep the full returned data in
+structured output. Show server rate limits without retrying.

@@ -101,6 +101,7 @@ test("registers the social tools alongside default-on YouTube tools", () => {
       "amazon_new_releases",
       "amazon_search",
       "amazon_product",
+      "reddit",
       "social_profile",
       "social_profile_posts",
       "social_post",

@@ -332,3 +332,16 @@ record, bullet, rank, warning and additive server field. Harness-neutral exports
 `newAmazonReleases`, `searchAmazon`, `getAmazonProduct`, `formatAmazonListing`,
 `formatAmazonProduct`, `AmazonClientError`, the tool definitions and their
 parameter/response types.
+
+## Reddit research
+
+Set `DISCOVERY_REDDIT_ENABLED=1` to activate the `reddit` tool by default. It
+uses `DISCOVERY_BASE_URL` with the same VPN default as other Discovery tools.
+
+- `search` finds posts by topic and optionally scopes results to a subreddit.
+- `thread` opens a post or a specific comment branch by Reddit permalink or ID.
+- `find_subreddits` finds communities by topic.
+- `subreddit` reads community metadata and a small listing of posts.
+
+Tool results include citation URLs, the acquisition source, and any listing
+cursor or comment truncation. Provider authentication is owned by the server.

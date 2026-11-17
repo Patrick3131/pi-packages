@@ -202,3 +202,20 @@ export function resolveAmazonConfig(env: NodeJS.ProcessEnv = process.env): {
     throw new Error("Invalid Amazon timeout.");
   return { baseUrl, timeoutMs };
 }
+
+export function isRedditEnabledByEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return ["1", "true"].includes(
+    env.DISCOVERY_REDDIT_ENABLED?.trim().toLowerCase() ?? "",
+  );
+}
+
+export function resolveRedditConfig(env: NodeJS.ProcessEnv = process.env): {
+  baseUrl: string;
+} {
+  return resolveDiscoveryConfig({
+    ...env,
+    DISCOVERY_WEB_ANSWER_TIMEOUT_MS: "310000",
+  });
+}

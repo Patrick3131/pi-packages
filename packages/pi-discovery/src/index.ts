@@ -1,3 +1,4 @@
+import { registerReddit } from "./reddit-tool.js";
 import { registerAdLibrary } from "./ad-library-tools.js";
 import { registerAmazon } from "./amazon-tools.js";
 import { registerSocial } from "./social-tools.js";
@@ -20,6 +21,7 @@ import {
 export default function discovery(pi: ExtensionAPI): void {
   registerAdLibrary(pi);
   registerAmazon(pi);
+  registerReddit(pi);
   registerSocial(pi);
   registerYoutube(pi);
   pi.registerTool({
