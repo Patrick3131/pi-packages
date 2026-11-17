@@ -32,6 +32,8 @@ Use `No automated test needed` when the change has no material runtime risk. Do 
 
 ## Current Work
 
+- [2026-10-21 research: crawl package landscape](work/2026-10-21-research-crawl-package-landscape.md) — survey of Pi/OpenCode/MCP crawl packages and upstream Crawl4AI capability gaps, with ranked improvement options for `packages/pi-crawl4ai`
+- [2026-10-21 research: romek-rozen/pi-crawl4ai and the Trafilatura pipeline](work/2026-10-21-research-trafilatura-and-extraction-comparison.md) — source-level competitive review of the only real substitute, with the extraction comparison and adoption plan
 
 ## Completed
 
