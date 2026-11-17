@@ -138,14 +138,24 @@ export function buildResponseText(
   results: NormalizedSearchResult[],
 ): string {
   if (results.length === 0) return `No results found for: ${query}`;
-  const lines = [`Search results for: ${query}`, ""];
+  const lines = [
+    `Search results for: ${query}`,
+    "Positions follow SearXNG result order. Source engines are listed when known.",
+    "",
+  ];
   results.forEach((result, index) => {
     lines.push(`${index + 1}. ${result.title}`);
     lines.push(`   URL: ${result.url}`);
     const snippet = truncateSnippet(result.content);
     if (snippet) lines.push(`   ${snippet}`);
-    const source = result.engine ?? result.engines?.join(", ");
-    const metadata = [source, result.publishedDate, result.category]
+    const source = result.engines?.length
+      ? result.engines.join(", ")
+      : result.engine;
+    const metadata = [
+      source && `Source engines: ${source}`,
+      result.publishedDate,
+      result.category,
+    ]
       .filter(Boolean)
       .join(" · ");
     if (metadata) lines.push(`   ${metadata}`);

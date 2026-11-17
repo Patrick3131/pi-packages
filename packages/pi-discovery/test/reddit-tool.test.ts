@@ -67,6 +67,77 @@ test("Reddit dispatches four actions to Discovery and returns the source data", 
   assert.equal(observed, 4);
 });
 
+test("Reddit previews show available metadata and keep pagination visible", async (t) => {
+  const post = {
+    title: "Example post",
+    url: "https://www.reddit.com/r/espresso/comments/abc/",
+    created_utc: 1769904000,
+    score: 0,
+    comment_count: 0,
+  };
+  const page = {
+    schema_version: "reddit.v1",
+    source: "reddit_oauth",
+  };
+  const responses = [
+    { ...page, posts: [post], ranked_candidates: 25 },
+    { ...page, post, comments: [], comments_truncated: true },
+    { ...page, posts: [], next_cursor: "continue-opaque" },
+    {
+      ...page,
+      source: "web_index",
+      next_cursor: "keep-before-cutoff",
+      subreddits: Array.from({ length: 8 }, () => ({
+        name: "espresso",
+        description: "community ".repeat(80),
+        example_posts: [
+          {
+            ...post,
+            title: "long ".repeat(100),
+            url: "https://www.reddit.com/" + "x".repeat(300),
+            created_utc: null,
+            score: null,
+            comment_count: null,
+            index_published_date: "2026-02-02",
+            index_engines: ["brave", "duckduckgo"],
+          },
+          {
+            ...post,
+            title: "another ".repeat(100),
+            url: "https://www.reddit.com/" + "y".repeat(300),
+          },
+        ],
+      })),
+    },
+  ];
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json(responses.shift()),
+  );
+  const reddit = tool();
+  const args = [
+    { action: "search", query: "espresso" },
+    { action: "thread", post_id: "abc" },
+    { action: "search", query: "espresso" },
+    { action: "find_subreddits", query: "espresso" },
+  ] as const;
+  const results = [];
+  for (const arg of args)
+    results.push((await reddit.execute("test", arg)).content[0].text);
+  assert.match(results[0], /25 eligible Reddit relevance candidates/);
+  assert.match(results[0], /2026-02-01 UTC · score 0 · 0 comments/);
+  assert.match(results[1], /2026-02-01 UTC · score 0 · 0 comments/);
+  assert.match(results[1], /bounded comment sample/);
+  assert.match(results[2], /0 posts on this page/);
+  assert.match(results[2], /Next cursor: continue-opaque/);
+  assert.match(results[3], /Next cursor: keep-before-cutoff/);
+  assert.match(
+    results[3],
+    /Index date 2026-02-02 · Source engines: brave, duckduckgo/,
+  );
+  assert.doesNotMatch(results[3], /1970|score null/);
+  assert.ok(results[3].length <= 12000);
+});
+
 test("Reddit surfaces rate limiting without retrying", async (t) => {
   const fetch = t.mock.method(globalThis, "fetch", async () =>
     Response.json(

@@ -65,7 +65,8 @@ test("truncateSnippet and buildResponseText stay compact", () => {
   ]);
   assert.match(text, /Search results for: q/);
   assert.match(text, /https:\/\/pi\.dev/);
-  assert.match(text, /brave/);
+  assert.match(text, /SearXNG result order/);
+  assert.match(text, /Source engines: brave/);
 });
 
 test("searchSearxng uses the injected fetch and returns details", async () => {

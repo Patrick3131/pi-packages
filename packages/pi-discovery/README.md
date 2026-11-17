@@ -345,3 +345,11 @@ same VPN default as other Discovery tools.
 
 Tool results include citation URLs, the acquisition source, and any listing
 cursor or comment truncation. Provider authentication is owned by the server.
+
+Post search accepts `subreddit`, `time`, and up to ten `exclude_subreddits`.
+Use `relevance` for topical search or `engagement` to rank one bounded Reddit
+relevance sample by score and comment count. Engagement has no cursor.
+Other sorts use Reddit ordering. An excluded page can still have a cursor.
+Post previews show available dates, scores, and comment counts. Indexed dates
+and source engines are labeled separately. SearXNG positions describe its
+returned order.

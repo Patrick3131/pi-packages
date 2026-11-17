@@ -4,7 +4,8 @@ import { DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT, TOOL_NAME } from "./types.js";
 export const searxngToolDefinition = {
   name: TOOL_NAME,
   label: "SearXNG search",
-  description: "Search the web with SearXNG.",
+  description:
+    "Search the web with SearXNG. Attribute results to the reported source engines. Result positions refer to SearXNG’s returned order.",
   promptSnippet: "web_search_searxng(query): search the web with SearXNG",
   promptGuidelines: ["Use only when the user requests a live web search."],
   parameters: Type.Object({
