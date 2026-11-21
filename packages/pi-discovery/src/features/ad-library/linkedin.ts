@@ -5,6 +5,7 @@ import {
   type AdLibraryOptions,
 } from "./transport.js";
 import {
+  validCompanyReference,
   linkedinParameters,
   linkedinResponse,
   type LinkedInAdsParams,
@@ -17,7 +18,11 @@ export async function searchLinkedInAds(
 ): Promise<LinkedInAdsResult> {
   if (options.signal?.aborted)
     throw new DOMException("Ad library cancelled.", "AbortError");
-  if (!Check(linkedinParameters, params))
+  if (
+    !Check(linkedinParameters, params) ||
+    (params.linkedin_url !== undefined &&
+      !validCompanyReference(params.linkedin_url.trim()))
+  )
     throw new AdLibraryClientError("invalid_request");
   const selectors = [
     params.keyword,
@@ -51,10 +56,28 @@ export async function searchLinkedInAds(
 export function formatLinkedInAds(
   result: LinkedInAdsResult,
   showCursor = true,
+  params?: LinkedInAdsParams,
 ) {
   const lines = [
     `LinkedIn Ad Library · ${result.ads.length} ads · ${result.country}`,
   ];
+  if (result.resolved_page_id)
+    lines.push(`Advertiser page ID: ${result.resolved_page_id}.`);
+  if (params) {
+    const scope = [
+      params.keyword && `keyword: ${params.keyword}`,
+      params.account_owner && `advertiser name: ${params.account_owner}`,
+      params.payer && `payer: ${params.payer}`,
+      params.start_date
+        ? `${params.start_date} through ${params.end_date}`
+        : params.date_option,
+    ].filter(Boolean);
+    if (scope.length) lines.push(scope.join(" · "));
+  }
+  for (const failure of result.failed_pages)
+    lines.push(
+      `Page ${failure.page}: ${failure.stage ?? "results"} (${failure.error_code}). Request ${result.id}.`,
+    );
   if (result.max_ads_adjustment)
     lines.push(
       `Requested ${result.max_ads_adjustment.requested} ads; effective limit raised to 24 (one LinkedIn page).`,

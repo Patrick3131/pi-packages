@@ -115,3 +115,35 @@ test("incompatible selectors fail locally with a correction", async (t) => {
   }
   assert.equal(fetch.mock.callCount(), 0);
 });
+
+test("company links, personal profiles and scoped failures", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    Response.json(
+      {
+        error: {
+          code: "ad_library_blocked",
+          request_id: "req-1",
+          stage: "initial_results",
+          resolved_page_id: "123",
+        },
+      },
+      { status: 502 },
+    ),
+  );
+  for (const linkedin_url of [
+    "linkedin.com/company/Example",
+    "HTTP://de.linkedin.com/company/123/mycompany/",
+    "Example",
+  ]) {
+    const result = await call({ platform: "linkedin", linkedin_url });
+    assert.match(result.text, /blocked.*123.*initial_results.*req-1/);
+  }
+  for (const linkedin_url of [
+    "linkedin.com/in/example",
+    "https://linkedin.com.evil.com/company/example",
+  ]) {
+    const result = await call({ platform: "linkedin", linkedin_url });
+    assert.match(result.text, /account_owner/);
+  }
+  assert.equal(fetch.mock.callCount(), 3);
+});

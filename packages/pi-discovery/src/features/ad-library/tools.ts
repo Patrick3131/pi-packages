@@ -46,7 +46,11 @@ export async function executeAdLibrary(
     const formatted =
       platform === "meta"
         ? formatAdLibrary(await searchAdLibrary(body, { signal }), false)
-        : formatLinkedInAds(await searchLinkedInAds(body, { signal }), false);
+        : formatLinkedInAds(
+            await searchLinkedInAds(body, { signal }),
+            false,
+            body,
+          );
     const response = formatted.details;
     const next =
       !response.complete && response.next_cursor && !params.domain
@@ -81,7 +85,7 @@ export async function executeAdLibrary(
       ? `\nCandidates: ${e.candidates.map((c) => `${c.page_name ?? "unknown"} page_id=${c.page_id} votes=${c.votes}/${c.ads} ads`).join("; ")}` +
         (e.retryWith ? `\nRetry with page_id=${e.retryWith.page_id}.` : "")
       : "";
-    const text =
+    let text =
       (status === "not_found"
         ? "No matching advertiser resolved in the sampled results. Use a page_id from keyword results."
         : status === "ambiguous"
@@ -93,6 +97,16 @@ export async function executeAdLibrary(
               (e.retryAfterMs
                 ? ` Retry after ${e.retryAfterMs / 1000} s.`
                 : "")) + candidateText;
+    if (platform === "linkedin") {
+      if (status === "not_found")
+        text =
+          "Company page could not be resolved. Verify its slug or use account_owner for name discovery.";
+      if (e.serverCode === "ad_library_blocked")
+        text += " LinkedIn blocked the lookup. Ad activity is unknown.";
+      if (e.resolvedPageId) text += ` Advertiser page ID: ${e.resolvedPageId}.`;
+      if (e.stage) text += ` Stage: ${e.stage}.`;
+      if (e.requestId) text += ` Request: ${e.requestId}.`;
+    }
     const error = Object.fromEntries(
       Object.entries({
         code: e.code,
@@ -103,6 +117,8 @@ export async function executeAdLibrary(
         candidates: e.candidates,
         retry_with: e.retryWith,
         reason: e.reason,
+        stage: e.stage,
+        resolved_page_id: e.resolvedPageId,
       }).filter(([, value]) => value !== undefined),
     );
     const details = { platform, status, error };

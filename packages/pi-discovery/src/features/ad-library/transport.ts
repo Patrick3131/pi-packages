@@ -39,6 +39,8 @@ export class AdLibraryClientError extends Error {
     public candidates?: AdLibraryCandidate[],
     public retryWith?: { page_id: string },
     public reason?: string,
+    public stage?: string,
+    public resolvedPageId?: string,
   ) {
     super(`Ad library request failed (${code}).`);
     this.name = "AdLibraryClientError";
@@ -113,6 +115,15 @@ export async function postAdLibrary(
           ? { page_id: e.retry_with.page_id }
           : undefined,
         isReason(e.reason) ? e.reason : undefined,
+        ["company_resolution", "initial_results", "pagination"].includes(
+          e.stage,
+        )
+          ? e.stage
+          : undefined,
+        typeof e.resolved_page_id === "string" &&
+          /^\d{1,32}$/.test(e.resolved_page_id)
+          ? e.resolved_page_id
+          : undefined,
       );
     }
     return data;

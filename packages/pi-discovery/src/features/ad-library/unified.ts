@@ -1,5 +1,9 @@
 import { Type, type Static } from "typebox";
-import { linkedinParameters, linkedinResponse } from "./linkedin-schema.js";
+import {
+  linkedinParameters,
+  linkedinResponse,
+  validCompanyReference,
+} from "./linkedin-schema.js";
 import { metaResponse } from "./definitions.js";
 
 const fields = linkedinParameters.properties;
@@ -36,7 +40,8 @@ const parameters = Type.Object(
     }),
     linkedin_url: Type.Optional({
       ...fields.linkedin_url,
-      description: "LinkedIn only. Company page URL or slug.",
+      description:
+        "LinkedIn only. Company slug or company URL, with or without https://. Use account_owner for a display name.",
     }),
     payer: Type.Optional({
       ...fields.payer,
@@ -148,16 +153,10 @@ export function inputCorrection(p: AdLibraryToolParams): string | undefined {
     )
   )
     return "Supply a LinkedIn keyword, page_id, linkedin_url, payer or account_owner.";
-  if (
-    p.linkedin_url &&
-    !(
-      /^[a-z0-9][a-z0-9-]{0,99}$/.test(p.linkedin_url) ||
-      /^https:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/company\/[a-z0-9][a-z0-9-]{0,99}\/?$/i.test(
-        p.linkedin_url,
-      )
-    )
-  )
-    return "Use a LinkedIn company URL or a company slug for linkedin_url.";
+  if (p.linkedin_url && !validCompanyReference(p.linkedin_url.trim()))
+    return /linkedin\.com\/in\//i.test(p.linkedin_url)
+      ? "This is a personal profile. Use a company slug or company URL, or account_owner to search an advertiser name."
+      : "Use a LinkedIn company URL or company slug. Use account_owner for a display name.";
   if (p.start_date || p.end_date || p.date_option === "custom-date-range") {
     if (!(p.start_date && p.end_date && p.date_option === "custom-date-range"))
       return "Supply date_option custom-date-range with both start_date and end_date.";

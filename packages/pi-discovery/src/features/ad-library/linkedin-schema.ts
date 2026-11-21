@@ -93,6 +93,7 @@ export const linkedinResponse = Type.Object({
   mode: Type.Union([Type.Literal("keyword"), Type.Literal("page")]),
   query: Type.String(),
   country: Type.String(),
+  resolved_page_id: Type.Optional(text),
   date_option: Type.Union([dateOption, Type.Null()]),
   sort,
   ads: Type.Array(ad),
@@ -127,7 +128,12 @@ export const linkedinResponse = Type.Object({
     }),
   ),
   failed_pages: Type.Array(
-    Type.Object({ page: count, error_code: Type.String(), reason: text }),
+    Type.Object({
+      page: count,
+      error_code: Type.String(),
+      reason: text,
+      stage: Type.Optional(text),
+    }),
   ),
   transparency: Type.Union([
     Type.Object({
@@ -146,3 +152,12 @@ export const linkedinResponse = Type.Object({
 });
 export type LinkedInAdsParams = Static<typeof linkedinParameters>;
 export type LinkedInAdsResult = Static<typeof linkedinResponse>;
+
+export function validCompanyReference(value: string): boolean {
+  return (
+    /^[a-z0-9][a-z0-9-]{0,99}$/i.test(value) ||
+    /^(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/company\/[a-z0-9][a-z0-9-]{0,99}(?:\/mycompany)?\/?$/i.test(
+      value,
+    )
+  );
+}
