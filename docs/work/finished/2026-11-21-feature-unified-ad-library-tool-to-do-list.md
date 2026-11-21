@@ -1,5 +1,5 @@
 ---
-status: backlog
+status: done
 owner: engineering
 last_reviewed: 2026-11-21
 canonical_ref: none

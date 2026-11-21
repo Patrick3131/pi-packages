@@ -1,5 +1,5 @@
 ---
-status: backlog
+status: done
 owner: engineering
 last_reviewed: 2026-11-21
 canonical_ref: none
@@ -18,3 +18,15 @@ Reuse the existing Meta fixtures through the unified registration. Verify that a
 Run the Discovery workspace tests and typecheck, config tests and research bundle build. Smoke-test the packed research export from a clean consumer. Keep provider traffic out of CI.
 
 In a fresh local Pi research session inspect the tool schema and active names. Search Meta by domain and LinkedIn by advertiser name against the deployed API. Resume a paginated result using exactly the returned arguments. Check a LinkedIn transparency request separately and confirm ordinary searches omit detail fetching. Verify Melon Labs presets and its resolved dependency after migration. Use existing transport coverage for retries, timeouts and sanitization.
+
+## Release verification
+
+Version 0.2.0 passed the release workflow, including the full workspace tests,
+typecheck, research build, packing, publication and public registry check.
+The Discovery suite passed 141 tests with seven opt-in live cases skipped.
+Separate live checks from the installed Pi runtime returned 10 Meta keyword
+ads and 10 on continuation, and 24 LinkedIn advertiser ads and 24 on
+continuation. Both used the emitted next_request verbatim. The Meta domain
+check returned ambiguity candidates. A LinkedIn transparency request fetched
+24 details. Both Melon Labs research presets exposed only ad_library. Melon
+Labs pinned and verified the published package in commit f767f7b47.
