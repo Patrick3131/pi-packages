@@ -21,6 +21,7 @@ const codes = new Set([
   ...[
     "disabled",
     "page_not_found",
+    "ad_not_found",
     "page_ambiguous",
     "queue_full",
     "rate_limited",
@@ -43,6 +44,7 @@ export class AdLibraryClientError extends Error {
     public resolvedPageId?: string,
     public attempts?: number,
     public upstreamStatusCounts?: Record<string, number>,
+    public retrySameCursor = false,
   ) {
     super(`Ad library request failed (${code}).`);
     this.name = "AdLibraryClientError";
@@ -83,7 +85,10 @@ export function formatAttempts(
 }
 
 export async function postAdLibrary(
-  path: "/v1/ad-library/search" | "/v1/ad-library/linkedin/search",
+  path:
+    | "/v1/ad-library/search"
+    | "/v1/ad-library/linkedin/search"
+    | "/v1/ad-library/linkedin/detail",
   body: { timeout_ms?: number },
   options: AdLibraryOptions,
 ): Promise<unknown> {
@@ -149,9 +154,12 @@ export async function postAdLibrary(
           ? { page_id: e.retry_with.page_id }
           : undefined,
         isReason(e.reason) ? e.reason : undefined,
-        ["company_resolution", "initial_results", "pagination"].includes(
-          e.stage,
-        )
+        [
+          "company_resolution",
+          "initial_results",
+          "pagination",
+          "detail",
+        ].includes(e.stage)
           ? e.stage
           : undefined,
         typeof e.resolved_page_id === "string" &&
@@ -164,6 +172,7 @@ export async function postAdLibrary(
         validStatuses(e.upstream_status_counts, e.attempts)
           ? e.upstream_status_counts
           : undefined,
+        e.retry_same_cursor === true && e.stage === "pagination",
       );
     }
     return data;

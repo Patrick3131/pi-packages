@@ -7,11 +7,32 @@ import {
 } from "./transport.js";
 import {
   validCompanyReference,
+  detailParameters,
+  detailResponse,
+  type LinkedInAdDetailParams,
+  type LinkedInAdDetail,
   linkedinParameters,
   linkedinResponse,
   type LinkedInAdsParams,
   type LinkedInAdsResult,
 } from "./linkedin-schema.js";
+
+export async function getLinkedInAdDetail(
+  params: LinkedInAdDetailParams,
+  options: AdLibraryOptions = {},
+): Promise<LinkedInAdDetail> {
+  options.signal?.throwIfAborted();
+  if (!Check(detailParameters, params))
+    throw new AdLibraryClientError("invalid_request");
+  const result = await postAdLibrary(
+    "/v1/ad-library/linkedin/detail",
+    params,
+    options,
+  );
+  if (!Check(detailResponse, result) || result.ad.ad_id !== params.ad_id)
+    throw new AdLibraryClientError("malformed");
+  return result;
+}
 
 export async function searchLinkedInAds(
   params: LinkedInAdsParams,

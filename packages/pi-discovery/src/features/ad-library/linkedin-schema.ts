@@ -88,6 +88,21 @@ const ad = Type.Object({
     Type.Null(),
   ]),
 });
+export const detailParameters = Type.Object(
+  {
+    ad_id: Type.String({ pattern: "^[0-9]{1,32}$" }),
+    timeout_ms: linkedinParameters.properties.timeout_ms,
+  },
+  { additionalProperties: false },
+);
+export const detailResponse = Type.Object({
+  provider: Type.Literal("linkedin_ad_library"),
+  id: Type.String(),
+  ad,
+});
+export type LinkedInAdDetailParams = Static<typeof detailParameters>;
+export type LinkedInAdDetail = Static<typeof detailResponse>;
+
 export const linkedinResponse = Type.Object({
   provider: Type.Literal("linkedin_ad_library"),
   id: Type.String(),

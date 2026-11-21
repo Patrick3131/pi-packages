@@ -375,3 +375,5 @@ Other sorts use Reddit ordering. An excluded page can still have a cursor.
 Post previews show available dates, scores, and comment counts. Indexed dates
 and source engines are labeled separately. SearXNG positions describe its
 returned order.
+
+For one known LinkedIn ad, use `ad_library` with `{"platform":"linkedin","ad_id":"1350063876"}`. The structured result contains `response.ad`. A failed continuation can return `next_request` for manual retry with the same filters and token.

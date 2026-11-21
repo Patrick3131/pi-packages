@@ -156,6 +156,20 @@ export {
   amazonSearchDefinition,
   amazonProductDefinition,
 } from "../packages/pi-discovery/src/features/amazon/definitions.js";
-export { searchLinkedInAds, formatLinkedInAds } from "../packages/pi-discovery/src/features/ad-library/linkedin.js";
-export type { LinkedInAdsParams, LinkedInAdsResult } from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
-export { adLibraryDefinition, type AdLibraryToolParams } from "../packages/pi-discovery/src/features/ad-library/unified.js";
+export type {
+  LinkedInAdDetailParams,
+  LinkedInAdDetail,
+} from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+export {
+  getLinkedInAdDetail,
+  searchLinkedInAds,
+  formatLinkedInAds,
+} from "../packages/pi-discovery/src/features/ad-library/linkedin.js";
+export type {
+  LinkedInAdsParams,
+  LinkedInAdsResult,
+} from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+export {
+  adLibraryDefinition,
+  type AdLibraryToolParams,
+} from "../packages/pi-discovery/src/features/ad-library/unified.js";

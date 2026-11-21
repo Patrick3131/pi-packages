@@ -1,6 +1,8 @@
 import { Type, type Static } from "typebox";
 import {
   linkedinParameters,
+  detailParameters,
+  detailResponse,
   linkedinResponse,
   validCompanyReference,
 } from "./linkedin-schema.js";
@@ -13,6 +15,11 @@ const platform = Type.Union([Type.Literal("meta"), Type.Literal("linkedin")], {
 const parameters = Type.Object(
   {
     platform,
+    ad_id: Type.Optional({
+      ...detailParameters.properties.ad_id,
+      description:
+        "LinkedIn only. Fetch one known ad by its numeric ad ID. Only timeout_ms can be combined with this lookup.",
+    }),
     keyword: Type.Optional({
       ...fields.keyword,
       description: "Search ads by topic or phrase.",
@@ -112,7 +119,9 @@ export const adLibraryDefinition = {
         Type.Literal(value),
       ),
     ),
-    response: Type.Optional(Type.Union([metaResponse, linkedinResponse])),
+    response: Type.Optional(
+      Type.Union([metaResponse, linkedinResponse, detailResponse]),
+    ),
     error: Type.Optional(
       Type.Object({ code: Type.String() }, { additionalProperties: true }),
     ),
@@ -121,6 +130,17 @@ export const adLibraryDefinition = {
 };
 
 export function inputCorrection(p: AdLibraryToolParams): string | undefined {
+  if (p.ad_id !== undefined) {
+    if (
+      p.platform !== "linkedin" ||
+      !/^[0-9]{1,32}$/.test(p.ad_id) ||
+      Object.keys(p).some(
+        (key) => !["ad_id", "platform", "timeout_ms"].includes(key),
+      )
+    )
+      return "For one LinkedIn ad, supply platform linkedin and a numeric ad_id. Only timeout_ms is optional.";
+    return;
+  }
   if (p.platform === "meta") {
     const linkedinField = [
       "account_owner",

@@ -197,3 +197,54 @@ test("partial LinkedIn pages show only the failed page's attempts", async (t) =>
   );
   assert.equal(fetch.mock.callCount(), 1);
 });
+
+test("exact ID dispatch and manual continuation recovery", async (t) => {
+  let paths: string[] = [];
+  const params = {
+    platform: "linkedin",
+    keyword: "example",
+    cursor: "opaque",
+  } as const;
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    paths.push(new URL(url).pathname);
+    if (url.endsWith("/detail")) {
+      assert.deepEqual(JSON.parse(String(init.body)), { ad_id: "42" });
+      return Response.json(
+        { error: { code: "ad_library_ad_not_found", stage: "detail" } },
+        { status: 404 },
+      );
+    }
+    return Response.json(
+      {
+        error: {
+          code: "ad_library_rate_limited",
+          stage: "pagination",
+          retry_same_cursor: true,
+          request_id: "receipt",
+        },
+      },
+      { status: 429, headers: { "retry-after": "5" } },
+    );
+  });
+  assert.equal(
+    (await call({ platform: "linkedin", ad_id: "42", include_details: false }))
+      .data.status,
+    "error",
+  );
+  assert.equal(
+    (await call({ platform: "meta", ad_id: "42" })).data.status,
+    "error",
+  );
+  assert.equal(
+    (await call({ platform: "linkedin", ad_id: "42" })).data.status,
+    "not_found",
+  );
+  const failed = await call(params);
+  assert.deepEqual(failed.data.next_request, params);
+  assert.equal(failed.data.status, "error");
+  assert.match(failed.text, /Retry after 5 s/);
+  assert.deepEqual(paths, [
+    "/v1/ad-library/linkedin/detail",
+    "/v1/ad-library/linkedin/search",
+  ]);
+});

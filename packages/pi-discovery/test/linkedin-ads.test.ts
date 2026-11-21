@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getLinkedInAdDetail,
   searchLinkedInAds,
   formatLinkedInAds,
 } from "../src/features/ad-library/linkedin.js";
@@ -77,6 +78,43 @@ test("LinkedIn rejects crossed providers, invalid selectors and mismatched caps"
           Response.json({ ...result, provider: "meta_ad_library" }),
       },
     ),
+    /malformed/,
+  );
+});
+
+test("known ad lookup validates the response ID", async () => {
+  const ad = {
+    ad_id: "42",
+    creative_type: null,
+    format: null,
+    media_type: null,
+    advertiser: {
+      name: "Example",
+      page_id: null,
+      page_url: null,
+      logo_url: null,
+    },
+    promoted: null,
+    author: null,
+    commentary: "A full ad",
+    commentary_truncated: false,
+    headline: null,
+    cta: null,
+    image: null,
+    video_poster_url: null,
+    carousel: [],
+    destination_url: null,
+    detail_url: "https://www.linkedin.com/ad-library/detail/42",
+    transparency: null,
+  };
+  const fetch = async () =>
+    Response.json({ id: "receipt", provider: "linkedin_ad_library", ad });
+  assert.deepEqual(
+    (await getLinkedInAdDetail({ ad_id: "42" }, { fetch })).ad,
+    ad,
+  );
+  await assert.rejects(
+    getLinkedInAdDetail({ ad_id: "43" }, { fetch }),
     /malformed/,
   );
 });

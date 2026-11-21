@@ -10,7 +10,11 @@ import {
   formatAdLibrary,
   AdLibraryClientError,
 } from "./client.js";
-import { searchLinkedInAds, formatLinkedInAds } from "./linkedin.js";
+import {
+  getLinkedInAdDetail,
+  searchLinkedInAds,
+  formatLinkedInAds,
+} from "./linkedin.js";
 import {
   adLibraryDefinition,
   inputCorrection,
@@ -25,10 +29,6 @@ export async function executeAdLibrary(
 ): Promise<AgentToolResult<unknown>> {
   signal?.throwIfAborted();
   const { platform, ...selectors } = params;
-  const body = {
-    ...selectors,
-    max_ads: params.max_ads ?? (platform === "meta" ? 10 : 24),
-  };
   const correction = inputCorrection(params);
   if (correction) {
     const details = {
@@ -44,6 +44,44 @@ export async function executeAdLibrary(
     };
   }
   try {
+    if (params.ad_id !== undefined) {
+      const response = await getLinkedInAdDetail(
+        {
+          ad_id: params.ad_id,
+          ...(params.timeout_ms === undefined
+            ? {}
+            : { timeout_ms: params.timeout_ms }),
+        },
+        { signal },
+      );
+      const details = { platform, status: "ok", response };
+      const { ad } = response;
+      const text = [
+        `LinkedIn ad ${ad.ad_id}`,
+        ad.advertiser.name && `Advertiser: ${ad.advertiser.name}`,
+        ad.author?.name && `Author: ${ad.author.name}`,
+        ad.transparency?.payer && `Payer: ${ad.transparency.payer}`,
+        ad.headline,
+        ad.commentary,
+        ad.cta,
+        ...(ad.transparency?.targeting?.disclosures ?? []).map(
+          (d) => d.label + ": " + d.text,
+        ),
+        ad.detail_url,
+        `Request: ${response.id}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      return {
+        content: [{ type: "text", text }],
+        details,
+        structuredContent: details as unknown as Structured,
+      };
+    }
+    const body = {
+      ...selectors,
+      max_ads: params.max_ads ?? (platform === "meta" ? 10 : 24),
+    };
     const formatted =
       platform === "meta"
         ? formatAdLibrary(await searchAdLibrary(body, { signal }), false)
@@ -77,7 +115,8 @@ export async function executeAdLibrary(
   } catch (e) {
     if (!(e instanceof AdLibraryClientError)) throw e;
     const status =
-      e.serverCode === "ad_library_page_not_found"
+      e.serverCode === "ad_library_page_not_found" ||
+      e.serverCode === "ad_library_ad_not_found"
         ? "not_found"
         : e.serverCode === "ad_library_page_ambiguous"
           ? "ambiguous"
@@ -99,7 +138,9 @@ export async function executeAdLibrary(
                 ? ` Retry after ${e.retryAfterMs / 1000} s.`
                 : "")) + candidateText;
     if (platform === "linkedin") {
-      if (status === "not_found")
+      if (e.serverCode === "ad_library_ad_not_found")
+        text = "LinkedIn returned ad not found.";
+      else if (status === "not_found")
         text =
           "Company page could not be resolved. Verify its slug or use account_owner for name discovery.";
       if (e.serverCode === "ad_library_blocked")
@@ -128,7 +169,16 @@ export async function executeAdLibrary(
         resolved_page_id: e.resolvedPageId,
       }).filter(([, value]) => value !== undefined),
     );
-    const details = { platform, status, error };
+    const retry = platform === "linkedin" && params.cursor && e.retrySameCursor;
+    const details = {
+      platform,
+      status,
+      error,
+      ...(retry ? { next_request: { ...params } } : {}),
+    };
+    if (retry)
+      text +=
+        "\nNo page was returned. You can retry this request with the same cursor.";
     return {
       isError: status === "error",
       content: [{ type: "text" as const, text }],
