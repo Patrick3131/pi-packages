@@ -80,6 +80,7 @@ export interface AdLibraryResult {
     evidence?: "landing_url" | "card_url" | null;
   } | null;
   advertisers?: AdLibraryAdvertiser[];
+  max_ads_adjustment?: { requested: number; effective: 10 } | null;
   cap_reason?: "ad_limit" | "page_budget" | null;
   next_cursor?: string | null;
   complete?: boolean;
@@ -191,14 +192,14 @@ export function adLibraryRequest(
     ...p,
     country: (p.country ?? "US").trim().toUpperCase(),
     active_only: p.active_only ?? true,
-    max_ads: p.max_ads ?? 30,
+    max_ads: p.max_ads === undefined ? 30 : p.max_ads,
     timeout_ms: p.timeout_ms ?? 120000,
   };
   if (
     !/^[A-Z]{2}$/.test(body.country) ||
     typeof body.active_only !== "boolean" ||
     !Number.isSafeInteger(body.max_ads) ||
-    body.max_ads < 10 ||
+    body.max_ads < 1 ||
     body.max_ads > 300 ||
     !Number.isSafeInteger(body.timeout_ms) ||
     body.timeout_ms < 5000 ||
@@ -207,12 +208,20 @@ export function adLibraryRequest(
     throw new AdLibraryClientError("invalid_request");
   return body;
 }
-function parseResult(data: unknown, cap: number): AdLibraryResult {
+function parseResult(data: unknown, requestedCap: number): AdLibraryResult {
   const fail = () => {
     throw new AdLibraryClientError("malformed");
   };
+  if (!record(data)) return fail();
+  const effectiveCap = Math.max(10, requestedCap);
+  const adjustment = data.max_ads_adjustment;
+  const validAdjustment = requestedCap < effectiveCap
+    ? record(adjustment) &&
+      adjustment.requested === requestedCap &&
+      adjustment.effective === effectiveCap
+    : adjustment == null;
+  if (!validAdjustment) return fail();
   if (
-    !record(data) ||
     data.provider !== "meta_ad_library" ||
     !["keyword", "page"].includes(data.mode) ||
     typeof data.id !== "string" ||
@@ -220,7 +229,7 @@ function parseResult(data: unknown, cap: number): AdLibraryResult {
     typeof data.country !== "string" ||
     typeof data.active_only !== "boolean" ||
     !Array.isArray(data.ads) ||
-    data.ads.length > cap ||
+    data.ads.length > effectiveCap ||
     !data.ads.every(
       (a: unknown) =>
         record(a) &&

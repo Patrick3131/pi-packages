@@ -65,11 +65,15 @@ export function formatAdLibrary(result: AdLibraryResult) {
     group.ads++;
     groups.set(key, group);
   }
+  const limitLabel = result.max_ads_adjustment ? "effective max_ads" : "requested max_ads";
   const summary =
     `Meta ads · ${result.ads.length} ads returned · ${groups.size} advertisers · ${result.mode}: ${result.query}` +
     ` · ${result.country} · ${result.active_only ? "active only (paused ads excluded)" : "active and inactive"}` +
+    (result.max_ads_adjustment
+      ? ` · Requested ${result.max_ads_adjustment.requested} ads. Applied the minimum limit of ${result.max_ads_adjustment.effective}.`
+      : "") +
     (result.truncated
-      ? ` · truncated (${result.truncation.join(", ")}${result.cap_reason ? `, ${result.cap_reason === "ad_limit" ? "stopped at requested max_ads" : "stopped at server page budget"}` : ""})`
+      ? ` · truncated (${result.truncation.join(", ")}${result.cap_reason ? `, ${result.cap_reason === "ad_limit" ? `stopped at ${limitLabel}` : "stopped at server page budget"}` : ""})`
       : "") +
     (result.partial ? " · partial" : "") +
     (result.ads.some((ad) => ad.creative_truncated)

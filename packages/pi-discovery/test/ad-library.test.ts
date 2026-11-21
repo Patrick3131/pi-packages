@@ -418,12 +418,60 @@ test("harvest state is rendered so a caller can continue", () => {
   assert.doesNotMatch(done.text, /Next: pass cursor/);
 });
 
-test("one-page minimum and cursor-mismatch guidance", async (t) => {
-  assert.throws(
-    () => adLibraryRequest({ keyword: "x", max_ads: 9 }),
-    (e: Error) => e instanceof AdLibraryClientError && e.code === "invalid_request",
-  );
-  assert.equal(adLibraryRequest({ keyword: "x", max_ads: 10 }).max_ads, 10);
+test("both Ad Library tools disclose an adjusted cap and check the response count", async (t) => {
+  const { registerAdLibrary } = await import("../src/ad-library-tools.js");
+  const { Check } = await import("typebox/value");
+  const definitions: Array<{
+    parameters: import("typebox").TSchema;
+    outputSchema: import("typebox").TSchema;
+    execute: (id: string, params: unknown) => Promise<Awaited<ReturnType<
+      typeof import("../src/ad-library-tools.js").executeAdLibrary
+    >>>;
+  }> = [];
+  registerAdLibrary({ registerTool: (d: (typeof definitions)[number]) => definitions.push(d) } as never);
+  const adjustment = { requested: 5, effective: 10 };
+  const ads = Array.from({ length: 10 }, (_, i) => ({
+    ...result.ads[0],
+    archive_id: String(i),
+  }));
+  let payload = { ...result, ads, max_ads_adjustment: adjustment };
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    assert.equal(JSON.parse(String(init.body)).max_ads, 5);
+    return new Response(JSON.stringify(payload));
+  });
+
+  const selectors = [{ keyword: "x" }, { domain: "brand.com" }];
+  for (const [index, definition] of definitions.entries()) {
+    const params = { ...selectors[index], max_ads: 5 };
+    assert.ok(Check(definition.parameters, params));
+    const response = await definition.execute("id", params);
+    assert.ok(Check(definition.outputSchema, response.structuredContent));
+    const structured = response.structuredContent as {
+      max_ads_adjustment: unknown;
+      ads: unknown[];
+    };
+    assert.deepEqual(structured.max_ads_adjustment, adjustment);
+    assert.equal(structured.ads.length, 10);
+    assert.match(JSON.stringify(response.content), /Requested 5 ads.*minimum.*10/);
+  }
+
+  const params = { keyword: "x", max_ads: 5 };
+  payload = { ...payload, ads: [...ads, { ...ads[0], archive_id: "extra" }] };
+  assert.equal((await definitions[0].execute("id", params)).isError, true);
+  payload = { ...payload, ads, max_ads_adjustment: { requested: 4, effective: 10 } };
+  assert.equal((await definitions[0].execute("id", params)).isError, true);
+});
+
+test("request bounds and cursor-mismatch guidance", async (t) => {
+  for (const value of [0, -1, 301, 5.5, "5", true, null]) {
+    assert.throws(
+      () => adLibraryRequest({ keyword: "x", max_ads: value as number }),
+      (e: Error) => e instanceof AdLibraryClientError && e.code === "invalid_request",
+    );
+  }
+  for (const value of [1, 9, 10, 300])
+    assert.equal(adLibraryRequest({ keyword: "x", max_ads: value }).max_ads, value);
+  assert.equal(adLibraryRequest({ keyword: "x" }).max_ads, 30);
 
   const { executeAdLibrary } = await import("../src/ad-library-tools.js");
   t.mock.method(
