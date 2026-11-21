@@ -133,6 +133,8 @@ test("company links, personal profiles and scoped failures", async (t) => {
           code: "ad_library_blocked",
           request_id: "req-1",
           stage: "initial_results",
+          attempts: 5,
+          upstream_status_counts: { "403": 5 },
           resolved_page_id: "123",
         },
       },
@@ -145,7 +147,9 @@ test("company links, personal profiles and scoped failures", async (t) => {
     "Example",
   ]) {
     const result = await call({ platform: "linkedin", linkedin_url });
-    assert.match(result.text, /blocked.*123.*initial_results.*req-1/);
+    assert.match(result.text, /HTTP 403 × 5/);
+    assert.match(result.text, /5 attempts/);
+    assert.match(result.text, /123.*initial_results.*req-1/);
   }
   for (const linkedin_url of [
     "linkedin.com/in/example",
@@ -155,4 +159,41 @@ test("company links, personal profiles and scoped failures", async (t) => {
     assert.match(result.text, /account_owner/);
   }
   assert.equal(fetch.mock.callCount(), 3);
+});
+
+test("partial LinkedIn pages show only the failed page's attempts", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async () =>
+    Response.json({
+      ...base,
+      provider: "linkedin_ad_library",
+      sort: "newest",
+      date_option: null,
+      total_ads: null,
+      advertisers: [],
+      max_ads_adjustment: null,
+      cap_reason: null,
+      transparency: null,
+      complete: false,
+      partial: true,
+      dropped: 0,
+      next_cursor: null,
+      failed_pages: [
+        {
+          page: 2,
+          error_code: "ad_library_upstream",
+          reason: "http_status",
+          stage: "pagination",
+          attempts: 2,
+          upstream_status_counts: { "503": 1 },
+        },
+      ],
+    }),
+  );
+  const result = await call({ platform: "linkedin", keyword: "test" });
+  assert.equal(result.data.status, "partial");
+  assert.match(
+    result.text,
+    /pagination.*http_status.*2 attempts.*HTTP 503 × 1.*receipt/,
+  );
+  assert.equal(fetch.mock.callCount(), 1);
 });

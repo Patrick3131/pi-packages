@@ -1,3 +1,4 @@
+import { formatAttempts } from "./transport.js";
 import type {
   AgentToolResult,
   ExtensionAPI,
@@ -102,7 +103,11 @@ export async function executeAdLibrary(
         text =
           "Company page could not be resolved. Verify its slug or use account_owner for name discovery.";
       if (e.serverCode === "ad_library_blocked")
-        text += " LinkedIn blocked the lookup. Ad activity is unknown.";
+        text +=
+          e.upstreamStatusCounts?.["403"] === e.attempts && e.attempts
+            ? " LinkedIn denied access. Ad activity is unknown."
+            : " Ad activity is unknown.";
+      text += formatAttempts(e.attempts, e.upstreamStatusCounts);
       if (e.resolvedPageId) text += ` Advertiser page ID: ${e.resolvedPageId}.`;
       if (e.stage) text += ` Stage: ${e.stage}.`;
       if (e.requestId) text += ` Request: ${e.requestId}.`;
@@ -117,6 +122,8 @@ export async function executeAdLibrary(
         candidates: e.candidates,
         retry_with: e.retryWith,
         reason: e.reason,
+        attempts: e.attempts,
+        upstream_status_counts: e.upstreamStatusCounts,
         stage: e.stage,
         resolved_page_id: e.resolvedPageId,
       }).filter(([, value]) => value !== undefined),

@@ -134,6 +134,18 @@ export const linkedinResponse = Type.Object({
       error_code: Type.String(),
       reason: text,
       stage: Type.Optional(text),
+      attempts: Type.Optional(
+        Type.Union([Type.Integer({ minimum: 0, maximum: 6 }), Type.Null()]),
+      ),
+      upstream_status_counts: Type.Optional(
+        Type.Union([
+          Type.Record(
+            Type.String({ pattern: "^[1-5][0-9]{2}$" }),
+            Type.Integer({ minimum: 1, maximum: 6 }),
+          ),
+          Type.Null(),
+        ]),
+      ),
     }),
   ),
   transparency: Type.Union([

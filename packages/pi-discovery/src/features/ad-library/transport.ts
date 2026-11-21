@@ -41,6 +41,8 @@ export class AdLibraryClientError extends Error {
     public reason?: string,
     public stage?: string,
     public resolvedPageId?: string,
+    public attempts?: number,
+    public upstreamStatusCounts?: Record<string, number>,
   ) {
     super(`Ad library request failed (${code}).`);
     this.name = "AdLibraryClientError";
@@ -48,6 +50,38 @@ export class AdLibraryClientError extends Error {
 }
 export const record = (x: unknown): x is Record<string, any> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
+function validStatuses(
+  value: unknown,
+  attempts: number,
+): value is Record<string, number> {
+  if (
+    !record(value) ||
+    !Number.isInteger(attempts) ||
+    attempts < 0 ||
+    attempts > 6
+  )
+    return false;
+  const entries = Object.entries(value);
+  return (
+    entries.length <= attempts &&
+    entries.every(
+      ([key, n]) => /^[1-5]\d{2}$/.test(key) && Number.isInteger(n) && n > 0,
+    ) &&
+    entries.reduce((sum, [, n]) => sum + n, 0) <= attempts
+  );
+}
+
+export function formatAttempts(
+  attempts?: number | null,
+  statuses?: Record<string, number> | null,
+) {
+  if (attempts == null) return "";
+  const counts = Object.entries(statuses ?? {})
+    .map(([code, n]) => `HTTP ${code} × ${n}`)
+    .join(", ");
+  return ` ${attempts} attempt${attempts === 1 ? "" : "s"}${counts ? " (" + counts + ")" : ""}.`;
+}
+
 export async function postAdLibrary(
   path: "/v1/ad-library/search" | "/v1/ad-library/linkedin/search",
   body: { timeout_ms?: number },
@@ -123,6 +157,12 @@ export async function postAdLibrary(
         typeof e.resolved_page_id === "string" &&
           /^\d{1,32}$/.test(e.resolved_page_id)
           ? e.resolved_page_id
+          : undefined,
+        Number.isInteger(e.attempts) && e.attempts >= 0 && e.attempts <= 6
+          ? e.attempts
+          : undefined,
+        validStatuses(e.upstream_status_counts, e.attempts)
+          ? e.upstream_status_counts
           : undefined,
       );
     }

@@ -2,6 +2,7 @@ import { Check } from "typebox/value";
 import {
   AdLibraryClientError,
   postAdLibrary,
+  formatAttempts,
   type AdLibraryOptions,
 } from "./transport.js";
 import {
@@ -76,7 +77,7 @@ export function formatLinkedInAds(
   }
   for (const failure of result.failed_pages)
     lines.push(
-      `Page ${failure.page}: ${failure.stage ?? "results"} (${failure.error_code}). Request ${result.id}.`,
+      `Page ${failure.page}: ${failure.stage ?? "results"} (${failure.error_code}${failure.reason ? ", " + failure.reason : ""}).${formatAttempts(failure.attempts, failure.upstream_status_counts)} Request ${result.id}.`,
     );
   if (result.transparency) {
     const { fetched, empty, failed, requested } = result.transparency;
