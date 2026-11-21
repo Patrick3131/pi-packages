@@ -12,7 +12,7 @@ const date = Type.Optional(
   Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }),
 );
 const sort = Type.Union([Type.Literal("newest"), Type.Literal("oldest")]);
-const parameters = Type.Object(
+export const linkedinParameters = Type.Object(
   {
     keyword: selector,
     payer: selector,
@@ -73,7 +73,16 @@ const ad = Type.Object({
       impressions_by_country: Type.Array(
         Type.Object({ country: Type.String(), impressions: Type.String() }),
       ),
-      targeting: Type.Object({ language: text, location: text }),
+      targeting: Type.Object({
+        language: text,
+        location: text,
+        disclosures: Type.Optional(
+          Type.Array(
+            Type.Object({ label: Type.String(), text: Type.String() }),
+          ),
+        ),
+        disclosures_truncated: Type.Optional(Type.Boolean()),
+      }),
     }),
     Type.Null(),
   ]),
@@ -135,17 +144,5 @@ export const linkedinResponse = Type.Object({
     total_ms: count,
   }),
 });
-export type LinkedInAdsParams = Static<typeof parameters>;
+export type LinkedInAdsParams = Static<typeof linkedinParameters>;
 export type LinkedInAdsResult = Static<typeof linkedinResponse>;
-
-export const linkedinAdsDefinition = {
-  name: "ad_library_linkedin_ads",
-  label: "LinkedIn ads",
-  description:
-    "Search LinkedIn Ad Library by keyword, company page_id or linkedin_url (company URL or slug), or by payer/account_owner. Use at most one primary selector. Include transparency for available payer, dates and impression ranges. max_ads accepts 1–300; a page has 24 ads and one call covers up to ten pages. Reuse next_cursor with the same primary selector and filters.",
-  parameters,
-  outputSchema: Type.Union([
-    linkedinResponse,
-    Type.Object({ error: Type.Object({ code: Type.String() }) }),
-  ]),
-};

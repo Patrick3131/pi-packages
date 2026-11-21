@@ -153,7 +153,7 @@ test("tool failures surface isError and sanitized server metadata", async (t) =>
         { status: 401 },
       ),
   );
-  const output = await executeAdLibrary({ keyword: "x" });
+  const output = await executeAdLibrary({ platform:"meta", keyword: "x" });
   assert.equal(output.isError, true);
   assert.equal(
     (output.details as { error: { serverCode: string } }).error.serverCode,
@@ -188,7 +188,7 @@ test("resolution failures surface candidates and a retry hint", async (t) => {
         { status: 409 },
       ),
   );
-  const output = await executeAdLibrary({ domain: "elitehoopsapp.com" });
+  const output = await executeAdLibrary({ platform:"meta", domain: "elitehoopsapp.com" });
   assert.equal(output.isError, false);
   const details = output.details as {
     status: string;
@@ -304,14 +304,14 @@ test("native structured output preserves full ads and normal resolution outcomes
     "fetch",
     async () => new Response(JSON.stringify(nativePayload)),
   );
-  const success = await executeAdLibrary({ keyword: "x" });
-  assert.equal((success.structuredContent as { ads: unknown[] }).ads.length, 1);
+  const success = await executeAdLibrary({ platform:"meta", keyword: "x" });
+  assert.equal((success.structuredContent as {response:{ ads: unknown[] }}).response.ads.length, 1);
   const definitions: Array<{ name: string; outputSchema: unknown }> = [];
   registerAdLibrary({
     registerTool: (d: { name: string; outputSchema: unknown }) =>
       definitions.push(d),
   } as never);
-  assert.equal(definitions.length, 3);
+  assert.equal(definitions.length, 1);
   assert.ok(definitions.every((d) => d.outputSchema));
   const { Check } = await import("typebox/value");
   assert.ok(
@@ -321,7 +321,7 @@ test("native structured output preserves full ads and normal resolution outcomes
     ),
   );
   assert.equal(
-    (success.structuredContent as { ads: Array<{ cards: unknown[] }> }).ads[0]
+    (success.structuredContent as {response:{ ads: Array<{ cards: unknown[] }> }}).response.ads[0]
       .cards.length,
     1,
   );
@@ -337,7 +337,7 @@ test("native structured output preserves full ads and normal resolution outcomes
           status,
         }),
     );
-    const output = await executeAdLibrary({ domain: "brand.example" });
+    const output = await executeAdLibrary({ platform:"meta", domain: "brand.example" });
     assert.equal(output.isError, false);
     assert.equal(
       (output.structuredContent as { status: string }).status,
@@ -418,7 +418,7 @@ test("harvest state is rendered so a caller can continue", () => {
   assert.doesNotMatch(done.text, /Next: pass cursor/);
 });
 
-test("both Meta Ad Library tools disclose an adjusted cap and check the response count", async (t) => {
+test("Meta keyword and domain searches disclose an adjusted cap and check the response count", async (t) => {
   const { registerAdLibrary } = await import("../src/features/ad-library/tools.js");
   const { Check } = await import("typebox/value");
   const definitions: Array<{
@@ -441,22 +441,22 @@ test("both Meta Ad Library tools disclose an adjusted cap and check the response
   });
 
   const selectors = [{ keyword: "x" }, { domain: "brand.com" }];
-  for (const [index, selector] of selectors.entries()) {
-    const definition = definitions[index];
-    const params = { ...selector, max_ads: 5 };
+  for (const selector of selectors) {
+    const definition = definitions[0];
+    const params = { platform:"meta", ...selector, max_ads: 5 };
     assert.ok(Check(definition.parameters, params));
     const response = await definition.execute("id", params);
     assert.ok(Check(definition.outputSchema, response.structuredContent));
-    const structured = response.structuredContent as {
+    const structured = (response.structuredContent as {response: {
       max_ads_adjustment: unknown;
       ads: unknown[];
-    };
+    }}).response;
     assert.deepEqual(structured.max_ads_adjustment, adjustment);
     assert.equal(structured.ads.length, 10);
     assert.match(JSON.stringify(response.content), /Requested 5 ads.*minimum.*10/);
   }
 
-  const params = { keyword: "x", max_ads: 5 };
+  const params = { platform:"meta",keyword: "x", max_ads: 5 };
   payload = { ...payload, ads: [...ads, { ...ads[0], archive_id: "extra" }] };
   assert.equal((await definitions[0].execute("id", params)).isError, true);
   payload = { ...payload, ads, max_ads_adjustment: { requested: 4, effective: 10 } };
@@ -472,7 +472,7 @@ test("request bounds and cursor-mismatch guidance", async (t) => {
   }
   for (const value of [1, 9, 10, 300])
     assert.equal(adLibraryRequest({ keyword: "x", max_ads: value }).max_ads, value);
-  assert.equal(adLibraryRequest({ keyword: "x" }).max_ads, 30);
+  assert.equal(adLibraryRequest({ keyword: "x" }).max_ads, 10);
 
   const { executeAdLibrary } = await import("../src/features/ad-library/tools.js");
   t.mock.method(
@@ -490,7 +490,7 @@ test("request bounds and cursor-mismatch guidance", async (t) => {
         { status: 400 },
       ),
   );
-  const output = await executeAdLibrary({ keyword: "x", cursor: "v1.0000000000000000:abc" });
+  const output = await executeAdLibrary({ platform:"meta", keyword: "x", cursor: "v1.0000000000000000:abc" });
   assert.equal(output.isError, true);
   assert.match(
     output.content[0].type === "text" ? output.content[0].text : "",

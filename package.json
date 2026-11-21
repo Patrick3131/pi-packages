@@ -1,6 +1,6 @@
 {
   "name": "@patrick3131/pi-packages",
-  "version": "0.1.21",
+  "version": "0.2.0",
   "description": "Monorepo for Pi extensions",
   "workspaces": [
     "packages/*"

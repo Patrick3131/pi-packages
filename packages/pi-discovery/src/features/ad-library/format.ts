@@ -48,7 +48,7 @@ const video = (value: {
   );
 
 /** Model-visible evidence is bounded; programmatic structured output keeps all data. */
-export function formatAdLibrary(result: AdLibraryResult) {
+export function formatAdLibrary(result: AdLibraryResult, showCursor = true) {
   const groups = new Map<
     string,
     { name: string; pageId: string | null; domains: Set<string>; ads: number }
@@ -87,11 +87,11 @@ export function formatAdLibrary(result: AdLibraryResult) {
     lines.push(
       `Dropped: ${result.dropped} ads from a split page (page cannot be rewound); resume continues after it.`,
     );
-  if (!result.complete && result.next_cursor)
+  if (showCursor && !result.complete && result.next_cursor)
     lines.push(
       `Next: pass cursor="${result.next_cursor}" to continue; stop when complete is true. Dedupe by archive_id across calls: an expired cursor restarts silently.`,
     );
-  else if (!result.complete && !result.next_cursor)
+  else if (showCursor && !result.complete && !result.next_cursor)
     lines.push("Next: pass cursor=null to restart from the beginning; this result is not complete.");
   if (result.resolved_page)
     lines.push(

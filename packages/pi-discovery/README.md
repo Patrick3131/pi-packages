@@ -31,9 +31,19 @@ The discovery server owns account credentials and always selects gpt-6-luna.
 There is no model fallback or client retry. The old search enablement env aliases
 are removed; update callers to DISCOVERY_WEB_SEARCH_ENABLED.
 
-## LinkedIn Ad Library
+## Ad Library
 
-Enable `ad_library_linkedin_ads` with `DISCOVERY_AD_LIBRARY_ENABLED=1` or select
+Use `ad_library` with a required `platform`. For example,
+`{"platform":"meta","domain":"example.com"}` resolves an advertiser and
+`{"platform":"linkedin","account_owner":"Microsoft"}` searches by account name.
+The tool defaults to 10 ads on Meta and 24 on LinkedIn. When the API supplies
+a continuation, pass `next_request` back unchanged. The response keeps the
+original selector, filters and effective request arguments for that next call.
+Meta domain lookup is single-pass. Start a page ID search to paginate.
+
+### LinkedIn
+
+Enable `ad_library` with `DISCOVERY_AD_LIBRARY_ENABLED=1` or select
 it in Pi. Search by keyword, company page ID, LinkedIn company URL or slug, or
 use payer/account-owner filters. Set `include_transparency` to request available
 impression ranges and targeting. Limits below 24 are raised to one LinkedIn
@@ -102,13 +112,13 @@ Model-facing text and TUI include observed web-action count and server total
 time; actions can include search, open and find. Queries, token usage, detailed
 timings and client wall time remain available in details without cost estimates.
 
-## Meta Ad Library
+### Meta
 
-`ad_library_keyword_ads` discovers advertisers by keyword; `ad_library_domain_ads`
-requires exactly one of `domain` or `page_id`. Both accept country, active_only,
-max_ads (1–300, default 30) and timeout_ms (5000–180000, default 120000).
+With `platform: "meta"`, supply exactly one of `keyword`, `domain` or `page_id`.
+Meta accepts country, active_only, max_ads (1–300, default 10) and timeout_ms
+(5000–180000, default 120000).
 Limits of 1–9 use a cap of 10. The summary and structured
-`max_ads_adjustment` report the change. They default off;
+`max_ads_adjustment` report the change. The tool defaults off;
 enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
 The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
 effective timeout includes 10000ms beyond the server budget. No client retries.

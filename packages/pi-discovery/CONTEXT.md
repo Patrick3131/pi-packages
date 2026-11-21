@@ -30,11 +30,12 @@ timeout overrides must still exceed the requested server budget by five seconds.
 
 The shared answer descriptor explains question/instructions, returned-source cap and total server budget. It supports URL discovery without requiring a separate raw-search tool in every consumer.
 
-## Meta Ad Library
+## Ad Library
 
-`ad_library_keyword_ads` discovers advertisers by keyword; `ad_library_domain_ads`
-requires exactly one of `domain` or `page_id`. Both accept country, active_only,
-max_ads (1–300, default 30; 1–9 raised to 10 and disclosed) and timeout_ms (5000–180000, default 120000). They default off;
+`ad_library` routes by platform. A Meta search accepts exactly one keyword,
+domain or page_id and defaults to 10 ads. LinkedIn defaults to 24 ads and
+accepts a keyword, company selector, payer or account owner. A valid cursor
+appears in a ready-to-use next_request. The unified tool defaults off;
 enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
 The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
 effective timeout includes 10000ms beyond the server budget. No client retries.

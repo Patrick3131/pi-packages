@@ -147,7 +147,7 @@ export function adLibraryRequest(
     ...p,
     country: (p.country ?? "US").trim().toUpperCase(),
     active_only: p.active_only ?? true,
-    max_ads: p.max_ads === undefined ? 30 : p.max_ads,
+    max_ads: p.max_ads === undefined ? 10 : p.max_ads,
     timeout_ms: p.timeout_ms ?? 120000,
   };
   if (

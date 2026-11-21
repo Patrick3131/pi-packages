@@ -57,7 +57,7 @@ test("LinkedIn rejects crossed providers, invalid selectors and mismatched caps"
   const fetch = async () => Response.json(result);
   for (const params of [
     {},
-    { payer: "vendor", cursor: "token" },
+    { cursor: "token" },
     { keyword: "k", page_id: "1" },
     { domain: "x.com" },
   ])

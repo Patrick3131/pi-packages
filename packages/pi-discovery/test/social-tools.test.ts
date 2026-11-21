@@ -96,9 +96,7 @@ test("registers the social tools alongside default-on YouTube tools", () => {
   assert.deepEqual(
     registered.map((tool) => tool.name),
     [
-      "ad_library_keyword_ads",
-      "ad_library_domain_ads",
-      "ad_library_linkedin_ads",
+      "ad_library",
       "amazon_new_releases",
       "amazon_search",
       "amazon_product",
@@ -122,9 +120,7 @@ test("registers the social tools alongside default-on YouTube tools", () => {
   ])
     assert.equal(social(registered, name).defaultActive, true, name);
   for (const name of [
-    "ad_library_keyword_ads",
-    "ad_library_domain_ads",
-    "ad_library_linkedin_ads",
+    "ad_library",
     "social_profile",
     "social_profile_posts",
     "social_post",
@@ -146,7 +142,7 @@ test("registers the social tools alongside default-on YouTube tools", () => {
   for (const name of ["social_profile", "social_profile_posts", "social_post"])
     assert.equal(social(enabled, name).defaultActive, true, name);
   for (const name of [
-    "ad_library_keyword_ads",
+    "ad_library",
     "web_search_searxng",
     "web_answer",
   ])

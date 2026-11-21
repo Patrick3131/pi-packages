@@ -87,9 +87,7 @@ test("registers three default-off Amazon tools behind DISCOVERY_AMAZON_ENABLED",
   assert.deepEqual(
     registered.map((tool) => tool.name),
     [
-      "ad_library_keyword_ads",
-      "ad_library_domain_ads",
-      "ad_library_linkedin_ads",
+      "ad_library",
       "amazon_new_releases",
       "amazon_search",
       "amazon_product",

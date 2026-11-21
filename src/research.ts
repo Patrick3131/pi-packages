@@ -113,10 +113,6 @@ export {
   socialProfilePostsDefinition,
   socialPostDefinition,
 } from "../packages/pi-discovery/src/features/social/definitions.js";
-export {
-  adLibraryKeywordDefinition,
-  adLibraryDomainDefinition,
-} from "../packages/pi-discovery/src/features/ad-library/definitions.js";
 
 export {
   searchYoutube,
@@ -161,4 +157,5 @@ export {
   amazonProductDefinition,
 } from "../packages/pi-discovery/src/features/amazon/definitions.js";
 export { searchLinkedInAds, formatLinkedInAds } from "../packages/pi-discovery/src/features/ad-library/linkedin.js";
-export { linkedinAdsDefinition, type LinkedInAdsParams, type LinkedInAdsResult } from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+export type { LinkedInAdsParams, LinkedInAdsResult } from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+export { adLibraryDefinition, type AdLibraryToolParams } from "../packages/pi-discovery/src/features/ad-library/unified.js";

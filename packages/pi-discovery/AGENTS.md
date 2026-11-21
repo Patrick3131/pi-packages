@@ -17,7 +17,7 @@ Keep each tool family in `src/features/<feature>/`, with Pi registration in
 
 ## Rules
 
-`ad_library_domain_ads`, `social_profile`, `social_profile_posts`,
+`ad_library`, `social_profile`, `social_profile_posts`,
 `social_post`, `youtube_search`, `youtube_transcript`, `amazon_new_releases`,
 `amazon_search` and `amazon_product`. Every provider-backed tool talks only to the discovery API; no provider secrets.
 
@@ -49,7 +49,7 @@ Keep the default HTTP timeout above the maximum exposed server budget. Queue
 waiting belongs to the total request deadline; execution is separately bounded
 by the service. Do not add client retries or admission predictions.
 
-The LinkedIn tool shares the Ad Library gate and transport. Preserve its 24-ad page minimum, opaque cursor, provider identity and nullable transparency fields.
+The LinkedIn client shares the Ad Library gate and transport. Preserve its 24-ad page minimum, opaque cursor, provider identity and nullable transparency fields.
 
 Ad Library defaults off. Its HTTP timeout is max(configured 130000ms floor, server
 budget + 10000ms), supporting 180000ms requests with 190000ms client budgets.

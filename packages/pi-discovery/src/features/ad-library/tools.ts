@@ -1,40 +1,73 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { isAdLibraryEnabledByEnv } from "../../config.js";
 import {
   searchAdLibrary,
-  AdLibraryClientError,
   formatAdLibrary,
-  type AdLibraryParams,
+  AdLibraryClientError,
 } from "./client.js";
-import {
-  adLibraryKeywordDefinition,
-  adLibraryDomainDefinition,
-} from "./definitions.js";
-export {
-  adLibraryKeywordDefinition,
-  adLibraryDomainDefinition,
-} from "./definitions.js";
-
-import { linkedinAdsDefinition } from "./linkedin-schema.js";
 import { searchLinkedInAds, formatLinkedInAds } from "./linkedin.js";
+import {
+  adLibraryDefinition,
+  inputCorrection,
+  type AdLibraryToolParams,
+} from "./unified.js";
 
-type Structured = NonNullable<
-  import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
->;
+type Structured = NonNullable<AgentToolResult<unknown>["structuredContent"]>;
+
 export async function executeAdLibrary(
-  params: AdLibraryParams,
+  params: AdLibraryToolParams,
   signal?: AbortSignal,
-): Promise<import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>> {
-  try {
-    const result = formatAdLibrary(await searchAdLibrary(params, { signal }));
+): Promise<AgentToolResult<unknown>> {
+  signal?.throwIfAborted();
+  const { platform, ...selectors } = params;
+  const body = {
+    ...selectors,
+    max_ads: params.max_ads ?? (platform === "meta" ? 10 : 24),
+  };
+  const correction = inputCorrection(params);
+  if (correction) {
+    const details = {
+      platform,
+      status: "error",
+      error: { code: "invalid_request", message: correction },
+    };
     return {
-      content: [{ type: "text" as const, text: result.text }],
-      details: result.details,
-      structuredContent: {
-        ...result.details,
-        status: "ok",
-      } as unknown as Structured,
+      isError: true,
+      content: [{ type: "text", text: correction }],
+      details,
+      structuredContent: details,
+    };
+  }
+  try {
+    const formatted =
+      platform === "meta"
+        ? formatAdLibrary(await searchAdLibrary(body, { signal }), false)
+        : formatLinkedInAds(await searchLinkedInAds(body, { signal }), false);
+    const response = formatted.details;
+    const next =
+      !response.complete && response.next_cursor && !params.domain
+        ? { platform, ...body, cursor: response.next_cursor }
+        : undefined;
+    const details = {
+      platform,
+      status: response.partial ? "partial" : "ok",
+      response,
+      ...(next ? { next_request: next } : {}),
+    };
+    let text = formatted.text;
+    if (next) text += "\nNext request: " + JSON.stringify(next);
+    else if (response.complete === false)
+      text += params.domain
+        ? "\nFor more ads, start a new search using the resolved page_id."
+        : "\nIncomplete sample. No continuation token is available.";
+    return {
+      content: [{ type: "text", text }],
+      details,
+      structuredContent: details as unknown as Structured,
     };
   } catch (e) {
     if (!(e instanceof AdLibraryClientError)) throw e;
@@ -50,7 +83,7 @@ export async function executeAdLibrary(
       : "";
     const text =
       (status === "not_found"
-        ? "No matching advertiser resolved for this domain in the sampled results. This is not proof of no ads. Use a page_id from keyword results."
+        ? "No matching advertiser resolved in the sampled results. Use a page_id from keyword results."
         : status === "ambiguous"
           ? "Advertiser resolution is ambiguous. Use a page_id from keyword results; the brand may still have ads."
           : e.reason === "cursor_mismatch"
@@ -72,7 +105,7 @@ export async function executeAdLibrary(
         reason: e.reason,
       }).filter(([, value]) => value !== undefined),
     );
-    const details = { status, ads: [], error };
+    const details = { platform, status, error };
     return {
       isError: status === "error",
       content: [{ type: "text" as const, text }],
@@ -82,69 +115,16 @@ export async function executeAdLibrary(
   }
 }
 export function registerAdLibrary(pi: ExtensionAPI): void {
-  const register = <T extends import("typebox").TSchema>(definition: {
-    name: string;
-    label: string;
-    description: string;
-    parameters: T;
-    outputSchema: typeof adLibraryKeywordDefinition.outputSchema;
-  }) =>
-    pi.registerTool({
-      ...definition,
-      defaultActive: isAdLibraryEnabledByEnv(),
-      execute: async (_id, params, signal) =>
-        executeAdLibrary(params as AdLibraryParams, signal),
-      renderResult(result, { expanded }) {
-        const text = result.content
-          .filter((c) => c.type === "text")
-          .map((c) => c.text)
-          .join("\n");
-        return new Text(expanded ? text : text.split("\n")[0], 0, 0);
-      },
-    });
-  register(adLibraryKeywordDefinition);
-  register(adLibraryDomainDefinition);
   pi.registerTool({
-    ...linkedinAdsDefinition,
+    ...adLibraryDefinition,
     defaultActive: isAdLibraryEnabledByEnv(),
-    async execute(
-      _id,
-      params,
-      signal,
-    ): Promise<
-      import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>
-    > {
-      try {
-        const { text, details } = formatLinkedInAds(
-          await searchLinkedInAds(params, { signal }),
-        );
-        return {
-          content: [{ type: "text", text }],
-          details,
-          structuredContent: details,
-        };
-      } catch (error) {
-        if (!(error instanceof AdLibraryClientError)) throw error;
-        const details = {
-          error: {
-            code: error.code,
-            reason: error.reason ?? null,
-            requestId: error.requestId ?? null,
-            retryAfterMs: error.retryAfterMs ?? null,
-          },
-        };
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: [error.message, error.reason].filter(Boolean).join(" "),
-            },
-          ],
-          details,
-          structuredContent: details,
-        };
-      }
+    execute: (_id, params, signal) => executeAdLibrary(params, signal),
+    renderResult(result, { expanded }) {
+      const text = result.content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n");
+      return new Text(expanded ? text : text.split("\n")[0], 0, 0);
     },
   });
 }

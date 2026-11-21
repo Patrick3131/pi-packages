@@ -91,9 +91,7 @@ test("registers four YouTube tools enabled by default with an explicit opt-out",
   assert.deepEqual(
     registered.map((tool) => tool.name),
     [
-      "ad_library_keyword_ads",
-      "ad_library_domain_ads",
-      "ad_library_linkedin_ads",
+      "ad_library",
       "amazon_new_releases",
       "amazon_search",
       "amazon_product",
@@ -116,7 +114,7 @@ test("registers four YouTube tools enabled by default with an explicit opt-out",
   ])
     assert.equal(youtube(registered, name).defaultActive, true, name);
   for (const name of [
-    "ad_library_keyword_ads",
+    "ad_library",
     "social_profile",
     "web_search_searxng",
     "web_answer",
