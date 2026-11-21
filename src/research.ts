@@ -160,3 +160,5 @@ export {
   amazonSearchDefinition,
   amazonProductDefinition,
 } from "../packages/pi-discovery/src/features/amazon/definitions.js";
+export { searchLinkedInAds, formatLinkedInAds } from "../packages/pi-discovery/src/features/ad-library/linkedin.js";
+export { linkedinAdsDefinition, type LinkedInAdsParams, type LinkedInAdsResult } from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";

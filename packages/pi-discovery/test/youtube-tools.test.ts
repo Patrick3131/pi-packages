@@ -93,6 +93,7 @@ test("registers four YouTube tools enabled by default with an explicit opt-out",
     [
       "ad_library_keyword_ads",
       "ad_library_domain_ads",
+      "ad_library_linkedin_ads",
       "amazon_new_releases",
       "amazon_search",
       "amazon_product",

@@ -311,7 +311,7 @@ test("native structured output preserves full ads and normal resolution outcomes
     registerTool: (d: { name: string; outputSchema: unknown }) =>
       definitions.push(d),
   } as never);
-  assert.equal(definitions.length, 2);
+  assert.equal(definitions.length, 3);
   assert.ok(definitions.every((d) => d.outputSchema));
   const { Check } = await import("typebox/value");
   assert.ok(
@@ -418,7 +418,7 @@ test("harvest state is rendered so a caller can continue", () => {
   assert.doesNotMatch(done.text, /Next: pass cursor/);
 });
 
-test("both Ad Library tools disclose an adjusted cap and check the response count", async (t) => {
+test("both Meta Ad Library tools disclose an adjusted cap and check the response count", async (t) => {
   const { registerAdLibrary } = await import("../src/features/ad-library/tools.js");
   const { Check } = await import("typebox/value");
   const definitions: Array<{
@@ -441,8 +441,9 @@ test("both Ad Library tools disclose an adjusted cap and check the response coun
   });
 
   const selectors = [{ keyword: "x" }, { domain: "brand.com" }];
-  for (const [index, definition] of definitions.entries()) {
-    const params = { ...selectors[index], max_ads: 5 };
+  for (const [index, selector] of selectors.entries()) {
+    const definition = definitions[index];
+    const params = { ...selector, max_ads: 5 };
     assert.ok(Check(definition.parameters, params));
     const response = await definition.execute("id", params);
     assert.ok(Check(definition.outputSchema, response.structuredContent));

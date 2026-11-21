@@ -1,7 +1,7 @@
 # pi-discovery
 
 Direct SearXNG search (`web_search_searxng`), server-owned Luna research
-(`web_answer`), Meta Ad Library, Instagram/TikTok public metadata, YouTube
+(`web_answer`), Meta and LinkedIn Ad Libraries, Instagram/TikTok public metadata, YouTube
 search/channels/transcripts, and Amazon New Releases/search/product detail.
 Search, answer, Ad Library, social and Amazon tools default off; the YouTube
 tools default on. All tools use Pi's native defaultActive policy.
@@ -30,6 +30,16 @@ Private/VPN network access is required. No API bearer token or local Codex login
 The discovery server owns account credentials and always selects gpt-6-luna.
 There is no model fallback or client retry. The old search enablement env aliases
 are removed; update callers to DISCOVERY_WEB_SEARCH_ENABLED.
+
+## LinkedIn Ad Library
+
+Enable `ad_library_linkedin_ads` with `DISCOVERY_AD_LIBRARY_ENABLED=1` or select
+it in Pi. Search by keyword, company page ID, LinkedIn company URL or slug, or
+use payer/account-owner filters. Set `include_transparency` to request available
+impression ranges and targeting. Limits below 24 are raised to one LinkedIn
+page and disclosed. Pass `next_cursor` with the original selector and filters
+to continue. The structured result retains every returned ad and page receipt.
+Node consumers import `searchLinkedInAds` from `@patrick3131/pi-packages/research`.
 
 ## Model tool
 

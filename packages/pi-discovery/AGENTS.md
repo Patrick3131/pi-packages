@@ -49,6 +49,8 @@ Keep the default HTTP timeout above the maximum exposed server budget. Queue
 waiting belongs to the total request deadline; execution is separately bounded
 by the service. Do not add client retries or admission predictions.
 
+The LinkedIn tool shares the Ad Library gate and transport. Preserve its 24-ad page minimum, opaque cursor, provider identity and nullable transparency fields.
+
 Ad Library defaults off. Its HTTP timeout is max(configured 130000ms floor, server
 budget + 10000ms), supporting 180000ms requests with 190000ms client budgets.
 Preserve AbortError, sanitized server codes, receipts, partial and truncation.

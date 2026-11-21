@@ -7,8 +7,17 @@ import {
   formatAdLibrary,
   type AdLibraryParams,
 } from "./client.js";
-import { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./definitions.js";
-export { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./definitions.js";
+import {
+  adLibraryKeywordDefinition,
+  adLibraryDomainDefinition,
+} from "./definitions.js";
+export {
+  adLibraryKeywordDefinition,
+  adLibraryDomainDefinition,
+} from "./definitions.js";
+
+import { linkedinAdsDefinition } from "./linkedin-schema.js";
+import { searchLinkedInAds, formatLinkedInAds } from "./linkedin.js";
 
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
@@ -48,8 +57,9 @@ export async function executeAdLibrary(
             ? "Cursor does not match this selector/filters. Restart without cursor."
             : e.message +
               (e.reason ? ` Reason: ${e.reason}.` : "") +
-              (e.retryAfterMs ? ` Retry after ${e.retryAfterMs / 1000} s.` : "")) +
-      candidateText;
+              (e.retryAfterMs
+                ? ` Retry after ${e.retryAfterMs / 1000} s.`
+                : "")) + candidateText;
     const error = Object.fromEntries(
       Object.entries({
         code: e.code,
@@ -94,4 +104,47 @@ export function registerAdLibrary(pi: ExtensionAPI): void {
     });
   register(adLibraryKeywordDefinition);
   register(adLibraryDomainDefinition);
+  pi.registerTool({
+    ...linkedinAdsDefinition,
+    defaultActive: isAdLibraryEnabledByEnv(),
+    async execute(
+      _id,
+      params,
+      signal,
+    ): Promise<
+      import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>
+    > {
+      try {
+        const { text, details } = formatLinkedInAds(
+          await searchLinkedInAds(params, { signal }),
+        );
+        return {
+          content: [{ type: "text", text }],
+          details,
+          structuredContent: details,
+        };
+      } catch (error) {
+        if (!(error instanceof AdLibraryClientError)) throw error;
+        const details = {
+          error: {
+            code: error.code,
+            reason: error.reason ?? null,
+            requestId: error.requestId ?? null,
+            retryAfterMs: error.retryAfterMs ?? null,
+          },
+        };
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: [error.message, error.reason].filter(Boolean).join(" "),
+            },
+          ],
+          details,
+          structuredContent: details,
+        };
+      }
+    },
+  });
 }
