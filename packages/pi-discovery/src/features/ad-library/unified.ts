@@ -70,6 +70,11 @@ const parameters = Type.Object(
       ...fields.sort,
       description: "LinkedIn only. Order by newest (default) or oldest.",
     }),
+    include_details: Type.Optional({
+      ...fields.include_details,
+      description:
+        "LinkedIn only. Fetch ad detail pages for fuller copy, creative fields and published disclosures (up to 25 ads per call; default false).",
+    }),
     include_transparency: Type.Optional({
       ...fields.include_transparency,
       description:
@@ -125,6 +130,7 @@ export function inputCorrection(p: AdLibraryToolParams): string | undefined {
       "start_date",
       "end_date",
       "sort",
+      "include_details",
       "include_transparency",
     ].find((key) => key in p);
     if (linkedinField)

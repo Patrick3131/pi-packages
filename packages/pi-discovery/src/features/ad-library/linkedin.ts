@@ -78,6 +78,12 @@ export function formatLinkedInAds(
     lines.push(
       `Page ${failure.page}: ${failure.stage ?? "results"} (${failure.error_code}). Request ${result.id}.`,
     );
+  if (result.transparency) {
+    const { fetched, empty, failed, requested } = result.transparency;
+    lines.push(
+      `Detail pages: ${fetched} with fields, ${empty ?? 0} empty, ${failed} failed (budget ${requested}).`,
+    );
+  }
   if (result.max_ads_adjustment)
     lines.push(
       `Requested ${result.max_ads_adjustment.requested} ads; effective limit raised to 24 (one LinkedIn page).`,

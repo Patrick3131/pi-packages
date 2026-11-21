@@ -81,7 +81,12 @@ test("registered tool round-trips provider defaults, filters, and opaque cursors
   const cases: AdLibraryToolParams[] = [
     { platform: "meta", keyword: "test", active_only: false },
     { platform: "meta", page_id: "123", max_ads: 48 },
-    { platform: "linkedin", payer: "Test", country: "DE" },
+    {
+      platform: "linkedin",
+      payer: "Test",
+      country: "DE",
+      include_details: true,
+    },
     { platform: "linkedin", account_owner: "Test", max_ads: 48 },
   ];
   for (const args of cases) {
@@ -106,12 +111,16 @@ test("incompatible selectors fail locally with a correction", async (t) => {
   const fetch = t.mock.method(globalThis, "fetch");
   for (const params of [
     { platform: "meta", country: "ALL", keyword: "x" },
+    { platform: "meta", keyword: "x", include_details: true },
     { platform: "linkedin", domain: "example.com" },
     { platform: "linkedin", payer: "x", end_date: "2026-10-01" },
   ] as const) {
     const result = await call(params);
     assert.equal(result.data.status, "error");
-    assert.match(result.text, /country|account_owner|date_option/);
+    assert.match(
+      result.text,
+      /country|account_owner|date_option|LinkedIn-only/,
+    );
   }
   assert.equal(fetch.mock.callCount(), 0);
 });
