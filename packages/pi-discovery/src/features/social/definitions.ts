@@ -6,7 +6,7 @@ import {
   SOCIAL_RECORD_TIMEOUT_MIN_MS,
   SOCIAL_SAMPLE_TIMEOUT_MAX_MS,
   SOCIAL_URL_MAX_LENGTH,
-} from "./social-types.js";
+} from "./types.js";
 
 const nullableText = Type.Union([Type.String(), Type.Null()]);
 const nullableCount = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);

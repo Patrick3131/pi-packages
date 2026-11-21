@@ -5,7 +5,7 @@ import type {
   SocialProfilePostsResponse,
   SocialProfileResponse,
   SocialResultEnvelope,
-} from "./social-types.js";
+} from "./types.js";
 
 /** Model-visible text stays bounded; structured output keeps every record. */
 const TEXT_CAP = 12000;

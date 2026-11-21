@@ -8,7 +8,7 @@ import {
   normalizeSearchResult,
   searchSearxng,
   truncateSnippet,
-} from "../src/search.js";
+} from "../src/features/web-search/client.js";
 
 test("buildSearchUrl targets JSON search on the default instance", () => {
   const url = buildSearchUrl(

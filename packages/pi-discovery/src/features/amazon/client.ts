@@ -1,5 +1,5 @@
-import { environment, resolveAmazonConfig } from "./config.js";
-import { AmazonClientError } from "./amazon-errors.js";
+import { environment, resolveAmazonConfig } from "../../config.js";
+import { AmazonClientError } from "./errors.js";
 import {
   AMAZON_HTTP_TIMEOUT_MARGIN_MS,
   AMAZON_SERVER_CODES,
@@ -10,7 +10,7 @@ import {
   type AmazonProductParams,
   type AmazonProductResponse,
   type AmazonSearchParams,
-} from "./amazon-types.js";
+} from "./types.js";
 import {
   amazonNewReleasesRequest,
   amazonProductRequest,
@@ -19,7 +19,7 @@ import {
   parseAmazonListingResponse,
   parseAmazonProductResponse,
   type AmazonRequest,
-} from "./amazon-validation.js";
+} from "./validation.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -162,5 +162,5 @@ export async function getAmazonProduct(
   );
 }
 
-export { AmazonClientError } from "./amazon-errors.js";
-export { formatAmazonListing, formatAmazonProduct } from "./amazon-format.js";
+export { AmazonClientError } from "./errors.js";
+export { formatAmazonListing, formatAmazonProduct } from "./format.js";

@@ -1,8 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { isSocialEnabledByEnv } from "./config.js";
-import { SocialClientError } from "./social-errors.js";
-import { formatSocialPost, formatSocialProfile, formatSocialProfilePosts } from "./social-format.js";
+import { isSocialEnabledByEnv } from "../../config.js";
+import { SocialClientError } from "./errors.js";
+import { formatSocialPost, formatSocialProfile, formatSocialProfilePosts } from "./format.js";
 import {
   SOCIAL_POST_NOT_FOUND,
   SOCIAL_PROFILE_NOT_FOUND,
@@ -10,16 +10,16 @@ import {
   type SocialProfileParams,
   type SocialProfilePostsParams,
   type SocialResultEnvelope,
-} from "./social-types.js";
-import { getSocialPost, getSocialProfile, getSocialProfilePosts } from "./social.js";
+} from "./types.js";
+import { getSocialPost, getSocialProfile, getSocialProfilePosts } from "./client.js";
 
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
 >;
 type ToolResult = import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>;
 
-import { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "./social-definitions.js";
-export { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "./social-definitions.js";
+import { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "./definitions.js";
+export { socialProfileDefinition, socialProfilePostsDefinition, socialPostDefinition } from "./definitions.js";
 
 function failureResult(
   error: SocialClientError,

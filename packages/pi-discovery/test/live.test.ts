@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { liveEnabled } from "../src/config.js";
-import { askWeb } from "../src/answer.js";
-import { searchSearxng } from "../src/search.js";
+import { askWeb } from "../src/features/web-answer/client.js";
+import { searchSearxng } from "../src/features/web-search/client.js";
 
 test(
   "live discovery answer and direct SearXNG",

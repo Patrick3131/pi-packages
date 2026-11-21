@@ -1,21 +1,21 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { isAmazonEnabledByEnv } from "./config.js";
-import { AmazonClientError } from "./amazon-errors.js";
-import { formatAmazonListing, formatAmazonProduct } from "./amazon-format.js";
+import { isAmazonEnabledByEnv } from "../../config.js";
+import { AmazonClientError } from "./errors.js";
+import { formatAmazonListing, formatAmazonProduct } from "./format.js";
 import {
   AMAZON_NOT_FOUND_CODES,
   type AmazonNewReleasesParams,
   type AmazonProductParams,
   type AmazonResultEnvelope,
   type AmazonSearchParams,
-} from "./amazon-types.js";
-import { getAmazonProduct, newAmazonReleases, searchAmazon } from "./amazon.js";
+} from "./types.js";
+import { getAmazonProduct, newAmazonReleases, searchAmazon } from "./client.js";
 import {
   amazonNewReleasesDefinition,
   amazonProductDefinition,
   amazonSearchDefinition,
-} from "./amazon-definitions.js";
+} from "./definitions.js";
 
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
@@ -27,7 +27,7 @@ export {
   amazonNewReleasesDefinition,
   amazonProductDefinition,
   amazonSearchDefinition,
-} from "./amazon-definitions.js";
+} from "./definitions.js";
 
 /** Guidance copy: not-found and disabled are outcomes, never retry signals. */
 function failureText(

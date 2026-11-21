@@ -4,7 +4,7 @@ import type {
   YoutubeSearchResponse,
   YoutubeTranscriptResponse,
   YoutubeVideoMetadata,
-} from "./youtube-types.js";
+} from "./types.js";
 
 /** Model-visible text stays bounded; structured output keeps every record. */
 const TEXT_CAP = 12000;

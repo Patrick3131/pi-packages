@@ -3,7 +3,7 @@ import {
   assertHttpUrl,
   resolveDefaultEngines,
   resolveSearxngBaseUrl,
-} from "./config.js";
+} from "../../config.js";
 import {
   DEFAULT_MAX_RESULTS,
   DEFAULT_TIMEOUT_MS,

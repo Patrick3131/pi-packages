@@ -5,7 +5,7 @@ import {
   getSocialPost,
   getSocialProfile,
   getSocialProfilePosts,
-} from "../src/social.js";
+} from "../src/features/social/client.js";
 
 const username = process.env.DISCOVERY_SOCIAL_LIVE_USERNAME ?? "lovelaurieb";
 

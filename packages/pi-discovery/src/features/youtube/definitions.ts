@@ -8,7 +8,7 @@ import {
   YOUTUBE_MIN_MAX_CHARS,
   YOUTUBE_SEGMENT_DEFAULT_MAX_CHARS,
   YOUTUBE_MIN_TIMEOUT_MS,
-} from "./youtube-types.js";
+} from "./types.js";
 
 const nullableText = Type.Union([Type.String(), Type.Null()]);
 const nullableCount = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);

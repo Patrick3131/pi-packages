@@ -1,14 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { isAdLibraryEnabledByEnv } from "./config.js";
+import { isAdLibraryEnabledByEnv } from "../../config.js";
 import {
   searchAdLibrary,
   AdLibraryClientError,
   formatAdLibrary,
   type AdLibraryParams,
-} from "./ad-library.js";
-import { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./ad-library-definitions.js";
-export { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./ad-library-definitions.js";
+} from "./client.js";
+import { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./definitions.js";
+export { adLibraryKeywordDefinition, adLibraryDomainDefinition } from "./definitions.js";
 
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]

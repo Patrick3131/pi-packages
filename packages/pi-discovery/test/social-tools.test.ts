@@ -6,11 +6,11 @@ import {
   socialPostDefinition,
   socialProfileDefinition,
   socialProfilePostsDefinition,
-} from "../src/social-tools.js";
+} from "../src/features/social/tools.js";
 import {
   formatSocialProfile,
   formatSocialProfilePosts,
-} from "../src/social-format.js";
+} from "../src/features/social/format.js";
 import {
   completedSample,
   postResponse,

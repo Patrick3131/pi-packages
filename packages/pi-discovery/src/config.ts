@@ -1,6 +1,6 @@
-import { WebAnswerClientError } from "./answer-errors.js";
-import { AMAZON_DEFAULT_HTTP_TIMEOUT_MS } from "./amazon-types.js";
-import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "./types.js";
+import { WebAnswerClientError } from "./features/web-answer/errors.js";
+import { AMAZON_DEFAULT_HTTP_TIMEOUT_MS } from "./features/amazon/types.js";
+import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "./features/web-search/types.js";
 
 export function isSearxngEnabledByEnv(
   env: NodeJS.ProcessEnv = process.env,

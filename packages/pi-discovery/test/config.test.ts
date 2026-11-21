@@ -13,7 +13,7 @@ import {
   SOCIAL_DEFAULT_HTTP_TIMEOUT_MS,
   YOUTUBE_DEFAULT_HTTP_TIMEOUT_MS,
 } from "../src/config.js";
-import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "../src/types.js";
+import { DEFAULT_ENGINES, DEFAULT_SEARXNG_URL } from "../src/features/web-search/types.js";
 
 test("resolveSearxngBaseUrl uses the discovery-services VPN default", () => {
   assert.equal(resolveSearxngBaseUrl({}), DEFAULT_SEARXNG_URL);

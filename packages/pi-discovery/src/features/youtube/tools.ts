@@ -1,14 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { isYoutubeEnabledByEnv } from "./config.js";
-import { YoutubeClientError } from "./youtube-errors.js";
+import { isYoutubeEnabledByEnv } from "../../config.js";
+import { YoutubeClientError } from "./errors.js";
 import {
   formatYoutubeChannel,
   formatYoutubeSearch,
   formatYoutubeTranscript,
   formatYoutubeVideo,
-} from "./youtube-format.js";
-import { transcriptRequestChars } from "./youtube-validation.js";
+} from "./format.js";
+import { transcriptRequestChars } from "./validation.js";
 import {
   YOUTUBE_NOT_FOUND_CODES,
   type YoutubeChannelParams,
@@ -16,19 +16,19 @@ import {
   type YoutubeTranscriptParams,
   type YoutubeResultEnvelope,
   type YoutubeVideoParams,
-} from "./youtube-types.js";
+} from "./types.js";
 import {
   getYoutubeChannel,
   getYoutubeTranscript,
   getYoutubeVideo,
   searchYoutube,
-} from "./youtube.js";
+} from "./client.js";
 import {
   youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
   youtubeVideoDefinition,
-} from "./youtube-definitions.js";
+} from "./definitions.js";
 
 type Structured = NonNullable<
   import("@earendil-works/pi-coding-agent").AgentToolResult<unknown>["structuredContent"]
@@ -41,7 +41,7 @@ export {
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
   youtubeVideoDefinition,
-} from "./youtube-definitions.js";
+} from "./definitions.js";
 
 function failureText(
   error: YoutubeClientError,

@@ -3,7 +3,7 @@ import type {
   AmazonListingItem,
   AmazonListingResponse,
   AmazonProductResponse,
-} from "../src/amazon-types.js";
+} from "../src/features/amazon/types.js";
 
 export const usage: AmazonDataUsage = {
   decoded_bytes: 241000,

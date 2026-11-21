@@ -6,7 +6,7 @@ import {
   AMAZON_MIN_PAGE,
   AMAZON_MIN_TIMEOUT_MS,
   AMAZON_SCHEMA_VERSION,
-} from "./amazon-types.js";
+} from "./types.js";
 
 const nullableText = Type.Union([Type.String(), Type.Null()]);
 const nullableCount = Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]);

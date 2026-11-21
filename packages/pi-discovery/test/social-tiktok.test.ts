@@ -4,22 +4,22 @@ import {
   formatSocialPost,
   formatSocialProfile,
   formatSocialProfilePosts,
-} from "../src/social-format.js";
+} from "../src/features/social/format.js";
 import {
   getSocialPost,
   getSocialProfile,
   getSocialProfilePosts,
   SocialClientError,
-} from "../src/social.js";
+} from "../src/features/social/client.js";
 import {
   socialPostRequest,
   socialProfilePostsRequest,
   socialProfileRequest,
-} from "../src/social-validation.js";
+} from "../src/features/social/validation.js";
 import {
   executeSocialPost,
   executeSocialProfile,
-} from "../src/social-tools.js";
+} from "../src/features/social/tools.js";
 import { recordingFetch } from "./social-fixtures.js";
 
 const invalidRequest = (error: unknown) =>

@@ -4,7 +4,7 @@ import type {
   SocialProfile,
   SocialProfilePostsResponse,
   SocialProfileResponse,
-} from "../src/social-types.js";
+} from "../src/features/social/types.js";
 
 /** Fixtures mirror the documented wire contract, including fields Pi never derives itself. */
 export const profile: SocialProfile = {

@@ -8,25 +8,11 @@ canonical_for: pi-discovery architecture
 
 # pi-discovery — Context
 
-```
-src/config.ts           URL / enable flags / timeout floors
-src/search.ts           GET /search?format=json
-src/answer.ts           bounded cancellable POST /v1/web-answer
-src/ad-library.ts       POST /v1/ad-library/search client and result types
-src/ad-library-tools.ts native Ad Library tools and output schema
-src/social.ts           POST /v1/social/{profile,profile-posts,post} clients
-src/social-validation.ts selector, URL and wire-response validation
-src/social-tools.ts     native social tools, schemas and registration
-src/youtube-validation.ts selector, URL and wire-response validation
-src/youtube.ts          POST /v1/youtube/{search,transcript} clients
-src/youtube-format.ts   bounded model-visible YouTube text
-src/youtube-tools.ts    native YouTube tools and output schema
-src/amazon-validation.ts selector, request and wire-response validation
-src/amazon.ts           POST /v1/amazon/{new-releases,search,product} clients
-src/amazon-format.ts    bounded model-visible Amazon text
-src/amazon-tools.ts     native Amazon tools and output schema
-src/index.ts            register every tool with native defaultActive
-```
+The Pi entry point is `src/index.ts`. It registers tools from
+`src/features/{ad-library,amazon,reddit,social,web-answer,web-search,youtube}/tools.ts`.
+Each feature owns its schemas, clients, validation and formatting where applicable.
+Shared environment configuration lives in `src/config.ts`. External adapters
+import reusable Discovery clients and schemas from `@patrick3131/pi-packages/research`.
 
 Live instance: Dokploy `Tools` / `discovery-services`, JSON on
 `http://10.8.0.1:18089` and `http://172.18.0.1:18089`. No API token.
@@ -82,7 +68,7 @@ answers with a typed `social_disabled` error. TikTok profile and post are suppor
 its signed listing can return a typed `social_verification_required` partial sample
 while the server signer gate is incomplete.
 
-`src/social-validation.ts` owns request selectors and response parsing. Requests
+`src/features/social/validation.ts` owns request selectors and response parsing. Requests
 carry exactly one selector and an optional `platform: "instagram" | "tiktok"`
 (default instagram);
 omitted `timeout_ms` values resolve to 30000 (profile/post) or 120000
@@ -121,7 +107,7 @@ posts exactly one `video_id` or validated YouTube URL to
 default-on, enabled by the default unless `DISCOVERY_YOUTUBE_ENABLED=0/false/off/no`
 or a project tool selection turns them off.
 
-`src/youtube-validation.ts` mirrors the server selector rules and validates every
+`src/features/youtube/validation.ts` mirrors the server selector rules and validates every
 success response: canonical watch URLs/thumbnail hosts, video id, language tags,
 segment bounds, unique available languages and exactly one rendering (segments or
 text, never both). The client posts once with `redirect: error`, uses a
@@ -133,7 +119,7 @@ advisory Retry-After.
 
 Model-visible text is capped at 12000 characters (30-segment/8000-character
 transcript preview); native structured output keeps the complete API response.
-Harness-neutral exports live in `src/youtube.ts` and `src/youtube-format.ts`; the
+Harness-neutral exports live in `src/features/youtube/client.ts` and `src/features/youtube/format.ts`; the
 root research entry re-exports the clients, formatters, error, types and tool
 definitions.
 
@@ -141,8 +127,8 @@ definitions.
 
 `amazon_new_releases`, `amazon_search` and `amazon_product` are default-off
 clients for the server-owned Amazon routes; enable with `DISCOVERY_AMAZON_ENABLED=1`
-or a project tool selection. `src/amazon-validation.ts` owns request selectors,
-page bounds, canonical ASINs and additive response parsing; `src/amazon.ts` makes
+or a project tool selection. `src/features/amazon/validation.ts` owns request selectors,
+page bounds, canonical ASINs and additive response parsing; `src/features/amazon/client.ts` makes
 exactly one HTTP exchange per call with a configurable timeout floor, no retry,
 redirect refusal and caller-abort precedence. Listings return one provider page
 (pages 1-5) with `rank_position` as page/listing position, not a sales rank;
@@ -152,9 +138,9 @@ reports zero usage, but the server cache and bootstrap are per worker.
 `AmazonClientError` preserves the sanitized code, status, serverCode, requestId,
 reason, Retry-After and per-call usage; 404 is `not_found`, while disabled,
 blocked, upstream and timeout are error envelopes and are never retried.
-`src/amazon-format.ts` bounds model text to 12000 characters, preserves the
+`src/features/amazon/format.ts` bounds model text to 12000 characters, preserves the
 policy caveats after truncation, pluralizes counts and renders null signals as
-unknown. Harness-neutral exports live in `src/amazon.ts` and
-`src/amazon-format.ts`; the root research entry re-exports the clients,
+unknown. Harness-neutral exports live in `src/features/amazon/client.ts` and
+`src/features/amazon/format.ts`; the root research entry re-exports the clients,
 formatters, error, types and tool definitions. Live acceptance opts in with
 `DISCOVERY_LIVE=1`.

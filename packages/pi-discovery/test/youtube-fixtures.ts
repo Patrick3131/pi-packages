@@ -1,7 +1,7 @@
 import type {
   YoutubeSearchResponse,
   YoutubeTranscriptResponse,
-} from "../src/youtube-types.js";
+} from "../src/features/youtube/types.js";
 
 export const searchResponse: YoutubeSearchResponse = {
   query: "python 3.13",

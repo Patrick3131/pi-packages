@@ -6,7 +6,7 @@ import {
   amazonNewReleasesDefinition,
   amazonProductDefinition,
   amazonSearchDefinition,
-} from "../src/amazon-tools.js";
+} from "../src/features/amazon/tools.js";
 import {
   cachedNewReleasesResponse,
   newReleasesResponse,

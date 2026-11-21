@@ -1,5 +1,5 @@
-import { environment, resolveSocialConfig } from "./config.js";
-import { SocialClientError } from "./social-errors.js";
+import { environment, resolveSocialConfig } from "../../config.js";
+import { SocialClientError } from "./errors.js";
 import {
   SOCIAL_HTTP_TIMEOUT_MARGIN_MS,
   SOCIAL_SERVER_CODES,
@@ -10,7 +10,7 @@ import {
   type SocialProfilePostsParams,
   type SocialProfilePostsResponse,
   type SocialProfileResponse,
-} from "./social-types.js";
+} from "./types.js";
 import {
   parseSocialPostResponse,
   parseSocialProfilePostsResponse,
@@ -19,7 +19,7 @@ import {
   socialProfilePostsRequest,
   socialProfileRequest,
   type SocialRequest,
-} from "./social-validation.js";
+} from "./validation.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -144,5 +144,5 @@ export async function getSocialPost(
   );
 }
 
-export { SocialClientError } from "./social-errors.js";
-export { formatSocialPost, formatSocialProfile, formatSocialProfilePosts } from "./social-format.js";
+export { SocialClientError } from "./errors.js";
+export { formatSocialPost, formatSocialProfile, formatSocialProfilePosts } from "./format.js";

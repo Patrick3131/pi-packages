@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import discovery from "../src/index.js";
-import { redditParameters } from "../src/reddit-tool.js";
+import { redditParameters } from "../src/features/reddit/tools.js";
 import type { Static } from "typebox";
 
 type Parameters = Static<typeof redditParameters>;

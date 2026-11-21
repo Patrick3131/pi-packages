@@ -1,4 +1,4 @@
-import type { AdLibraryAd, AdLibraryResult } from "./ad-library.js";
+import type { AdLibraryAd, AdLibraryResult } from "./client.js";
 
 const clean = (value: unknown, cap = 1000) => {
   if (typeof value !== "string" || !value.trim()) return "";

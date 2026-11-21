@@ -1,4 +1,4 @@
-import type { AmazonClientCode, AmazonDataUsage } from "./amazon-types.js";
+import type { AmazonClientCode, AmazonDataUsage } from "./types.js";
 
 /**
  * Sanitized client failures. `code` is the stable client category used by tool

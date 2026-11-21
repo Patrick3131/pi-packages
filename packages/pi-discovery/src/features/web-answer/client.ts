@@ -1,24 +1,24 @@
-import { environment, resolveDiscoveryConfig } from "./config.js";
+import { environment, resolveDiscoveryConfig } from "../../config.js";
 import {
   WebAnswerClientError,
   retryAfter,
   type WebAnswerErrorCode,
-} from "./answer-errors.js";
-import { requestBody, parseAnswer, record } from "./answer-validation.js";
+} from "./errors.js";
+import { requestBody, parseAnswer, record } from "./validation.js";
 import type {
   WebAnswerParams,
   WebAnswerOptions,
   WebAnswerResult,
   WebAnswerDetails,
-} from "./answer-types.js";
-export { WebAnswerClientError } from "./answer-errors.js";
-export type { WebAnswerErrorCode } from "./answer-errors.js";
+} from "./types.js";
+export { WebAnswerClientError } from "./errors.js";
+export type { WebAnswerErrorCode } from "./errors.js";
 export type {
   WebAnswerParams,
   WebAnswerOptions,
   WebAnswerResult,
   WebAnswerDetails,
-} from "./answer-types.js";
+} from "./types.js";
 
 const mapping: Record<number, Record<string, WebAnswerErrorCode>> = {
   400: { invalid_request: "invalid_request" },

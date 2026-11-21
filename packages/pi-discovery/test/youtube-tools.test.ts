@@ -6,11 +6,11 @@ import {
   youtubeChannelDefinition,
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
-} from "../src/youtube-tools.js";
+} from "../src/features/youtube/tools.js";
 import {
   formatYoutubeChannel,
   formatYoutubeVideo,
-} from "../src/youtube-format.js";
+} from "../src/features/youtube/format.js";
 import {
   channelResponse,
   recordingFetch,

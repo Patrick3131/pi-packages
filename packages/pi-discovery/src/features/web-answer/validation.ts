@@ -1,5 +1,5 @@
-import { WebAnswerClientError } from "./answer-errors.js";
-import type { WebAnswerParams, WebAnswerResult } from "./answer-types.js";
+import { WebAnswerClientError } from "./errors.js";
+import type { WebAnswerParams, WebAnswerResult } from "./types.js";
 export const record = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 const integer = (x: unknown): x is number =>

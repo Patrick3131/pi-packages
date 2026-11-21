@@ -1,4 +1,4 @@
-import { AmazonClientError } from "./amazon-errors.js";
+import { AmazonClientError } from "./errors.js";
 import {
   AMAZON_ASIN,
   AMAZON_DEFAULT_TIMEOUT_MS,
@@ -29,7 +29,7 @@ import {
   type AmazonProductResponse,
   type AmazonSearchParams,
   type AmazonSort,
-} from "./amazon-types.js";
+} from "./types.js";
 
 /** One validated wire request: route, exact body and effective server budget. */
 export interface AmazonRequest {

@@ -5,12 +5,12 @@ import {
   getSocialProfile,
   getSocialProfilePosts,
   SocialClientError,
-} from "../src/social.js";
+} from "../src/features/social/client.js";
 import {
   socialPostRequest,
   socialProfilePostsRequest,
   socialProfileRequest,
-} from "../src/social-validation.js";
+} from "../src/features/social/validation.js";
 import {
   profileResponse,
   postResponse,

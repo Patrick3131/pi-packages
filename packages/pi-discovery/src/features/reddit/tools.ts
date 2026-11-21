@@ -3,7 +3,7 @@ import type {
   ExtensionAPI,
 } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
-import { resolveRedditConfig } from "./config.js";
+import { resolveRedditConfig } from "../../config.js";
 
 const page = {
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 25 })),

@@ -4,7 +4,7 @@ import {
   askWeb,
   WebAnswerClientError,
   formatWebAnswer,
-} from "../src/answer.js";
+} from "../src/features/web-answer/client.js";
 import { resolveDiscoveryConfig } from "../src/config.js";
 
 const payload = () => ({

@@ -1,5 +1,5 @@
-import { environment, resolveYoutubeConfig } from "./config.js";
-import { YoutubeClientError } from "./youtube-errors.js";
+import { environment, resolveYoutubeConfig } from "../../config.js";
+import { YoutubeClientError } from "./errors.js";
 import {
   YOUTUBE_HTTP_TIMEOUT_MARGIN_MS,
   YOUTUBE_SERVER_CODES,
@@ -12,7 +12,7 @@ import {
   type YoutubeTranscriptResponse,
   type YoutubeVideoMetadata,
   type YoutubeVideoParams,
-} from "./youtube-types.js";
+} from "./types.js";
 import {
   parseYoutubeChannelResponse,
   parseYoutubeSearchResponse,
@@ -23,7 +23,7 @@ import {
   youtubeTranscriptRequest,
   youtubeVideoRequest,
   type YoutubeRequest,
-} from "./youtube-validation.js";
+} from "./validation.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -177,4 +177,4 @@ export async function getYoutubeVideo(
   );
 }
 
-export { YoutubeClientError } from "./youtube-errors.js";
+export { YoutubeClientError } from "./errors.js";

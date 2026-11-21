@@ -1,4 +1,4 @@
-import { SocialClientError } from "./social-errors.js";
+import { SocialClientError } from "./errors.js";
 import {
   SOCIAL_DEFAULT_MAX_POSTS,
   SOCIAL_DEFAULT_RECORD_TIMEOUT_MS,
@@ -22,7 +22,7 @@ import {
   type SocialProfileResponse,
   type SocialSampleFailure,
   type SocialTimings,
-} from "./social-types.js";
+} from "./types.js";
 
 /** One validated wire request: route, exact body and effective server budget. */
 export interface SocialRequest {

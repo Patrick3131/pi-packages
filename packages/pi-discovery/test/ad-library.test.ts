@@ -6,7 +6,7 @@ import {
   adsForAdvertiser,
   formatAdLibrary,
   AdLibraryClientError,
-} from "../src/ad-library.js";
+} from "../src/features/ad-library/client.js";
 import { resolveAdLibraryConfig, liveEnabled } from "../src/config.js";
 const result = {
   id: "test",
@@ -141,7 +141,7 @@ test("HTTP timer preserves the ten-second margin at 180 seconds", async (t) => {
   assert.equal(observed, 190000);
 });
 test("tool failures surface isError and sanitized server metadata", async (t) => {
-  const { executeAdLibrary } = await import("../src/ad-library-tools.js");
+  const { executeAdLibrary } = await import("../src/features/ad-library/tools.js");
   t.mock.method(
     globalThis,
     "fetch",
@@ -162,7 +162,7 @@ test("tool failures surface isError and sanitized server metadata", async (t) =>
 });
 
 test("resolution failures surface candidates and a retry hint", async (t) => {
-  const { executeAdLibrary } = await import("../src/ad-library-tools.js");
+  const { executeAdLibrary } = await import("../src/features/ad-library/tools.js");
   t.mock.method(
     globalThis,
     "fetch",
@@ -281,7 +281,7 @@ test("model-visible ads include domains, page IDs, copy and creative URLs", () =
 });
 test("native structured output preserves full ads and normal resolution outcomes", async (t) => {
   const { executeAdLibrary, registerAdLibrary } =
-    await import("../src/ad-library-tools.js");
+    await import("../src/features/ad-library/tools.js");
   const nativePayload = {
     ...result,
     ads: [
@@ -419,13 +419,13 @@ test("harvest state is rendered so a caller can continue", () => {
 });
 
 test("both Ad Library tools disclose an adjusted cap and check the response count", async (t) => {
-  const { registerAdLibrary } = await import("../src/ad-library-tools.js");
+  const { registerAdLibrary } = await import("../src/features/ad-library/tools.js");
   const { Check } = await import("typebox/value");
   const definitions: Array<{
     parameters: import("typebox").TSchema;
     outputSchema: import("typebox").TSchema;
     execute: (id: string, params: unknown) => Promise<Awaited<ReturnType<
-      typeof import("../src/ad-library-tools.js").executeAdLibrary
+      typeof import("../src/features/ad-library/tools.js").executeAdLibrary
     >>>;
   }> = [];
   registerAdLibrary({ registerTool: (d: (typeof definitions)[number]) => definitions.push(d) } as never);
@@ -473,7 +473,7 @@ test("request bounds and cursor-mismatch guidance", async (t) => {
     assert.equal(adLibraryRequest({ keyword: "x", max_ads: value }).max_ads, value);
   assert.equal(adLibraryRequest({ keyword: "x" }).max_ads, 30);
 
-  const { executeAdLibrary } = await import("../src/ad-library-tools.js");
+  const { executeAdLibrary } = await import("../src/features/ad-library/tools.js");
   t.mock.method(
     globalThis,
     "fetch",

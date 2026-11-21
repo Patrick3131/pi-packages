@@ -6,18 +6,18 @@ import {
   newAmazonReleases,
   searchAmazon,
   AmazonClientError,
-} from "../src/amazon.js";
+} from "../src/features/amazon/client.js";
 import {
   amazonNewReleasesRequest,
   amazonProductRequest,
   amazonSearchRequest,
   parseAmazonListingResponse,
   parseAmazonProductResponse,
-} from "../src/amazon-validation.js";
+} from "../src/features/amazon/validation.js";
 import {
   formatAmazonListing,
   formatAmazonProduct,
-} from "../src/amazon-format.js";
+} from "../src/features/amazon/format.js";
 import {
   cachedNewReleasesResponse,
   newReleasesResponse,

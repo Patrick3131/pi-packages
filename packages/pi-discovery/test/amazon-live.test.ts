@@ -6,7 +6,7 @@ import {
   getAmazonProduct,
   newAmazonReleases,
   searchAmazon,
-} from "../src/amazon.js";
+} from "../src/features/amazon/client.js";
 
 test(
   "live Amazon listing, relevance search and product contract",

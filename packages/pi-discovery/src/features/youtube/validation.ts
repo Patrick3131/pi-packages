@@ -1,4 +1,4 @@
-import { YoutubeClientError } from "./youtube-errors.js";
+import { YoutubeClientError } from "./errors.js";
 import {
   YOUTUBE_CHANNEL_ID,
   YOUTUBE_CHANNEL_VIDEOS,
@@ -35,7 +35,7 @@ import {
   type YoutubeTranscriptParams,
   type YoutubeTranscriptResponse,
   type YoutubeTranscriptSegment,
-} from "./youtube-types.js";
+} from "./types.js";
 
 /** One validated wire request: route, exact body and effective server budget. */
 export interface YoutubeRequest {

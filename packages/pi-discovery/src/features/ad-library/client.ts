@@ -1,4 +1,4 @@
-import { environment, resolveAdLibraryConfig } from "./config.js";
+import { environment, resolveAdLibraryConfig } from "../../config.js";
 
 export interface AdLibraryParams {
   keyword?: string;
@@ -361,4 +361,4 @@ export function adsForAdvertiser(
     throw new AdLibraryClientError("invalid_request");
   return searchAdLibrary(params, options);
 }
-export { formatAdLibrary } from "./ad-library-format.js";
+export { formatAdLibrary } from "./format.js";

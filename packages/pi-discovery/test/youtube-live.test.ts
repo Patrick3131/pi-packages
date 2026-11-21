@@ -7,7 +7,7 @@ import {
   getYoutubeVideo,
   searchYoutube,
   YoutubeClientError,
-} from "../src/youtube.js";
+} from "../src/features/youtube/client.js";
 
 test(
   "live YouTube search, channel pages and transcript windows through the Pi client",

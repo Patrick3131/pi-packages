@@ -12,6 +12,9 @@ canonical_for: pi-discovery package conventions
 
 Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata, YouTube and Amazon tools.
 
+Keep each tool family in `src/features/<feature>/`, with Pi registration in
+`tools.ts`. Assemble the extension in `src/index.ts`.
+
 ## Rules
 
 `ad_library_domain_ads`, `social_profile`, `social_profile_posts`,

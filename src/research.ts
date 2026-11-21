@@ -1,9 +1,9 @@
 /** Supported harness-neutral clients. Consumers inject config, cwd and cancellation. */
-export { searchSearxng } from "../packages/pi-discovery/src/search";
+export { searchSearxng } from "../packages/pi-discovery/src/features/web-search/client";
 export type {
   SearxngSearchParams,
   SearxngSearchDetails,
-} from "../packages/pi-discovery/src/types";
+} from "../packages/pi-discovery/src/features/web-search/types";
 export {
   executeCrawl,
   buildDeepCrawlStrategy,
@@ -14,7 +14,7 @@ export type { CrawlReadParams } from "../packages/pi-crawl4ai/src/features/crawl
 export type { CrawlToolParams } from "../packages/pi-crawl4ai/src/features/crawl/types";
 export type { Crawl4AIConfig } from "../packages/pi-crawl4ai/src/config/types";
 
-export { searxngToolDefinition } from "../packages/pi-discovery/src/toolDefinition";
+export { searxngToolDefinition } from "../packages/pi-discovery/src/features/web-search/definitions";
 export { crawlToolDefinition } from "../packages/pi-crawl4ai/src/features/crawl/crawlToolDefinition";
 export { crawlReadToolDefinition } from "../packages/pi-crawl4ai/src/features/crawl/crawlReadToolDefinition";
 
@@ -62,91 +62,91 @@ export {
   askWeb,
   formatWebAnswer,
   WebAnswerClientError,
-} from "../packages/pi-discovery/src/answer.js";
+} from "../packages/pi-discovery/src/features/web-answer/client.js";
 export type {
   WebAnswerParams,
   WebAnswerOptions,
   WebAnswerResult,
   WebAnswerDetails,
   WebAnswerErrorCode,
-} from "../packages/pi-discovery/src/answer.js";
-export { webAnswerToolDefinition } from "../packages/pi-discovery/src/toolDefinition.js";
+} from "../packages/pi-discovery/src/features/web-answer/client.js";
+export { webAnswerToolDefinition } from "../packages/pi-discovery/src/features/web-answer/definitions.js";
 
 export {
   searchAdLibrary,
   adsForAdvertiser,
   formatAdLibrary,
   AdLibraryClientError,
-} from "../packages/pi-discovery/src/ad-library.js";
+} from "../packages/pi-discovery/src/features/ad-library/client.js";
 export type {
   AdLibraryParams,
   AdLibraryOptions,
   AdLibraryResult,
-} from "../packages/pi-discovery/src/ad-library.js";
+} from "../packages/pi-discovery/src/features/ad-library/client.js";
 
 export type {
   AdLibraryAd,
   AdImage,
   AdVideo,
   AdCard,
-} from "../packages/pi-discovery/src/ad-library.js";
+} from "../packages/pi-discovery/src/features/ad-library/client.js";
 
 export {
   getSocialProfile,
   getSocialProfilePosts,
   getSocialPost,
-} from "../packages/pi-discovery/src/social.js";
+} from "../packages/pi-discovery/src/features/social/client.js";
 export {
   formatSocialProfile,
   formatSocialProfilePosts,
   formatSocialPost,
-} from "../packages/pi-discovery/src/social-format.js";
-export { SocialClientError } from "../packages/pi-discovery/src/social-errors.js";
+} from "../packages/pi-discovery/src/features/social/format.js";
+export { SocialClientError } from "../packages/pi-discovery/src/features/social/errors.js";
 export type {
   SocialClientOptions,
   SocialProfileParams,
   SocialProfilePostsParams,
   SocialPostParams,
-} from "../packages/pi-discovery/src/social-types.js";
+} from "../packages/pi-discovery/src/features/social/types.js";
 export {
   socialProfileDefinition,
   socialProfilePostsDefinition,
   socialPostDefinition,
-} from "../packages/pi-discovery/src/social-definitions.js";
+} from "../packages/pi-discovery/src/features/social/definitions.js";
 export {
   adLibraryKeywordDefinition,
   adLibraryDomainDefinition,
-} from "../packages/pi-discovery/src/ad-library-definitions.js";
+} from "../packages/pi-discovery/src/features/ad-library/definitions.js";
 
 export {
   searchYoutube,
   getYoutubeTranscript,
   YoutubeClientError,
-} from "../packages/pi-discovery/src/youtube.js";
+} from "../packages/pi-discovery/src/features/youtube/client.js";
 export {
   formatYoutubeSearch,
   formatYoutubeTranscript,
-} from "../packages/pi-discovery/src/youtube-format.js";
+} from "../packages/pi-discovery/src/features/youtube/format.js";
 export type {
   YoutubeClientOptions,
   YoutubeSearchParams,
   YoutubeTranscriptParams,
-} from "../packages/pi-discovery/src/youtube-types.js";
+} from "../packages/pi-discovery/src/features/youtube/types.js";
 export {
   youtubeSearchDefinition,
   youtubeTranscriptDefinition,
-} from "../packages/pi-discovery/src/youtube-definitions.js";
+} from "../packages/pi-discovery/src/features/youtube/definitions.js";
 
 export {
   newAmazonReleases,
   searchAmazon,
   getAmazonProduct,
   AmazonClientError,
-} from "../packages/pi-discovery/src/amazon.js";
+} from "../packages/pi-discovery/src/features/amazon/client.js";
 export {
   formatAmazonListing,
   formatAmazonProduct,
-} from "../packages/pi-discovery/src/amazon-format.js";
+} from "../packages/pi-discovery/src/features/amazon/format.js";
 export type {
   AmazonListingResponse,
   AmazonProductResponse,
@@ -154,9 +154,9 @@ export type {
   AmazonSearchParams,
   AmazonProductParams,
   AmazonSort,
-} from "../packages/pi-discovery/src/amazon-types.js";
+} from "../packages/pi-discovery/src/features/amazon/types.js";
 export {
   amazonNewReleasesDefinition,
   amazonSearchDefinition,
   amazonProductDefinition,
-} from "../packages/pi-discovery/src/amazon-definitions.js";
+} from "../packages/pi-discovery/src/features/amazon/definitions.js";

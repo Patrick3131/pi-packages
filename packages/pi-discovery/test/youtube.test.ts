@@ -6,7 +6,7 @@ import {
   getYoutubeVideo,
   searchYoutube,
   YoutubeClientError,
-} from "../src/youtube.js";
+} from "../src/features/youtube/client.js";
 import {
   parseYoutubeSearchResponse,
   parseYoutubeChannelResponse,
@@ -17,12 +17,12 @@ import {
   youtubeVideoRequest,
   parseYoutubeVideoResponse,
   transcriptRequestChars,
-} from "../src/youtube-validation.js";
+} from "../src/features/youtube/validation.js";
 import {
   formatYoutubeSearch,
   formatYoutubeTranscript,
-} from "../src/youtube-format.js";
-import { youtubeTranscriptDefinition } from "../src/youtube-tools.js";
+} from "../src/features/youtube/format.js";
+import { youtubeTranscriptDefinition } from "../src/features/youtube/tools.js";
 import {
   channelResponse,
   segmentResponse,
