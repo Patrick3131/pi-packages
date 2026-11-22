@@ -75,6 +75,43 @@ export async function searchLinkedInAds(
   return result;
 }
 
+function keywordExamples(ads: LinkedInAdsResult["ads"]) {
+  const seen = new Set<string>();
+  const examples = [];
+  const remaining = [];
+  for (const ad of ads) {
+    const { page_url, page_id, name } = ad.advertiser;
+    const key = page_url || page_id || name?.trim().toLowerCase();
+    if (!key || seen.has(key)) {
+      remaining.push(ad);
+      continue;
+    }
+    seen.add(key);
+    examples.push(ad);
+    if (examples.length === 5) break;
+  }
+  return examples.concat(remaining).slice(0, 5);
+}
+
+function keywordExcerpt(copy: string, keyword: string) {
+  const lower = copy.toLowerCase();
+  const query = keyword.trim().toLowerCase();
+  let match = lower.indexOf(query);
+  if (match < 0) {
+    const positions = query
+      .split(/\s+/)
+      .map((term) => lower.indexOf(term))
+      .filter((pos) => pos >= 0);
+    if (positions.length) match = Math.min(...positions);
+  }
+  const start = Math.max(0, match - 60);
+  return (
+    (start ? "…" : "") +
+    copy.slice(start, start + 250) +
+    (copy.length > start + 250 ? "…" : "")
+  );
+}
+
 export function formatLinkedInAds(
   result: LinkedInAdsResult,
   showCursor = true,
@@ -117,12 +154,21 @@ export function formatLinkedInAds(
     lines.push(`Truncated: ${result.truncation.join(", ")}.`);
   if (showCursor && result.next_cursor)
     lines.push(`Next cursor: ${result.next_cursor}`);
-  for (const ad of result.ads.slice(0, 5)) {
+  const keyword = params?.keyword;
+  const examples = keyword
+    ? keywordExamples(result.ads)
+    : result.ads.slice(0, 5);
+  if (keyword && examples.length)
+    lines.push("Keyword examples (different advertisers first):");
+  for (const ad of examples) {
     lines.push(
       [
         ad.advertiser.name,
         ad.headline,
-        ad.commentary,
+        keyword && ad.commentary
+          ? keywordExcerpt(ad.commentary, keyword)
+          : ad.commentary,
+        keyword && ad.commentary_truncated ? "[commentary shortened]" : null,
         ad.transparency?.payer,
         ad.transparency?.total_impressions,
         ad.detail_url,

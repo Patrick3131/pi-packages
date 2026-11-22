@@ -82,31 +82,31 @@ test("LinkedIn rejects crossed providers, invalid selectors and mismatched caps"
   );
 });
 
+const ad = {
+  ad_id: "42",
+  creative_type: null,
+  format: null,
+  media_type: null,
+  advertiser: {
+    name: "Example",
+    page_id: null,
+    page_url: null,
+    logo_url: null,
+  },
+  promoted: null,
+  author: null,
+  commentary: "A full ad",
+  commentary_truncated: false,
+  headline: null,
+  cta: null,
+  image: null,
+  video_poster_url: null,
+  carousel: [],
+  destination_url: null,
+  detail_url: "https://www.linkedin.com/ad-library/detail/42",
+  transparency: null,
+};
 test("known ad lookup validates the response ID", async () => {
-  const ad = {
-    ad_id: "42",
-    creative_type: null,
-    format: null,
-    media_type: null,
-    advertiser: {
-      name: "Example",
-      page_id: null,
-      page_url: null,
-      logo_url: null,
-    },
-    promoted: null,
-    author: null,
-    commentary: "A full ad",
-    commentary_truncated: false,
-    headline: null,
-    cta: null,
-    image: null,
-    video_poster_url: null,
-    carousel: [],
-    destination_url: null,
-    detail_url: "https://www.linkedin.com/ad-library/detail/42",
-    transparency: null,
-  };
   const fetch = async () =>
     Response.json({ id: "receipt", provider: "linkedin_ad_library", ad });
   assert.deepEqual(
@@ -117,4 +117,36 @@ test("known ad lookup validates the response ID", async () => {
     getLinkedInAdDetail({ ad_id: "43" }, { fetch }),
     /malformed/,
   );
+});
+
+test("keyword preview shows distinct advertisers and matching copy while preserving the response", () => {
+  const ads = ["A", "A", "A", "B", "C", "D", "E"].map((name, index) => ({
+    ...ad,
+    ad_id: String(index),
+    detail_url: "https://www.linkedin.com/ad-library/detail/" + index,
+    advertiser: { ...ad.advertiser, name },
+    commentary: "x".repeat(500) + " payroll software",
+    commentary_truncated: true,
+  }));
+  const page = { ...result, ads };
+  const preview = formatLinkedInAds(page, false, {
+    keyword: "payroll software",
+  });
+  assert.deepEqual(
+    [...preview.text.matchAll(/detail\/(\d+)/g)].map((m) => m[1]),
+    ["0", "3", "4", "5", "6"],
+  );
+  assert.match(preview.text, /payroll software.*commentary shortened/i);
+  assert.strictEqual(preview.details, page);
+  assert.deepEqual(
+    page.ads.map((a) => a.ad_id),
+    ["0", "1", "2", "3", "4", "5", "6"],
+  );
+  for (const params of [{ page_id: "1" }, { account_owner: "A" }]) {
+    const text = formatLinkedInAds(page, false, params).text;
+    assert.deepEqual(
+      [...text.matchAll(/detail\/(\d+)/g)].map((m) => m[1]),
+      ["0", "1", "2", "3", "4"],
+    );
+  }
 });
