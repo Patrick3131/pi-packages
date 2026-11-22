@@ -100,9 +100,11 @@ export async function postAdLibrary(
   } catch {
     throw new AdLibraryClientError("invalid_request");
   }
+  const serverDefaultMs =
+    path === "/v1/ad-library/linkedin/search" ? 180000 : 120000;
   const timeout = Math.max(
     config.timeoutMs,
-    (body.timeout_ms ?? 120000) + 10000,
+    (body.timeout_ms ?? serverDefaultMs) + 10000,
   );
   const controller = new AbortController();
   let timedOut = false;

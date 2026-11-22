@@ -54,6 +54,29 @@ test("LinkedIn uses its own endpoint and preserves provider receipts", async () 
   assert.match(formatLinkedInAds(output).text, /raised to 24/);
 });
 
+test("Pi waits past the default LinkedIn search deadline and honors explicit budgets", async (t) => {
+  const setTimer = globalThis.setTimeout;
+  const timers: number[] = [];
+  t.mock.method(
+    globalThis,
+    "setTimeout",
+    (callback: () => void, ms: number) => {
+      timers.push(ms);
+      return setTimer(callback, ms);
+    },
+  );
+  const options = {
+    env: { DISCOVERY_AD_LIBRARY_TIMEOUT_MS: "100" },
+    fetch: async () => Response.json(result),
+  };
+  await searchLinkedInAds({ keyword: "cloud", max_ads: 5 }, options);
+  await searchLinkedInAds(
+    { keyword: "cloud", max_ads: 5, timeout_ms: 60000 },
+    options,
+  );
+  assert.deepEqual(timers, [190000, 70000]);
+});
+
 test("LinkedIn rejects crossed providers, invalid selectors and mismatched caps", async () => {
   const fetch = async () => Response.json(result);
   for (const params of [

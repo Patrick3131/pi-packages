@@ -94,7 +94,8 @@ const parameters = Type.Object(
     }),
     timeout_ms: Type.Optional({
       ...fields.timeout_ms,
-      description: "Server time budget in milliseconds (default 120000).",
+      description:
+        "Server time budget in milliseconds. Defaults to 180000 for LinkedIn search and 120000 for other lookups.",
     }),
     cursor: Type.Optional({
       ...fields.cursor,
