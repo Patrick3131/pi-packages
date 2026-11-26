@@ -60,7 +60,11 @@ class SyncTest(unittest.TestCase):
                 self.assertEqual(run.call_args.kwargs["cwd"], agent.resolve())
             self.assertEqual((agent / "auth.json").read_text(), "secret")
             self.assertEqual(list(agent.glob("presets.json.bak.*"))[0].read_text(), "old\n")
-            self.assertEqual(sync.changes(snapshot, agent), [])
+            # Idempotence must not depend on the host's real credential: the
+            # apply window installed the fixture token, and a host shell that
+            # exports CRAWL4AI_API_TOKEN would otherwise show a phantom change.
+            with patch.dict(sync.os.environ, {"CRAWL4AI_API_TOKEN": "fixture-token"}):
+                self.assertEqual(sync.changes(snapshot, agent), [])
             self.assertTrue((agent / "extensions/subagent/worktree-setup.mjs").stat().st_mode & 0o100)
 
     def test_crawl_credentials_are_target_local_redacted_and_private(self):
