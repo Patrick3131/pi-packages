@@ -49,6 +49,8 @@ export interface DeepCrawlConfig {
 export interface CrawlToolParams extends AcquisitionOptions {
   /** Retry a blocked or unusable acquisition for one public URL. */
   fallback?: boolean;
+  /** Sticky server-owned egress lane: true starts one, a handle resumes an earlier lane. */
+  egressSession?: boolean | string;
   bm25Query?: string;
   bm25Threshold?: number;
   includeLinks?: boolean;

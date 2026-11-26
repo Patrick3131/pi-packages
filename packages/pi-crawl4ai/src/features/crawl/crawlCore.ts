@@ -12,6 +12,7 @@ import { abortable, createCrawlDeadline, fetchCrawlApi, redactError } from "./ht
 import { finalizeCrawlEvidence, credentialFreeBaseUrl, resolveOutputDir, saveCrawlResultsDetailed, createCrawlSession, writeCrawlArtifact, urlToFilePath, formatContentForSave, type CrawlManifestRequest, type SaveCrawlOptions } from "./saveOutput";
 import { DEFAULT_PREVIEW_SETTINGS, buildBudgetedToolText, decideReturnMode, slimResultDetails, toFormattedPages, capToolText, capToolTextDetailed, type PreviewSettings } from "./presentation";
 import { filterMarkdownBm25 } from "./bm25";
+import { egressRequest, readEgressReceipt, requestedEgressLane, validateEgressSession, type CrawlEgressReceipt, type CrawlEgressRequest } from "./egressSession";
 
 /** Preflight failures are correctable input errors, never website/provider failures. */
 export class CrawlValidationError extends Error {
@@ -91,6 +92,7 @@ function validateParams(params: CrawlToolParams, config: Crawl4AIConfig): void {
     }
     if (!config.raw.deepseekApiKey) throw new Error("DeepSeek Fetch requires deepseekApiKey or DEEPSEEK_API_KEY");
   }
+  validateEgressSession(params, config);
   validateAcquisitionOptions(params);
   const focused = params.waitForSelector || params.selector || params.excludeSelector || params.extractionSchema;
   if (focused && !config.raw.capabilities?.acquisition) throw new CrawlOperationError("unsupported_capability", "Focused acquisition requires capabilities.acquisition on a compatible operator service");
@@ -183,6 +185,8 @@ export interface CrawlExecutionOptions {
   acquisitionTimeoutMs?: number;
   onCheckpoint?: (result: CrawlExecutionResult, signal: AbortSignal) => Promise<void> | void;
   acquire?: (signal: AbortSignal, acquisitionDeadlineAt: number) => Promise<unknown>;
+  /** Sticky egress lane descriptor for one dispatch group; undefined keeps rotation. */
+  egress?: CrawlEgressRequest;
   onUpdate?: (result: { content: { type: "text"; text: string }[]; details: undefined }) => void;
 }
 export type CrawlExecutionResult = Awaited<ReturnType<typeof executeCrawlBatch>>;
@@ -196,6 +200,11 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
   const startedAt = Date.now();
   try { validateParams(params, config); }
   catch (error) { if (error instanceof CrawlOperationError || error instanceof CrawlValidationError) throw error; throw new CrawlValidationError(error instanceof Error ? error.message : "Invalid crawl parameters"); }
+  // One lane per logical call: later 3-URL chunks keep the handle the service returned.
+  const lane = requestedEgressLane(params.egressSession);
+  let laneHandle = lane?.handle;
+  let laneReceipt: CrawlEgressReceipt | undefined;
+  let laneNotice: string | undefined;
   const workMs = options.acquisitionTimeoutMs ?? Math.min(60000, config.timeout - Math.min(10000, config.timeout * 0.15));
   if (!Number.isFinite(workMs) || workMs <= 0 || workMs >= config.timeout) throw new CrawlValidationError("acquisitionTimeoutMs must be positive and less than config.timeout");
   if (options.deadlineAt !== undefined && !Number.isFinite(options.deadlineAt)) throw new CrawlValidationError("deadlineAt must be a finite absolute timestamp");
@@ -212,10 +221,16 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
     for (const urls of chunks) {
       if (operation.signal.aborted) throw operation.signal.reason;
       if (Date.now() >= acquisitionDeadlineAt) { failure = { code: "timeout", category: "timeout", retryable: false }; break; }
+      if (lane && outputs.length && !laneHandle) {
+        // A second lane would split one logical call across two exits.
+        laneNotice = "egressSession: the service returned no lane handle for the first chunk, so the remaining URLs were not dispatched.";
+        failure = { code: "provider_failure", category: "provider_failure", retryable: false };
+        break;
+      }
       attemptedUrls.push(...urls);
       let output: CrawlExecutionResult;
       try {
-        output = await executeCrawlBatch({ ...params, urls }, config, { ...options, signal: operation.signal, deadlineAt, acquisitionDeadlineAt });
+        output = await executeCrawlBatch({ ...params, urls }, config, { ...options, egress: lane ? egressRequest(lane, laneHandle) : undefined, signal: operation.signal, deadlineAt, acquisitionDeadlineAt });
       } catch (error) {
         if (operation.signal.aborted || options.signal?.aborted || !outputs.length) throw error;
         if (!(error instanceof CrawlOperationError)) throw error;
@@ -223,6 +238,8 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
         break;
       }
       outputs.push(output);
+      laneReceipt = output.details.egressSession ?? laneReceipt;
+      laneHandle = laneReceipt?.handle ?? laneHandle;
       if (operation.signal.aborted) throw operation.signal.reason;
       // Cancellation remains authoritative: callbacks receive the same signal via
       // the owning host and must check it immediately before durable writes.
@@ -233,7 +250,8 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
     const unattemptedUrls = params.urls.slice(attemptedUrls.length);
     const acquisition: CrawlAcquisitionProgress = { attemptedUrls, unattemptedUrls, complete: !failure && !unattemptedUrls.length, failure };
     const first = outputs[0];
-    const joinedText = outputs.map(output => output.content[0].text).join("\n\n") + (failure ? "\nPartial acquisition: remaining work did not complete; accepted saved sources remain available." : "");
+    if (lane && !laneReceipt) laneNotice ??= "egressSession: the service did not echo a lane handle, so this call cannot be resumed on the same lane.";
+    const joinedText = outputs.map(output => output.content[0].text).join("\n\n") + (failure ? "\nPartial acquisition: remaining work did not complete; accepted saved sources remain available." : "") + (laneNotice ? `\n${laneNotice}` : "");
     const aggregateOutput = capToolTextDetailed(joinedText);
     let position = 0;
     const deliveredChunks = outputs.map(output => {
@@ -248,6 +266,7 @@ export async function executeCrawl(params: CrawlToolParams, config: Crawl4AIConf
       ...first,
       content: [{ type: "text" as const, text: aggregateOutput.text }],
       details: { ...first.details,
+        ...(laneReceipt ? { egressSession: laneReceipt } : {}),
         evidence: { version: 1 as const, pages: aggregatePages },
         results: outputs.flatMap(output => output.details.results),
         savedFiles: outputs.flatMap(output => output.details.savedFiles ?? []),
@@ -284,6 +303,7 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
         let pacing: Awaited<ReturnType<typeof applyRequestPacing>>;
         let data: unknown;
         let unsupportedPdfUrls: string[] = [];
+        let egressReceipt: CrawlEgressReceipt | undefined;
         if (deepseek) {
           options.onUpdate?.({ content: [{ type: "text", text: "Waiting for DeepSeek Fetch…" }], details: undefined });
           const acquisition = createCrawlDeadline(Math.max(1, options.acquisitionDeadlineAt - Date.now()), operation.signal);
@@ -303,13 +323,15 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
           unsupportedPdfUrls = !config.raw.capabilities?.acquisition && !options.acquire ? params.urls.filter(url => /\.pdf$/i.test(new URL(url).pathname)) : [];
           const supportedUrls = params.urls.filter(url => !unsupportedPdfUrls.includes(url));
           if (!supportedUrls.length) throw new CrawlOperationError("unsupported_capability", "unsupported_document: PDF extraction requires the document capability on the configured crawl service");
-          const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal, options.acquisitionDeadlineAt) : undefined);
+          const acquire = options.acquire ?? (config.raw.capabilities?.acquisition && !params.deepCrawl ? (signal: AbortSignal) => acquirePages(params, config, signal, options.acquisitionDeadlineAt, options.egress) : undefined);
           const raw = acquire ? undefined : await fetchCrawlApi(config, "/crawl", {
             method: "POST",
             body: JSON.stringify({ urls: supportedUrls, crawler_config: { type: "CrawlerRunConfig", params: crawlerParams } }),
           }, operation.signal);
-          if (acquire) data = await acquire(operation.signal, options.acquisitionDeadlineAt);
-          else try { data = JSON.parse(raw!); } catch { throw new CrawlOperationError("provider_failure", "Malformed crawl4ai JSON response"); }
+          if (acquire) {
+            data = await acquire(operation.signal, options.acquisitionDeadlineAt);
+            egressReceipt = readEgressReceipt(data);
+          } else try { data = JSON.parse(raw!); } catch { throw new CrawlOperationError("provider_failure", "Malformed crawl4ai JSON response"); }
         }
         validateCrawlResponse(data);
         for (const url of unsupportedPdfUrls) data.results.push({ url, success: false, error_message: "unsupported_document: PDF extraction requires the document capability on the configured crawl service" });
@@ -379,7 +401,7 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
         const warnings = pages.filter((page, index) => page.usability === "unusable" && !artifacts[index]?.filter).map(page => `${page.url}: ${(page.usabilityReasons ?? []).join(", ")}`);
         const bm25 = artifacts[0]?.filter;
         const filterSummary = bm25 ? `\nBM25 query=${JSON.stringify(bm25.query)}, matched ${bm25.matchedSectionCount}/${bm25.totalSections} sections, threshold=${bm25.threshold}${bm25.matchedSectionCount === 0 ? " (valid empty selection)" : ""}` : "";
-        const built = buildBudgetedToolText({ pages, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=${egress}${deepseek ? " (DeepSeek Fetch)" : ""}${partial ? " — Partial results (some acquisitions failed or content is unusable)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}${showFallbackHint ? `\n${FALLBACK_HINT}` : ""}` });
+        const built = buildBudgetedToolText({ pages, budget, decision, isDeepCrawl: !!params.deepCrawl, maxDepth: params.deepCrawl?.maxDepth, savedPath: saved?.sessionDir, manifestPath: saved?.manifestPath, savedFiles, executionSummary: `*Execution:* egress=${egress}${egressReceipt ? `, lane=${egressReceipt.handle}` : ""}${deepseek ? " (DeepSeek Fetch)" : ""}${partial ? " — Partial results (some acquisitions failed or content is unusable)" : ""}${warnings.length ? `\nWarning: ${warnings.join("; ")}` : ""}${filterSummary}${showFallbackHint ? `\n${FALLBACK_HINT}` : ""}` });
         const capabilityIndex = data.results.flatMap(result => result.evidence!.views
           .filter(view => ["selected_html", "structured", "before_interaction_html", "interaction_result", "original_document", "document_pages"].includes(view.kind))
           .map(view => `${view.kind}${view.callerScriptInfluenced ? " [caller-script-influenced]" : ""}: ${view.path ?? "not saved"}`)).join("\n");
@@ -410,6 +432,7 @@ async function executeCrawlBatch(params: CrawlToolParams, config: Crawl4AIConfig
             returnMode: built.mode, returnModeReason: decision.reason, truncated: built.pages.some(page => page.truncated) || built.truncated,
             totalOriginalChars: built.totalOriginalChars, totalReturnedChars: built.pages.reduce((sum, page) => sum + (built.mode === "files" ? 0 : page.returnedChars), 0), preview: budget, cleanup: saved?.cleanup,
             ...(params.deepCrawl ? { deepCrawl: { totalPages: data.results.length, maxDepth: params.deepCrawl.maxDepth, maxPages: params.deepCrawl.maxPages ?? DEFAULT_DEEP_MAX_PAGES } } : {}),
+            ...(egressReceipt ? { egressSession: egressReceipt } : {}),
           },
         });
       } catch (error) {

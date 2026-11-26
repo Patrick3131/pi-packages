@@ -118,6 +118,37 @@ Set `deepseekApiKey` in the global crawl config or `DEEPSEEK_API_KEY` in Pi’s 
 
 This sends the URL to DeepSeek and returns Markdown for one page. Use public URLs you can share with DeepSeek. Deep traversal, browser controls, PDF extraction, and HTML/link output require a separate crawl. The tool returns its usual file index or inline preview and identifies DeepSeek in the output and manifest. Use `crawl_read` if you need more of the saved Markdown.
 
+### Sticky egress lanes (`egressSession`)
+
+Server-managed egress rotates the exit address by default. When the operator enables
+session lanes on the service, one call can hold one exit for the length of a
+multi-call flow. There is no client configuration flag: capability is the service's
+server-side setting, and an unenabled service refuses the request instead of silently
+rotating.
+
+```json
+{
+  "urls": ["https://example.com/a", "https://example.com/b", "https://example.com/c", "https://example.com/d"],
+  "egressSession": true
+}
+```
+
+The lane starts **once** per logical call; its opaque handle is reused for every 3-URL
+acquisition chunk, so four URLs (two chunks) still use one lane. The result echoes the
+server receipt as `details.egressSession` (`{handle, fresh, expiresAt}`). Pass that
+handle back on a later call as `"egressSession": "<handle>"` to keep the same exit;
+omitting the field keeps the default rotating egress.
+
+`egressSession` is refused before any request when combined with `deepCrawl` or
+`fallback: true`, and when `capabilities.acquisition` is off. Service refusals stay
+typed and are never retried automatically: `egress_unavailable` (lanes not enabled),
+`egress_unknown_handle` (unknown or expired handle), `egress_lane_cooldown` (lane
+cooling down after failures) and `egress_lane_exhausted` (the per-lane request budget
+is spent, so a bulk sweep can never pin one exit). A chunk that fails after earlier
+chunks were accepted still returns those saved sources with `details.partial=true`,
+and remaining URLs are not dispatched on a second lane when the service returns no
+handle.
+
 ### Fixed presentation limits
 
 | Output | Limit |

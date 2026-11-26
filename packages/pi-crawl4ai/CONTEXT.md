@@ -101,6 +101,8 @@ Static `capabilities.acquisition` opts non-deep crawl into `/acquire` for CSS wa
 
 Cache facts are independent of acquisition timestamps: optional `cachedAt` normalizes the service's `cached_at` (Unix seconds or timestamp string) to ISO time and remains null when unavailable. A cache hit never implies fresh content. The value survives saved manifests and progressive reads.
 
+`egressSession` adds no configuration: it is a call-level lane field on `crawl`. `true` starts one server-owned lane per logical tool call and `egressSession.ts` forwards its opaque handle as `egress: {action:start|keep, handle}` to every 3-URL acquisition chunk; a caller-supplied handle resumes an earlier lane verbatim. The module also echoes the receipt as `details.egressSession` and maps `egress_unavailable`/`egress_unknown_handle`/`egress_lane_cooldown`/`egress_lane_exhausted` to typed, non-retried failures. Deep crawl, `fallback: true` and acquisition-disabled combinations are refused before dispatch, and a later chunk without a returned handle is not dispatched rather than silently starting a second lane.
+
 ## Shared research acquisition lifecycle
 
 The harness-neutral execution options own one absolute remaining deadline and an

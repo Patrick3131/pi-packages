@@ -3,6 +3,7 @@ import type { Crawl4AIConfig } from "../../config";
 import type { CrawlToolParams } from "./types";
 import { executeCrawl, CrawlValidationError, validateCrawlResponse } from "./crawlCore";
 import { CrawlOperationError, fetchCrawlApi, translateCrawlFailure } from "./http";
+import { mapEgressFailure, type CrawlEgressRequest } from "./egressSession";
 
 export interface CardExtractionSchema {
   name: string;
@@ -43,7 +44,7 @@ export class CrawlInteractionError extends Error {
   constructor(message: string, failure?: CrawlOperationError) { super(message); this.name = "CrawlInteractionError"; this.category = failure?.category ?? "transport_failure"; this.serverCode = failure?.serverCode; this.phase = failure?.phase; }
 }
 
-export function acquisitionRequest(params: CrawlToolParams & AcquisitionOptions, timeoutMs: number) {
+export function acquisitionRequest(params: CrawlToolParams & AcquisitionOptions, timeoutMs: number, egress?: CrawlEgressRequest) {
   return {
     urls: params.urls,
     ...(params.waitForSelector ? { waitFor: params.waitForSelector } : {}),
@@ -52,16 +53,28 @@ export function acquisitionRequest(params: CrawlToolParams & AcquisitionOptions,
     ...(params.waitFor !== undefined ? { delayMs: params.waitFor } : {}),
     bypassCache: params.bypassCache ?? false,
     ...(params.extractionSchema ? { extractionSchema: params.extractionSchema } : {}),
+    ...(egress ? { egress } : {}),
     timeoutMs,
   };
 }
 
-export async function acquirePages(params: CrawlToolParams & AcquisitionOptions, config: Crawl4AIConfig, signal: AbortSignal, acquisitionDeadlineAt = Date.now() + Math.min(60000, config.timeout - Math.min(10000, config.timeout * 0.15))): Promise<unknown> {
+export async function acquirePages(params: CrawlToolParams & AcquisitionOptions, config: Crawl4AIConfig, signal: AbortSignal, acquisitionDeadlineAt = Date.now() + Math.min(60000, config.timeout - Math.min(10000, config.timeout * 0.15)), egress?: CrawlEgressRequest): Promise<unknown> {
   const remaining = Math.floor(acquisitionDeadlineAt - Date.now());
   if (remaining < 100) throw new CrawlOperationError("timeout", "Acquisition budget exhausted before dispatch");
-  return parseResponse(await fetchCrawlApi(config, "/acquire", {
-    method: "POST", body: JSON.stringify(acquisitionRequest(params, remaining)),
-  }, signal));
+  try {
+    return parseResponse(await fetchCrawlApi(config, "/acquire", {
+      method: "POST", body: JSON.stringify(acquisitionRequest(params, remaining, egress)),
+    }, signal));
+  } catch (error) {
+    // Lane refusals stay typed even when the service reports them as an HTTP body.
+    throw mapEgressFailure(error) ?? error;
+  }
+}
+
+/** Lane refusals are typed for the caller; other service failures keep their translation. */
+function translateAcquisitionFailure(error: { category?: string; code?: string; retryable?: boolean; phase?: string; operationOutcome?: string }, message: string): CrawlOperationError {
+  const translated = translateCrawlFailure(error, message);
+  return mapEgressFailure(translated) ?? translated;
 }
 
 function parseResponse(raw: string, expectedInteractionUrl?: string): unknown {
@@ -72,7 +85,7 @@ function parseResponse(raw: string, expectedInteractionUrl?: string): unknown {
   if (expectedInteractionUrl && (data.results.length !== 1 || !data.results[0] || typeof data.results[0] !== "object" || data.results[0].url !== expectedInteractionUrl || typeof data.results[0].success !== "boolean" || (!data.results[0].success && (!data.results[0].error || typeof data.results[0].error.code !== "string" || typeof data.results[0].error.message !== "string")))) throw new CrawlInteractionError("Interaction response does not identify exactly one confirmed requested operation; do not automatically replay");
   for (const result of data.results) {
     if (result && typeof result === "object" && result.error && typeof result.error.message === "string") {
-      const translated = translateCrawlFailure(result.error, result.error.message);
+      const translated = translateAcquisitionFailure(result.error, result.error.message);
       result.error = { category: translated.category, code: translated.serverCode ?? translated.code,
         message: translated.message, retryable: translated.retryable,
         ...(translated.phase ? { phase: translated.phase } : {}),
@@ -84,7 +97,7 @@ function parseResponse(raw: string, expectedInteractionUrl?: string): unknown {
     const first = data.results[0].error;
     const message = data.results.map(result => `${result.url}: ${result.error_message ?? "Acquisition failed"}`).join("; ");
     if (first?.operationOutcome === "unconfirmed") throw new CrawlInteractionError(message, translateCrawlFailure(first, message));
-    throw translateCrawlFailure(first ?? {}, message);
+    throw translateAcquisitionFailure(first ?? {}, message);
   }
   // Operator envelopes use all-success; shared crawl core accepts mixed results.
   return { ...data, success: data.results.some(result => result?.success === true) };
