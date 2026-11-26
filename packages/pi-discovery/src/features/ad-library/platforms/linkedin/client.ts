@@ -4,7 +4,7 @@ import {
   postAdLibrary,
   formatAttempts,
   type AdLibraryOptions,
-} from "./transport.js";
+} from "../../transport.js";
 import {
   validCompanyReference,
   detailParameters,
@@ -15,7 +15,7 @@ import {
   linkedinResponse,
   type LinkedInAdsParams,
   type LinkedInAdsResult,
-} from "./linkedin-schema.js";
+} from "./schema.js";
 
 export async function getLinkedInAdDetail(
   params: LinkedInAdDetailParams,

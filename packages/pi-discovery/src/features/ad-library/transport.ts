@@ -88,7 +88,8 @@ export async function postAdLibrary(
   path:
     | "/v1/ad-library/search"
     | "/v1/ad-library/linkedin/search"
-    | "/v1/ad-library/linkedin/detail",
+    | "/v1/ad-library/linkedin/detail"
+    | "/v1/ad-library/google/search",
   body: { timeout_ms?: number },
   options: AdLibraryOptions,
 ): Promise<unknown> {

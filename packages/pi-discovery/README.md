@@ -1,7 +1,7 @@
 # pi-discovery
 
 Direct SearXNG search (`web_search_searxng`), server-owned Luna research
-(`web_answer`), Meta and LinkedIn Ad Libraries, Instagram/TikTok public metadata, YouTube
+(`web_answer`), Meta, LinkedIn and Google Ad Libraries, Instagram/TikTok public metadata, YouTube
 search/channels/transcripts, and Amazon New Releases/search/product detail.
 Search, answer, Ad Library, social and Amazon tools default off; the YouTube
 tools default on. All tools use Pi's native defaultActive policy.
@@ -34,13 +34,15 @@ are removed; update callers to DISCOVERY_WEB_SEARCH_ENABLED.
 ## Ad Library
 
 Use `ad_library` with a required `platform`. For example,
-`{"platform":"meta","domain":"example.com"}` resolves an advertiser and
-`{"platform":"linkedin","account_owner":"Microsoft"}` searches by account name.
-The tool defaults to 10 ads on Meta and 24 on LinkedIn. When the API supplies
-a continuation, pass `next_request` back unchanged. The response keeps the
-original selector, filters and effective request arguments for that next call.
+`{"platform":"meta","domain":"example.com"}` resolves an advertiser,
+`{"platform":"linkedin","account_owner":"Microsoft"}` searches by account
+name and `{"platform":"google","domain":"example.com"}` sweeps Google's
+Ads Transparency Center. The tool defaults to 10 ads on Meta, 24 on LinkedIn
+and 40 on Google. When the API supplies a continuation, pass `next_request`
+back unchanged. The response keeps the original selector, filters and effective
+request arguments for that next call.
 Meta domain lookup is single-pass. Start a page ID search to paginate.
-
+Unlike Meta, a Google domain search continues through its own cursor.
 ### LinkedIn
 
 Enable `ad_library` with `DISCOVERY_AD_LIBRARY_ENABLED=1` or select
@@ -51,6 +53,26 @@ page and disclosed. Pass `next_cursor` with the original selector and filters
 to continue. The structured result retains every returned ad and page receipt.
 Node consumers import `searchLinkedInAds` from `@patrick3131/pi-packages/research`.
 
+### Google
+
+Google Ads Transparency shares the same tool: supply exactly one of `domain`
+(a bare hostname) or `advertiser_id` (an `AR…` id from the Transparency Center).
+`country` accepts an ISO 3166-1 alpha-2 code or `anywhere` (the default);
+`media_type` filters `text`, `image`, `video` or `all` (default). Limits below
+40 are raised to one whole 40-ad page and disclosed through `max_ads_adjustment`.
+Unknown advertisers report zero ads, never 404. `total_ad_count` is Google's
+declared total — advisory only; completion is token-driven, so stop when
+`complete` is true or no `next_request` is supplied.
+
+Ads whose variants carry a preview URL also expose `ad_copy` — `headline`,
+`description`, `display_url` (Google's _visible_ URL, never a click-through
+destination), sitelink `extras` and `truncated` — decoded best-effort from the
+preview overlay. Undecodable overlays surface as the envelope's `copy_unparsed`
+counter: growth without a known cause means overlay drift, not silently missing
+copy. Image ads carry sanitized variant image URLs with dimensions; raw HTML
+and media bytes are never fetched.
+
+Node consumers import `searchGoogleAds` from `@patrick3131/pi-packages/research`.
 ## Model tool
 
 web_answer accepts query (trimmed 1–8000 chars), instructions (max 4000),

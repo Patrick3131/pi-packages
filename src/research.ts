@@ -77,19 +77,19 @@ export {
   adsForAdvertiser,
   formatAdLibrary,
   AdLibraryClientError,
-} from "../packages/pi-discovery/src/features/ad-library/client.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/meta/client.js";
 export type {
   AdLibraryParams,
   AdLibraryOptions,
   AdLibraryResult,
-} from "../packages/pi-discovery/src/features/ad-library/client.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/meta/client.js";
 
 export type {
   AdLibraryAd,
   AdImage,
   AdVideo,
   AdCard,
-} from "../packages/pi-discovery/src/features/ad-library/client.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/meta/client.js";
 
 export {
   getSocialProfile,
@@ -159,17 +159,25 @@ export {
 export type {
   LinkedInAdDetailParams,
   LinkedInAdDetail,
-} from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/linkedin/schema.js";
 export {
   getLinkedInAdDetail,
   searchLinkedInAds,
   formatLinkedInAds,
-} from "../packages/pi-discovery/src/features/ad-library/linkedin.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/linkedin/client.js";
 export type {
   LinkedInAdsParams,
   LinkedInAdsResult,
-} from "../packages/pi-discovery/src/features/ad-library/linkedin-schema.js";
+} from "../packages/pi-discovery/src/features/ad-library/platforms/linkedin/schema.js";
 export {
   adLibraryDefinition,
   type AdLibraryToolParams,
 } from "../packages/pi-discovery/src/features/ad-library/unified.js";
+export {
+  searchGoogleAds,
+  formatGoogleAds,
+} from "../packages/pi-discovery/src/features/ad-library/platforms/google/client.js";
+export type {
+  GoogleAdsParams,
+  GoogleAdsResult,
+} from "../packages/pi-discovery/src/features/ad-library/platforms/google/schema.js";

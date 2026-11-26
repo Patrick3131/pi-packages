@@ -9,12 +9,16 @@ import {
   searchAdLibrary,
   formatAdLibrary,
   AdLibraryClientError,
-} from "./client.js";
+} from "./platforms/meta/client.js";
 import {
   getLinkedInAdDetail,
   searchLinkedInAds,
   formatLinkedInAds,
-} from "./linkedin.js";
+} from "./platforms/linkedin/client.js";
+import {
+  searchGoogleAds,
+  formatGoogleAds,
+} from "./platforms/google/client.js";
 import {
   adLibraryDefinition,
   inputCorrection,
@@ -78,21 +82,31 @@ export async function executeAdLibrary(
         structuredContent: details as unknown as Structured,
       };
     }
+    const defaultCap =
+      platform === "meta" ? 10 : platform === "linkedin" ? 24 : 40;
     const body = {
       ...selectors,
-      max_ads: params.max_ads ?? (platform === "meta" ? 10 : 24),
+      max_ads: params.max_ads ?? defaultCap,
     };
     const formatted =
       platform === "meta"
         ? formatAdLibrary(await searchAdLibrary(body, { signal }), false)
-        : formatLinkedInAds(
-            await searchLinkedInAds(body, { signal }),
-            false,
-            body,
-          );
+        : platform === "linkedin"
+          ? formatLinkedInAds(
+              await searchLinkedInAds(body, { signal }),
+              false,
+              body,
+            )
+          : formatGoogleAds(
+              await searchGoogleAds(body, { signal }),
+              false,
+              body,
+            );
     const response = formatted.details;
     const next =
-      !response.complete && response.next_cursor && !params.domain
+      !response.complete &&
+      response.next_cursor &&
+      (platform === "google" || !params.domain)
         ? { platform, ...body, cursor: response.next_cursor }
         : undefined;
     const details = {

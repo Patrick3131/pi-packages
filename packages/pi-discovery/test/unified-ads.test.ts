@@ -69,6 +69,18 @@ test("registered tool round-trips provider defaults, filters, and opaque cursors
         cap_reason: null,
         transparency: null,
       });
+    if (url.endsWith("/google/search"))
+      return Response.json({
+        ...base,
+        ...pagination,
+        mode: "domain",
+        provider: "google_ads_transparency",
+        country: "anywhere",
+        media_type: body.media_type ?? "all",
+        total_ad_count: null,
+        copy_unparsed: 0,
+        retry_after_s: null,
+      });
     assert.ok(url.endsWith("/v1/ad-library/search"));
     return Response.json({
       ...base,
@@ -88,10 +100,18 @@ test("registered tool round-trips provider defaults, filters, and opaque cursors
       include_details: true,
     },
     { platform: "linkedin", account_owner: "Test", max_ads: 48 },
+    { platform: "google", domain: "thehoopsgeek.com", media_type: "image" },
+    { platform: "google", advertiser_id: "AR17325718069984624641", country: "DE" },
   ];
   for (const args of cases) {
     const first = await call(args);
-    const limit = args.max_ads ?? (args.platform === "meta" ? 10 : 24);
+    const limit =
+      args.max_ads ??
+      (args.platform === "meta"
+        ? 10
+        : args.platform === "linkedin"
+          ? 24
+          : 40);
     const body = requests.at(-1);
     assert.equal(body?.max_ads, limit);
     assert.deepEqual(first.data.next_request, {
@@ -106,6 +126,14 @@ test("registered tool round-trips provider defaults, filters, and opaque cursors
   }
   const domain = await call({ platform: "meta", domain: "example.com" });
   assert.equal(domain.data.next_request, undefined);
+  // Unlike Meta, a Google domain search continues through its cursor.
+  const google = await call({ platform: "google", domain: "example.com" });
+  assert.deepEqual(google.data.next_request, {
+    platform: "google",
+    domain: "example.com",
+    max_ads: 40,
+    cursor: "opaque+token",
+  });
 });
 test("incompatible selectors fail locally with a correction", async (t) => {
   const fetch = t.mock.method(globalThis, "fetch");
@@ -114,12 +142,18 @@ test("incompatible selectors fail locally with a correction", async (t) => {
     { platform: "meta", keyword: "x", include_details: true },
     { platform: "linkedin", domain: "example.com" },
     { platform: "linkedin", payer: "x", end_date: "2026-10-01" },
+    { platform: "google", country: "ALL", domain: "x.com" },
+    { platform: "google", keyword: "x" },
+    { platform: "google", domain: "x.com", advertiser_id: "AR1234567" },
+    { platform: "google", linkedin_url: "x", domain: "x.com" },
+    { platform: "meta", advertiser_id: "AR1234567", keyword: "x" },
+    { platform: "linkedin", media_type: "image", keyword: "x" },
   ] as const) {
     const result = await call(params);
     assert.equal(result.data.status, "error");
     assert.match(
       result.text,
-      /country|account_owner|date_option|LinkedIn-only/,
+      /country|account_owner|date_option|LinkedIn-only|Google|anywhere|advertiser_id|media_type/,
     );
   }
   assert.equal(fetch.mock.callCount(), 0);

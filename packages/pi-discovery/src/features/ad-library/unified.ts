@@ -5,13 +5,17 @@ import {
   detailResponse,
   linkedinResponse,
   validCompanyReference,
-} from "./linkedin-schema.js";
-import { metaResponse } from "./definitions.js";
+} from "./platforms/linkedin/schema.js";
+import { metaResponse } from "./platforms/meta/schema.js";
+import { googleResponse } from "./platforms/google/schema.js";
 
 const fields = linkedinParameters.properties;
-const platform = Type.Union([Type.Literal("meta"), Type.Literal("linkedin")], {
-  description: "Ad library to search.",
-});
+const platform = Type.Union(
+  [Type.Literal("meta"), Type.Literal("linkedin"), Type.Literal("google")],
+  {
+    description: "Ad library to search.",
+  },
+);
 const parameters = Type.Object(
   {
     platform,
@@ -33,7 +37,7 @@ const parameters = Type.Object(
         minLength: 3,
         maxLength: 253,
         description:
-          "Meta only. Advertiser website hostname, e.g. example.com.",
+          "Meta or Google. Advertiser website hostname, e.g. example.com.",
       }),
     ),
     active_only: Type.Optional(
@@ -41,6 +45,31 @@ const parameters = Type.Object(
         description: "Meta only. Limit results to active ads (default true).",
       }),
     ),
+    advertiser_id: Type.Optional(
+      Type.String({
+        minLength: 8,
+        maxLength: 64,
+        pattern: "^AR[0-9]{6,}$",
+        description:
+          "Google only. Advertiser ID from the Ads Transparency Center, e.g. AR17325718069984624641.",
+      }),
+    ),
+    media_type: Type.Optional(
+      Type.Union(
+        [Type.Literal("text"), Type.Literal("image"), Type.Literal("video"), Type.Literal("all")],
+        {
+          description:
+            "Google only. Creative media filter (default all).",
+        },
+      ),
+    ),
+    country: Type.Optional({
+      ...fields.country,
+      pattern:
+        "^([A-Za-z]{2}|[Aa][Ll]{2}|[Aa][Nn][Yy][Ww][Hh][Ee][Rr][Ee])$",
+      description:
+        "Two-letter lookup country (default US). LinkedIn also accepts ALL; Google also accepts anywhere (its default).",
+    }),
     account_owner: Type.Optional({
       ...fields.account_owner,
       description: "LinkedIn only. Advertiser account name, e.g. Microsoft.",
@@ -53,11 +82,6 @@ const parameters = Type.Object(
     payer: Type.Optional({
       ...fields.payer,
       description: "LinkedIn only. Find or filter ads by paying entity.",
-    }),
-    country: Type.Optional({
-      ...fields.country,
-      description:
-        "Two-letter lookup country (default US). LinkedIn also accepts ALL.",
     }),
     date_option: Type.Optional({
       ...fields.date_option,
@@ -90,7 +114,7 @@ const parameters = Type.Object(
     max_ads: Type.Optional({
       ...fields.max_ads,
       description:
-        "Requested maximum, 1–300. Default and minimum effective limit: Meta 10, LinkedIn 24.",
+        "Requested maximum, 1–300. Default and minimum effective limit: Meta 10, LinkedIn 24, Google 40.",
     }),
     timeout_ms: Type.Optional({
       ...fields.timeout_ms,
@@ -111,7 +135,7 @@ export const adLibraryDefinition = {
   name: "ad_library",
   label: "Ad Library",
   description:
-    "Search Meta or LinkedIn ads by keyword or advertiser to find ad copy, creatives, and advertiser details.",
+    "Search Meta, LinkedIn or Google ad libraries by keyword, advertiser or domain to find ad copy, creatives, and advertiser details.",
   parameters,
   outputSchema: Type.Object({
     platform,
@@ -121,7 +145,12 @@ export const adLibraryDefinition = {
       ),
     ),
     response: Type.Optional(
-      Type.Union([metaResponse, linkedinResponse, detailResponse]),
+      Type.Union([
+        metaResponse,
+        linkedinResponse,
+        detailResponse,
+        googleResponse,
+      ]),
     ),
     error: Type.Optional(
       Type.Object({ code: Type.String() }, { additionalProperties: true }),
@@ -142,7 +171,42 @@ export function inputCorrection(p: AdLibraryToolParams): string | undefined {
       return "For one LinkedIn ad, supply platform linkedin and a numeric ad_id. Only timeout_ms is optional.";
     return;
   }
+  if (p.platform === "google") {
+    const foreignField = [
+      "keyword",
+      "page_id",
+      "active_only",
+      "account_owner",
+      "linkedin_url",
+      "payer",
+      "date_option",
+      "start_date",
+      "end_date",
+      "sort",
+      "include_details",
+      "include_transparency",
+    ].find((key) => key in p);
+    if (foreignField)
+      return `${foreignField} is not supported on Google. Use domain or advertiser_id.`;
+    if ([p.domain, p.advertiser_id].filter((v) => v !== undefined).length !== 1)
+      return "For Google, supply exactly one of domain or advertiser_id.";
+    if (p.advertiser_id && !/^AR[0-9]{6,}$/.test(p.advertiser_id))
+      return "Google advertiser_id starts with AR followed by digits, e.g. AR17325718069984624641.";
+    if (p.country?.toUpperCase() === "ALL")
+      return "Use anywhere (the default) or a two-letter country for Google.";
+    if (
+      p.country !== undefined &&
+      !/^(anywhere|[A-Za-z]{2})$/.test(p.country.trim())
+    )
+      return "Google accepts a two-letter country or anywhere.";
+    return;
+  }
   if (p.platform === "meta") {
+    const googleField = ["advertiser_id", "media_type"].find(
+      (key) => key in p,
+    );
+    if (googleField)
+      return `${googleField} is Google-only. For Meta, use keyword, domain or page_id.`;
     const linkedinField = [
       "account_owner",
       "linkedin_url",
@@ -167,6 +231,8 @@ export function inputCorrection(p: AdLibraryToolParams): string | undefined {
       return "Choose a two-letter country for Meta.";
     return;
   }
+  if (p.advertiser_id !== undefined || p.media_type !== undefined)
+    return "advertiser_id and media_type are Google-only. For LinkedIn, use account_owner or linkedin_url.";
   if (p.domain !== undefined || p.active_only !== undefined)
     return "For LinkedIn, use account_owner for an advertiser name or linkedin_url for a company page. domain and active_only are Meta-only.";
   if (

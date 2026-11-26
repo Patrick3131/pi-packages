@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-11-11
+last_verified: 2026-11-26
 applies_to: packages/pi-discovery/**
 inherits_from: ../../AGENTS.md
 canonical_for: pi-discovery package conventions
@@ -13,7 +13,10 @@ canonical_for: pi-discovery package conventions
 Search, server-owned Luna research, Ad Library, Instagram/TikTok metadata, YouTube and Amazon tools.
 
 Keep each tool family in `src/features/<feature>/`, with Pi registration in
-`tools.ts`. Assemble the extension in `src/index.ts`.
+`tools.ts`. Assemble the extension in `src/index.ts`. Multi-platform families
+keep one directory per platform under `platforms/` (`ad-library/platforms/`
+holds `meta/`, `linkedin/` and `google/`, each with `client.ts` and `schema.ts`);
+the shared tool dispatch, unified schema and transport stay at the feature root.
 
 ## Rules
 
@@ -50,6 +53,14 @@ waiting belongs to the total request deadline; execution is separately bounded
 by the service. Do not add client retries or admission predictions.
 
 The LinkedIn client shares the Ad Library gate and transport. Preserve its 24-ad page minimum, opaque cursor, provider identity and nullable transparency fields.
+
+The Google client shares the same gate and transport. Exactly one of `domain`
+or `advertiser_id` selects; `country` is an ISO alpha-2 code or `anywhere`, and
+`media_type` filters creatives. Preserve the 40-ad page minimum disclosed via
+`max_ads_adjustment`, token-driven completion (`total_ad_count` is advisory),
+zero-ads-for-unknown-advertisers, `copy_unparsed` as the overlay-drift tripwire,
+and `ad_copy.display_url` as Google's visible URL, never a click-through
+destination. Unlike Meta, a Google domain search continues through its cursor.
 
 Ad Library defaults off. Its HTTP timeout is max(configured 130000ms floor, server
 budget + 10000ms), supporting 180000ms requests with 190000ms client budgets.

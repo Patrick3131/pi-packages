@@ -4,8 +4,8 @@ import {
   getLinkedInAdDetail,
   searchLinkedInAds,
   formatLinkedInAds,
-} from "../src/features/ad-library/linkedin.js";
-import type { LinkedInAdsResult } from "../src/features/ad-library/linkedin-schema.js";
+} from "../src/features/ad-library/platforms/linkedin/client.js";
+import type { LinkedInAdsResult } from "../src/features/ad-library/platforms/linkedin/schema.js";
 
 const result: LinkedInAdsResult = {
   provider: "linkedin_ad_library",

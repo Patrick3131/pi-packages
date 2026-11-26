@@ -6,7 +6,7 @@ import {
   adsForAdvertiser,
   formatAdLibrary,
   AdLibraryClientError,
-} from "../src/features/ad-library/client.js";
+} from "../src/features/ad-library/platforms/meta/client.js";
 import { resolveAdLibraryConfig, liveEnabled } from "../src/config.js";
 const result = {
   id: "test",

@@ -1,6 +1,6 @@
 ---
 owner: repo-maintainers
-last_verified: 2026-11-11
+last_verified: 2026-11-26
 applies_to: packages/pi-discovery/**
 inherits_from: ../../CONTEXT.md
 canonical_for: pi-discovery architecture
@@ -10,7 +10,10 @@ canonical_for: pi-discovery architecture
 
 The Pi entry point is `src/index.ts`. It registers tools from
 `src/features/{ad-library,amazon,reddit,social,web-answer,web-search,youtube}/tools.ts`.
-Each feature owns its schemas, clients, validation and formatting where applicable.
+Multi-platform families keep one directory per platform (`ad-library/platforms/`
+holds `meta/`, `linkedin/` and `google/`); the shared dispatch, unified schema
+and transport stay at the ad-library feature root. Each feature owns its
+schemas, clients, validation and formatting where applicable.
 Shared environment configuration lives in `src/config.ts`. External adapters
 import reusable Discovery clients and schemas from `@patrick3131/pi-packages/research`.
 
@@ -34,15 +37,24 @@ The shared answer descriptor explains question/instructions, returned-source cap
 
 `ad_library` routes by platform. A Meta search accepts exactly one keyword,
 domain or page_id and defaults to 10 ads. LinkedIn defaults to 24 ads and
-accepts a keyword, company selector, payer or account owner. A valid cursor
+accepts a keyword, company selector, payer or account owner. Google accepts
+exactly one of domain or advertiser_id, defaults to 40 ads (limits below 40
+rise to one whole page, disclosed via `max_ads_adjustment`), filters with
+country (`anywhere` default) and media_type, and — unlike Meta — a domain
+search continues through its cursor; completion is token-driven and
+total_ad_count is advisory. Preview-carrying ads expose best-effort decoded
+`ad_copy` whose `display_url` is Google's visible URL, never a destination;
+undecodable overlays surface as `copy_unparsed`. A valid cursor
 appears in a ready-to-use next_request. The unified tool defaults off;
 enable with `DISCOVERY_AD_LIBRARY_ENABLED=1` or per-project `.pi/tools.json`.
-The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a floor (130000 by default);
-effective timeout includes 10000ms beyond the server budget. No client retries.
-Results expose receipts, resolved-page votes, partial results and truncation.
-Harness-neutral exports: `searchAdLibrary`, `adsForAdvertiser`, `formatAdLibrary`,
-`AdLibraryClientError`. Errors preserve safe server codes and Retry-After;
-caller abort remains AbortError. Live tests opt in with `DISCOVERY_LIVE=1`.
+The configured `DISCOVERY_AD_LIBRARY_TIMEOUT_MS` is a
+floor (130000 by default); effective timeout includes 10000ms beyond the
+server budget. No client retries. Results expose receipts, resolved-page
+votes, partial results and truncation. Harness-neutral exports:
+`searchAdLibrary`, `adsForAdvertiser`, `formatAdLibrary`, `searchLinkedInAds`,
+`searchGoogleAds`, `AdLibraryClientError`. Errors preserve safe server codes
+and Retry-After; caller abort remains AbortError. Live tests opt in with
+`DISCOVERY_LIVE=1`.
 
 Ad Library model-visible output includes landing domains/URLs, page IDs, ad copy
 and supplied image/video/carousel previews. Native outputSchema/structuredContent
