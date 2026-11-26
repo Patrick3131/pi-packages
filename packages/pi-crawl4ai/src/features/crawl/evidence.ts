@@ -30,7 +30,7 @@ function cacheTimestamp(value: unknown): string | null {
 }
 export function pageEvidence(result: CrawlResult, content: string): PageEvidence {
   const reasons: string[] = [];
-  if (!result.success) reasons.push(result.error_message ?? "acquisition_failed");
+  if (!result.success) reasons.push(result.error?.code === "verification_required" ? "verification_required" : result.error_message ?? "acquisition_failed");
   if (result.status_code !== undefined && (result.status_code < 200 || result.status_code >= 400)) reasons.push(`http_${result.status_code}`);
   if (!content.trim()) reasons.push("empty_requested_content");
   const contentType = Object.entries(result.response_headers ?? {}).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? null;

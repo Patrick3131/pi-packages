@@ -1,6 +1,6 @@
 import type { Crawl4AIConfig } from "../../config";
 
-export type CrawlErrorCategory = "validation_error" | "unsupported_capability" | "website_blocked" | "transport_failure" | "provider_failure" | "timeout" | "resource_limit" | "unsupported_document" | "interaction";
+export type CrawlErrorCategory = "validation_error" | "unsupported_capability" | "website_blocked" | "verification_required" | "transport_failure" | "provider_failure" | "timeout" | "resource_limit" | "unsupported_document" | "interaction";
 export type CrawlPhase = "probe" | "queue" | "navigation" | "readiness" | "action" | "derivation" | "response";
 export interface CrawlFailureData { code: string; category: string; retryable: boolean; serverCode?: string; phase?: CrawlPhase; operationOutcome?: "unconfirmed" }
 export class CrawlOperationError extends Error {
@@ -18,7 +18,7 @@ export class CrawlOperationError extends Error {
 export function translateCrawlFailure(error: { category?: string; code?: string; retryable?: boolean; phase?: string; operationOutcome?: string }, message: string): CrawlOperationError {
   const aliases: Record<string, CrawlErrorCategory> = { transport: "transport_failure", website_block: "website_blocked" };
   const category = aliases[error.category ?? ""] ?? error.category;
-  const known = ["validation_error", "unsupported_capability", "website_blocked", "transport_failure", "provider_failure", "timeout", "resource_limit", "unsupported_document", "interaction"];
+  const known = ["validation_error", "unsupported_capability", "website_blocked", "verification_required", "transport_failure", "provider_failure", "timeout", "resource_limit", "unsupported_document", "interaction"];
   const phase = ["probe", "queue", "navigation", "readiness", "action", "derivation", "response"].includes(error.phase ?? "") ? error.phase as CrawlPhase : undefined;
   return new CrawlOperationError(known.includes(category ?? "") ? category as CrawlErrorCategory : "provider_failure", message, undefined, {
     serverCode: typeof error.code === "string" ? error.code.slice(0, 128) : undefined, phase,

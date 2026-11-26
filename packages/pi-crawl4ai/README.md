@@ -110,6 +110,8 @@ Modes: `outline`, `chunks` (optionally ranked by `query`), `window` (1-based `of
 
 ### Retry one page with DeepSeek Fetch
 
+The operator can report `verification_required` when a page is a verification interstitial. Mixed batches retain that page as unusable. The agent chooses whether to retry a public URL.
+
 Set `deepseekApiKey` in the global crawl config or `DEEPSEEK_API_KEY` in Pi’s environment. Call `crawl` normally first. Each regular result reminds the agent it can retry once for the same public URL if acquisition is blocked or returns unusable content. The agent makes that decision.
 
 ```json

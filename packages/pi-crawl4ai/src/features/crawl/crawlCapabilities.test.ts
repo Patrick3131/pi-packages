@@ -132,7 +132,7 @@ it("honors cancellation at a committed checkpoint without another dispatch or ch
 });
 
 it("translates target failure vocabulary and preserves uncertain action diagnostics without replay", async () => {
-  for (const [category, canonical] of [["transport", "transport_failure"], ["website_block", "website_blocked"], ["timeout", "timeout"]]) {
+  for (const [category, canonical] of [["transport", "transport_failure"], ["website_block", "website_blocked"], ["verification_required", "verification_required"], ["timeout", "timeout"]]) {
     const fetchMock = mockFetch({ data: { success: false, results: [{ url, success: false, error: { category, code: "safe_service_code", phase: "probe", message: "Safe diagnostic", retryable: true } }] } });
     await expect(executeCrawl({ urls: [url] }, config(), { cwd })).rejects.toMatchObject({ code: canonical, category: canonical, phase: "probe", serverCode: "safe_service_code", retryable: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -150,4 +150,13 @@ it("keeps mixed operator results partial and bounds/redacts safe diagnostics", a
   expect(result.details.results[1].error).toMatchObject({ category: "timeout", code: "deadline_exceeded", message: "Safe message [redacted]" });
   expect(result.details.results[1].error).not.toHaveProperty("phase");
   expect(JSON.stringify(result)).not.toContain("fixture-token");
+});
+
+it("preserves verification as an unusable page reason in mixed batches", async () => {
+  mockFetch({ data: { success: false, results: [page(), { url: url + "/verify", success: false,
+    error: { category: "verification_required", code: "verification_required", message: "Website requires verification" } }] } });
+  const result = await executeCrawl({ urls: [url, url + "/verify"] }, config(), { cwd });
+  expect(result.details.evidence.pages[1]).toMatchObject({
+    usability: "unusable", reasons: expect.arrayContaining(["verification_required"]),
+  });
 });
